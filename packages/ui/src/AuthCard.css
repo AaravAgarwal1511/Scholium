@@ -11,8 +11,8 @@
 
 .rui-auth-card {
   width: 100%;
-  max-width: 22rem;
-  padding: 2.25rem 2rem 2.5rem;
+  max-width: 28rem;
+  padding: 2.25rem 2.5rem 2.5rem;
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
@@ -128,29 +128,63 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   flex-wrap: wrap;
-  margin-top: -0.25rem;
+  margin-top: 0.25rem;
 }
 
 .rui-auth-link {
   background: none;
   border: none;
-  padding: 0;
+  padding: 0.35rem 0.5rem;
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
+  font-weight: 600;
   color: var(--color-accent-primary);
   cursor: pointer;
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-underline-offset: 3px;
+  border-radius: var(--radius-sm);
+  transition: opacity var(--transition-fast), background-color var(--transition-fast);
 }
 
 .rui-auth-link:hover {
-  opacity: 0.75;
+  opacity: 0.85;
+  background: hsla(220, 70%, 45%, 0.06);
 }
 
 .rui-auth-link-sep {
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   color: var(--color-text-muted);
   user-select: none;
+}
+
+.rui-auth-secondary-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.rui-auth-secondary-btn {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.6rem 0.75rem;
+  background: var(--color-bg-primary);
+  color: var(--color-accent-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.rui-auth-secondary-btn:hover {
+  border-color: var(--color-accent-primary);
+  background: hsla(220, 70%, 45%, 0.06);
+}
+
+.rui-auth-secondary-btn:active {
+  transform: translateY(1px);
 }

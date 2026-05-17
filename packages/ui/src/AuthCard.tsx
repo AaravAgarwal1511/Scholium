@@ -159,15 +159,14 @@ export function AuthCard({ onSignIn, onSignUp, onForgotPassword, hint }: AuthCar
 
         <div className="rui-auth-links">
           {mode === 'signin' ? (
-            <>
-              <button type="button" className="rui-auth-link" onClick={() => switchMode('signup')}>
-                Create an account
+            <div className="rui-auth-secondary-row">
+              <button type="button" className="rui-auth-secondary-btn" onClick={() => switchMode('signup')}>
+                Create Account
               </button>
-              <span className="rui-auth-link-sep">·</span>
-              <button type="button" className="rui-auth-link" onClick={() => switchMode('forgot')}>
-                Forgot password?
+              <button type="button" className="rui-auth-secondary-btn" onClick={() => switchMode('forgot')}>
+                Forgot Password?
               </button>
-            </>
+            </div>
           ) : (
             <button type="button" className="rui-auth-link" onClick={() => switchMode('signin')}>
               ← Back to sign in

@@ -105,6 +105,7 @@
 
 /* Shared button styles — visually aligned with shadcn Button size="sm" */
 .rui-settings-outline-btn,
+.rui-settings-primary-btn,
 .rui-settings-danger-btn {
   display: inline-flex;
   align-items: center;
@@ -122,6 +123,7 @@
 }
 
 .rui-settings-outline-btn:disabled,
+.rui-settings-primary-btn:disabled,
 .rui-settings-danger-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -136,6 +138,16 @@
 .rui-settings-outline-btn:hover:not(:disabled) {
   background: var(--color-bg-secondary);
   border-color: var(--color-accent-primary);
+}
+
+.rui-settings-primary-btn {
+  border: none;
+  background: var(--color-accent-primary);
+  color: #fff;
+}
+
+.rui-settings-primary-btn:hover:not(:disabled) {
+  opacity: 0.9;
 }
 
 .rui-settings-danger-btn {

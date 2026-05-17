@@ -116,6 +116,12 @@ const Settings = () => {
                 variant="danger"
                 action={<Button variant="destructive" size="sm" onClick={handleSignOut}>Log Out</Button>}
             />
+
+            <SettingsCard
+                icon="💬"
+                title="About Language Hub"
+                description="Build and study flashcard decks for any language. Practice with sentence drills and track your progress on built-in dashboards."
+            />
         </SettingsLayout>
     );
 };

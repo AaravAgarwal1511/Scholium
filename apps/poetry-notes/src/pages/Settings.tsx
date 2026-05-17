@@ -108,7 +108,7 @@ export function Settings({ onBack, onSignOut }: SettingsProps) {
             </div>
             {resetError && <p style={{ fontSize: '0.8125rem', color: 'var(--color-accent-destructive)' }}>{resetError}</p>}
             <div>
-              <button type="submit" className="rui-settings-outline-btn" disabled={loading}>
+              <button type="submit" className="rui-settings-primary-btn" disabled={loading}>
                 {loading ? 'Sending…' : 'Send Reset Link'}
               </button>
             </div>
@@ -126,6 +126,12 @@ export function Settings({ onBack, onSignOut }: SettingsProps) {
             Log Out
           </button>
         }
+      />
+
+      <SettingsCard
+        icon="📝"
+        title="About Poetry Notes"
+        description="Capture, annotate, and revisit poetry with a rich-text editor built for close reading."
       />
     </SettingsLayout>
   );

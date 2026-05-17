@@ -143,6 +143,12 @@ export default function Settings() {
           </Button>
         }
       />
+
+      <SettingsCard
+        icon="⚛️"
+        title="About Recall Master"
+        description="Spaced-repetition study sessions across your chapters. Track passes, mistakes, and progress over time."
+      />
     </SettingsLayout>
   );
 }
