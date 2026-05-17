@@ -1,9 +1,10 @@
-import { useAuth } from "@/contexts/AuthContext";
+import { useEffect, useState } from "react";
+import type { AppLink } from "@repo/ui";
+import { supabase } from "@/integrations/supabase/client";
 import Nav from "@/components/Nav";
 import Hero from "@/components/Hero";
 import AppGrid from "@/components/AppGrid";
 import FeaturesSection from "@/components/FeaturesSection";
-import SignUpSection from "@/components/SignUpSection";
 import Footer from "@/components/Footer";
 
 function scrollTo(id: string) {
@@ -11,35 +12,25 @@ function scrollTo(id: string) {
 }
 
 export default function HomePage() {
-  const { user, loadingAuth, signOut } = useAuth();
+  const [apps, setApps] = useState<AppLink[]>([]);
+  const [loadingApps, setLoadingApps] = useState(true);
 
-  if (loadingAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div
-          className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-          style={{ borderColor: "hsl(var(--primary))", borderTopColor: "transparent" }}
-        />
-      </div>
-    );
-  }
+  useEffect(() => {
+    supabase
+      .from("scholium_apps")
+      .select("id, title, url, icon")
+      .order("sort_order")
+      .then(({ data }) => setApps((data ?? []) as AppLink[]))
+      .finally(() => setLoadingApps(false));
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Nav
-        user={user}
-        onSignInClick={() => scrollTo("signup")}
-        onGetStartedClick={() => scrollTo("signup")}
-        onSignOut={signOut}
-      />
+      <Nav />
       <main className="flex-1">
-        <Hero
-          onGetStarted={() => scrollTo("signup")}
-          onExploreTools={() => scrollTo("tools")}
-        />
-        <AppGrid />
+        <Hero onExploreTools={() => scrollTo("tools")} apps={apps} />
+        <AppGrid apps={apps} loading={loadingApps} />
         <FeaturesSection />
-        <SignUpSection user={user} />
       </main>
       <Footer />
     </div>

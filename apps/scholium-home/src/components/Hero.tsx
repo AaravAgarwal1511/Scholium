@@ -1,11 +1,17 @@
 import { ArrowRight, ChevronDown } from "lucide-react";
+import type { AppLink } from "@repo/ui";
 
 interface HeroProps {
-  onGetStarted: () => void;
   onExploreTools: () => void;
+  apps: AppLink[];
 }
 
-export default function Hero({ onGetStarted, onExploreTools }: HeroProps) {
+export default function Hero({ onExploreTools, apps }: HeroProps) {
+  const toolCountLabel =
+    apps.length === 0
+      ? "Free forever"
+      : `${apps.length} ${apps.length === 1 ? "tool" : "tools"} · Free forever`;
+
   return (
     <section className="relative min-h-[calc(100vh-4rem)] flex items-center justify-center overflow-hidden gradient-hero">
       {/* Decorative light orbs */}
@@ -32,7 +38,7 @@ export default function Hero({ onGetStarted, onExploreTools }: HeroProps) {
             animationDelay: "0ms",
           }}
         >
-          Three tools · One account · Free forever
+          {toolCountLabel}
         </div>
 
         <h1
@@ -58,17 +64,16 @@ export default function Hero({ onGetStarted, onExploreTools }: HeroProps) {
             animationDelay: "180ms",
           }}
         >
-          Scholium brings together vocabulary mastery, active recall, and poetry
-          annotation — tools built on how your memory actually works, not on how
-          apps keep you scrolling.
+          Scholium brings together focused learning tools — built on how your
+          memory actually works, not on how apps keep you scrolling.
         </p>
 
         <div
-          className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up"
+          className="flex items-center justify-center animate-fade-in-up"
           style={{ animationDelay: "260ms" }}
         >
           <button
-            onClick={onGetStarted}
+            onClick={onExploreTools}
             className="inline-flex items-center gap-2 px-8 py-3.5 text-base font-semibold rounded-xl transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
             style={{
               background: "rgba(255,255,255,0.92)",
@@ -79,49 +84,32 @@ export default function Hero({ onGetStarted, onExploreTools }: HeroProps) {
               boxShadow: "0 4px 24px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.8)",
             }}
           >
-            Start for Free
-            <ArrowRight size={16} />
-          </button>
-
-          <button
-            onClick={onExploreTools}
-            className="inline-flex items-center gap-2 px-8 py-3.5 text-base font-semibold rounded-xl transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
-            style={{
-              background: "rgba(255,255,255,0.12)",
-              color: "white",
-              border: "1px solid rgba(255,255,255,0.35)",
-              backdropFilter: "blur(16px)",
-              WebkitBackdropFilter: "blur(16px)",
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15)",
-            }}
-          >
             Explore the Tools
+            <ArrowRight size={16} />
           </button>
         </div>
 
         {/* App preview chips */}
-        <div
-          className="flex items-center justify-center gap-3 mt-10 flex-wrap animate-fade-in"
-          style={{ animationDelay: "360ms" }}
-        >
-          {[
-            { icon: "🗣️", label: "Language Flash Hub" },
-            { icon: "⚛️", label: "Recall Master" },
-            { icon: "📝", label: "Poetry Notes" },
-          ].map(({ icon, label }) => (
-            <span
-              key={label}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
-              style={{
-                background: "rgba(255,255,255,0.10)",
-                color: "rgba(255,255,255,0.80)",
-                border: "1px solid rgba(255,255,255,0.18)",
-              }}
-            >
-              {icon} {label}
-            </span>
-          ))}
-        </div>
+        {apps.length > 0 && (
+          <div
+            className="flex items-center justify-center gap-3 mt-10 flex-wrap animate-fade-in"
+            style={{ animationDelay: "360ms" }}
+          >
+            {apps.map((app) => (
+              <span
+                key={app.id}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
+                style={{
+                  background: "rgba(255,255,255,0.10)",
+                  color: "rgba(255,255,255,0.80)",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                }}
+              >
+                {app.icon ? <span>{app.icon}</span> : null} {app.title}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Scroll hint */}

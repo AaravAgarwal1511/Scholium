@@ -1,21 +1,12 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import type { AppLink } from "@repo/ui";
 import AppCard from "./AppCard";
 
-export default function AppGrid() {
-  const [apps, setApps] = useState<AppLink[]>([]);
-  const [loading, setLoading] = useState(true);
+interface AppGridProps {
+  apps: AppLink[];
+  loading: boolean;
+}
 
-  useEffect(() => {
-    supabase
-      .from("scholium_apps")
-      .select("id, title, url, icon")
-      .order("sort_order")
-      .then(({ data }) => setApps((data ?? []) as AppLink[]))
-      .finally(() => setLoading(false));
-  }, []);
-
+export default function AppGrid({ apps, loading }: AppGridProps) {
   return (
     <section id="tools" className="py-24 bg-background">
       <div className="container mx-auto px-4 sm:px-6">
@@ -28,7 +19,7 @@ export default function AppGrid() {
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto leading-relaxed">
             Purpose-built tools for different kinds of learning. Use one, or
-            all three with the same account.
+            all together with the same account.
           </p>
         </div>
 
