@@ -57,6 +57,8 @@ export type Database = {
           section_name: string
           name: string
           sort_order: number
+          section_sort_order: number
+          subject_sort_order: number
           created_at: string
         }
         Insert: {
@@ -68,6 +70,8 @@ export type Database = {
           section_name: string
           name: string
           sort_order?: number
+          section_sort_order?: number
+          subject_sort_order?: number
           created_at?: string
         }
         Update: {
@@ -79,6 +83,8 @@ export type Database = {
           section_name?: string
           name?: string
           sort_order?: number
+          section_sort_order?: number
+          subject_sort_order?: number
           created_at?: string
         }
         Relationships: []

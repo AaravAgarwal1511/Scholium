@@ -13,7 +13,8 @@ export function useSubjects() {
       const [chaptersRes, disabledRes] = await Promise.all([
         supabase
           .from("recall_chapters")
-          .select("id, subject_id, subject_name, subject_emoji, section_id, section_name, name, sort_order, section_sort_order")
+          .select("id, subject_id, subject_name, subject_emoji, section_id, section_name, name, sort_order, section_sort_order, subject_sort_order")
+          .order("subject_sort_order", { ascending: true })
           .order("section_sort_order", { ascending: true })
           .order("sort_order", { ascending: true }),
         supabase
@@ -37,6 +38,7 @@ export function useSubjects() {
         name: string;
         sort_order: number;
         section_sort_order: number;
+        subject_sort_order: number;
       }[];
 
       // Filter disabled subjects/sections
