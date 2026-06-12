@@ -33,6 +33,80 @@
   .bg-paper         { background-color: hsl(var(--card)); }
 }
 
+/* ── Scroll-triggered reveal (paired with useReveal) ──────────────────────
+ * Element starts shifted + faded; .is-visible (set when it enters the
+ * viewport) animates it home. Transform/opacity only — no layout shift. */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.6s var(--ease-out-paper),
+    transform 0.6s var(--ease-out-paper);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+/* Stagger children of a revealed container. */
+.reveal.is-visible > [data-reveal-child] {
+  animation: rui-rise 0.55s var(--ease-out-paper) both;
+}
+.reveal.is-visible > [data-reveal-child]:nth-child(1) { animation-delay: 0.04s; }
+.reveal.is-visible > [data-reveal-child]:nth-child(2) { animation-delay: 0.12s; }
+.reveal.is-visible > [data-reveal-child]:nth-child(3) { animation-delay: 0.20s; }
+.reveal.is-visible > [data-reveal-child]:nth-child(4) { animation-delay: 0.28s; }
+
+/* ── Shared CTA buttons (hero + closing band share one visual system) ───── */
+.sch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+.sch-btn:active { transform: scale(0.97); }
+
+.sch-btn--primary {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border: 1px solid hsl(var(--primary));
+  box-shadow: var(--shadow-accent);
+}
+.sch-btn--primary:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-hover);
+}
+.sch-btn--primary:active { transform: scale(0.97); }
+
+.sch-btn--ghost {
+  background: transparent;
+  color: hsl(var(--foreground));
+  border: 1px solid var(--color-border);
+}
+.sch-btn--ghost:hover {
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary));
+}
+
+/* ── Visible keyboard focus, applied to interactive landing elements ────── */
+.sch-focus:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 /* Persona-based primary colour overrides (scoped to scholium-home).
  * Teacher → emerald green. Parent → rose pink. Set on documentElement
  * by HomePage when a persona button is active. */

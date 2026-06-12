@@ -37,7 +37,7 @@ export default function PersonaSelector({ selected, onSelect, dismissing }: Pers
               type="button"
               onClick={() => onSelect(isActive ? null : id)}
               aria-pressed={isActive}
-              className="inline-flex items-center gap-3 px-7 py-5 rounded-[var(--radius-sm)] text-lg font-semibold transition-all justify-center w-full"
+              className="sch-focus inline-flex items-center gap-3 px-7 py-5 rounded-[var(--radius-sm)] text-lg font-semibold transition-all justify-center w-full"
                 style={
                   isActive
                     ? {

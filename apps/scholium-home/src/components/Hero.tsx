@@ -1,10 +1,11 @@
-import { ChevronDown } from "lucide-react";
+import { ArrowRight, ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
 import type { AppLink } from "@repo/ui";
 import type { Persona } from "./PersonaSelector";
 
 interface HeroProps {
   onScrollToAbout: () => void;
+  onExploreTools: () => void;
   apps: AppLink[];
   persona: Persona | null;
   personaSelector?: ReactNode;
@@ -56,7 +57,13 @@ function getHeroCopy(persona: Persona | null): HeroCopy {
   };
 }
 
-export default function Hero({ onScrollToAbout, persona, personaSelector, onChangePersona }: HeroProps) {
+export default function Hero({
+  onScrollToAbout,
+  onExploreTools,
+  persona,
+  personaSelector,
+  onChangePersona,
+}: HeroProps) {
   const copy = getHeroCopy(persona);
 
   return (
@@ -74,7 +81,7 @@ export default function Hero({ onScrollToAbout, persona, personaSelector, onChan
         <button
           type="button"
           onClick={onChangePersona}
-          className="absolute top-6 right-6 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all"
+          className="sch-focus absolute top-6 right-6 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all"
           style={{
             background: "transparent",
             color: "hsl(var(--muted-foreground))",
@@ -123,6 +130,22 @@ export default function Hero({ onScrollToAbout, persona, personaSelector, onChan
           >
             {copy.subheadline}
           </p>
+
+          {/* Primary conversion path — one strong CTA + one secondary action. */}
+          <div
+            className={`mt-9 flex flex-col sm:flex-row gap-3 ${
+              personaSelector ? "items-stretch sm:items-center" : "items-stretch sm:items-center sm:justify-center"
+            }`}
+            style={{ animation: "rui-rise 0.6s var(--ease-out-paper) 0.3s both" }}
+          >
+            <a href="/signup" className="sch-btn sch-btn--primary sch-focus">
+              Create free account
+              <ArrowRight size={18} aria-hidden />
+            </a>
+            <button type="button" onClick={onExploreTools} className="sch-btn sch-btn--ghost sch-focus">
+              Explore the tools
+            </button>
+          </div>
         </div>
 
         {/* Persona selector — rendered to the right on desktop */}
@@ -138,8 +161,8 @@ export default function Hero({ onScrollToAbout, persona, personaSelector, onChan
 
       <button
         onClick={onScrollToAbout}
-        className="absolute bottom-6 left-1/2 -translate-x-1/2 text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100 transition-opacity"
-        aria-label="Scroll to what is Scholium"
+        className="sch-focus absolute bottom-6 left-1/2 -translate-x-1/2 text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100 transition-opacity"
+        aria-label="Scroll to why Scholium"
       >
         <ChevronDown size={22} className="animate-bounce" style={{ animationDuration: "2.5s" }} />
       </button>

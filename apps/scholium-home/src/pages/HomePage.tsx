@@ -4,10 +4,11 @@ import type { AppLink } from "@repo/ui";
 import Hero from "@/components/Hero";
 import PersonaSelector from "@/components/PersonaSelector";
 import type { Persona } from "@/components/PersonaSelector";
-import WhatIsScholium from "@/components/WhatIsScholium";
+import TrustStrip from "@/components/TrustStrip";
 import SubjectPicker from "@/components/SubjectPicker";
 import AppGrid from "@/components/AppGrid";
 import FeaturesSection from "@/components/FeaturesSection";
+import ClosingCTA from "@/components/ClosingCTA";
 import Footer from "@/components/Footer";
 
 function scrollTo(id: string) {
@@ -114,7 +115,8 @@ export default function HomePage({ apps, loadingApps }: HomePageProps) {
     <div className="min-h-screen flex flex-col">
       <main className="flex-1">
         <Hero
-          onScrollToAbout={() => scrollTo("what-is")}
+          onScrollToAbout={() => scrollTo("why")}
+          onExploreTools={() => scrollTo("tools")}
           apps={apps}
           persona={persona}
           onChangePersona={persona ? handleChangePersona : undefined}
@@ -128,7 +130,7 @@ export default function HomePage({ apps, loadingApps }: HomePageProps) {
             ) : undefined
           }
         />
-        <WhatIsScholium persona={persona} />
+        <TrustStrip />
         <FeaturesSection persona={persona} />
         <SubjectPicker apps={apps} onPick={handleSubjectPick} />
         <AppGrid
@@ -137,6 +139,7 @@ export default function HomePage({ apps, loadingApps }: HomePageProps) {
           highlightedAppId={highlightedAppId}
           subject={subjectFilter?.subject ?? null}
         />
+        <ClosingCTA />
       </main>
       <Footer apps={apps} />
     </div>

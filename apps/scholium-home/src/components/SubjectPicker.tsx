@@ -113,7 +113,7 @@ export default function SubjectPicker({ apps, onPick }: SubjectPickerProps) {
                 <button
                   type="button"
                   onClick={() => onPick(entry.subject, entry.appIds)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all"
+                  className="sch-focus inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all"
                   style={{
                     background: "hsl(var(--primary) / 0.08)",
                     color: "hsl(var(--primary))",

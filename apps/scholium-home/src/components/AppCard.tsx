@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Sparkles } from "lucide-react";
 
 const APP_META: Record<
   string,
@@ -147,7 +147,7 @@ export default function AppCard({
       target="_blank"
       rel="noopener noreferrer"
       data-app-id={id}
-      className={`group relative flex flex-col ${rowDirection} bg-paper rounded-[var(--radius-lg)] border border-[color:var(--color-border)] overflow-hidden transition-all duration-500`}
+      className={`sch-focus group relative flex flex-col ${rowDirection} bg-paper rounded-[var(--radius-lg)] border border-[color:var(--color-border)] overflow-hidden transition-all duration-500`}
       style={highlightStyle}
       onMouseEnter={(e) => {
         if (highlighted) return;
@@ -172,7 +172,7 @@ export default function AppCard({
             color: accent,
           }}
         >
-          {icon ?? "✦"}
+          {icon ? icon : <Sparkles size={22} strokeWidth={2} aria-hidden />}
         </div>
 
         <h3
