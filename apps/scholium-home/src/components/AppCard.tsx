@@ -283,8 +283,7 @@ export default function AppCard({
             alt={`${title} screenshot`}
             loading="lazy"
             onError={() => setImageFailed(true)}
-            className="w-full h-full object-cover object-center"
-            style={{ minHeight: "560px" }}
+            className="w-full h-auto md:h-full object-cover object-top md:object-center md:min-h-[560px]"
           />
         </div>
       )}
