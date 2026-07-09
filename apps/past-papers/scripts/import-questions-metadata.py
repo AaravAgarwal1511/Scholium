@@ -9,8 +9,11 @@ Usage:
     python3 scripts/import-questions-metadata.py <csv_path> <subject>
 
 Expected CSV columns:
-  ID, Chapter, Sub-topic, Paper (Month-Year-TZ), Question Number,
-  Y-coordinate start, Y-coordinate end, MS Y-Start, MS Y-End
+  ID, Chapter, Sub-topic, Paper (Month-Year-TZ), Question Number
+
+The CSV's Y-coordinate columns, if present, are ignored: crop geometry lives in
+_source/<subject>/Paper <n>/_questions.json in R2, which is what the PDF composer
+reads.
 """
 import csv, json, os, sys, urllib.request, urllib.error
 
@@ -35,12 +38,33 @@ CHAPTER_NUM = {
         "Calculus – Integration": 15,
         "Kinematics": 16,
     },
+    "0607": {
+        "Number": 1,
+        "Operations with Numbers": 2,
+        "Using Number": 3,
+        "Angles and Bearings": 4,
+        "Triangles, Quadrilaterals and Polygons": 5,
+        "Indices, Standard Forms and Surds": 6,
+        "Introduction to Algebra": 7,
+        "Simultaneous Linear Equations": 8,
+        "Symmetry, Congruency and Similarity": 9,
+        "Pythagoras' Theorem": 10,
+        "Coordinate Geometry": 11,
+        "Mensuration": 12,
+        "Quadratic Expressions": 13,
+        "Functions 1": 14,
+        "Trigonometry": 15,
+        "Circle Properties": 16,
+        "Vectors and Transformations": 17,
+        "Sets": 18,
+        "Descriptive Statistics": 19,
+        "Cumulative Frequency Graphs and Linear Regression": 20,
+        "Probability": 21,
+        "Sequences": 22,
+        "Functions 2": 23,
+        "Unclassified": 24,
+    },
 }
-
-
-def num(v):
-    v = (v or "").strip()
-    return None if v == "" else float(v)
 
 
 def main():
@@ -70,10 +94,6 @@ def main():
                 "chapter_name": ch,
                 "chapter_num": chmap[ch],
                 "sub_topic": r["Sub-topic"].strip(),
-                "y_start": num(r["Y-coordinate start"]),
-                "y_end": num(r["Y-coordinate end"]),
-                "ms_y_start": num(r["MS Y-Start"]),
-                "ms_y_end": num(r["MS Y-End"]),
             })
 
     if unmapped:

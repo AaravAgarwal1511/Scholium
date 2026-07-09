@@ -323,7 +323,7 @@ export async function composePdf(questionIds, includeMarkScheme = true, subject,
 
   const { data: rows, error } = await supabase
     .from('questions_metadata')
-    .select('id, paper, question_number, y_start, y_end, ms_y_start, ms_y_end')
+    .select('id, paper, question_number')
     .eq('subject', subject)
     .in('id', questionIds);
   if (error) throw new Error(`Supabase fetch failed: ${error.message}`);
@@ -341,10 +341,6 @@ export async function composePdf(questionIds, includeMarkScheme = true, subject,
       paperNum: parsePaperNum(id),
       qNum: row.question_number,
       paper: row.paper,
-      yStart: row.y_start,
-      yEnd: row.y_end,
-      msYStart: row.ms_y_start,
-      msYEnd: row.ms_y_end,
     });
   }
   if (items.length === 0) throw new Error('No valid items to compose');
@@ -359,10 +355,19 @@ export async function composePdf(questionIds, includeMarkScheme = true, subject,
   layout.sectionHeader('Questions');
   await renderSection(layout, cache, items, 'questions', loader);
 
-  // Section 2 — Mark Scheme (only items with MS coords)
+  // Section 2 — Mark Scheme (only questions the mark-scheme index actually covers)
   let msCount = 0;
   if (includeMarkScheme) {
-    const msItems = items.filter((it) => it.msYStart != null && it.msYEnd != null);
+    // loadIndex memoizes into `cache.indexes` under the same keys renderSection
+    // uses, so preloading here costs no extra I/O.
+    const msIdxByPaper = new Map();
+    for (const paperNum of new Set(items.map((it) => it.paperNum))) {
+      msIdxByPaper.set(paperNum, await loadIndex(cache, loader, paperNum, 'mark_schemes'));
+    }
+    const msItems = items.filter((it) => {
+      const entry = msIdxByPaper.get(it.paperNum).get(makeStem(it.paper, it.paperNum));
+      return entry ? entry.byQ.has(it.qNum) : false;
+    });
     if (msItems.length > 0) {
       layout.sectionHeader('Mark Scheme');
       await renderSection(layout, cache, msItems, 'mark_schemes', loader);

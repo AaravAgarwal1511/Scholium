@@ -44,18 +44,10 @@ async function distinctColumn(
 
 export type PaperType = "QP" | "MS";
 
+// The browser only ever needs the id — /api/compose-paper re-fetches everything
+// else server-side, and the crop geometry lives in the R2 index files.
 export interface Question {
   id: string;
-  subject: string;
-  paper: string;
-  question_number: number;
-  chapter_name: string;
-  chapter_num: number;
-  sub_topic: string;
-  y_start: number;
-  y_end: number;
-  ms_y_start: number | null;
-  ms_y_end: number | null;
 }
 
 export interface PaperFile {
@@ -198,7 +190,7 @@ export async function getQuestionsByChapter(
 ): Promise<Question[]> {
   const { data, error } = await supabase
     .from("questions_metadata")
-    .select("*")
+    .select("id")
     .eq("subject", subject)
     .eq("chapter_num", chapter)
     .like("id", `P${paperNum}-%`)
@@ -206,18 +198,6 @@ export async function getQuestionsByChapter(
 
   if (error) throw error;
   return (data ?? []) as Question[];
-}
-
-export async function getChapterName(chapter: number): Promise<string | null> {
-  const { data, error } = await supabase
-    .from("questions_metadata")
-    .select("chapter_name")
-    .eq("chapter_num", chapter)
-    .limit(1)
-    .single();
-
-  if (error) return null;
-  return data?.chapter_name ?? null;
 }
 
 interface GeneratePaperOptions {
