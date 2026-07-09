@@ -1,0 +1,13 @@
+id,subject,paper,stem,question_number,chapter_num,chapter_name,db_y_start,db_y_end,db_ms_y_start,db_ms_y_end,json_y_start,json_y_end
+P4-Q005,0607,November-2020-1,November2020-41,2,1,Number,61.54,720,247.1,448.7,64.63,720.0
+P4-Q189,0607,November-2020-1,November2020-41,12,7,Introduction to Algebra,61.54,720,94.58,720,64.63,720.0
+P4-Q219,0607,November-2020-1,November2020-41,3,8,Simultaneous Linear Equations,61.54,720,448.7,720,64.63,720.0
+P4-Q324,0607,November-2020-1,November2020-41,8,12,Mensuration,61.36,720,693.92,720,64.45,720.0
+P4-Q325,0607,November-2020-1,November2020-41,9,12,Mensuration,61.36,720,216.44,498.68,64.45,720.0
+P4-Q512,0607,November-2020-1,November2020-41,10,15,Trigonometry,61.36,720,498.68,720,64.45,720.0
+P4-Q549,0607,November-2020-1,November2020-41,5,16,Circle Properties,61.36,720,714.92,720,64.45,720.0
+P4-Q613,0607,November-2020-1,November2020-41,4,17,Vectors and Transformations,61.36,720,457.7,714.92,64.45,720.0
+P4-Q761,0607,November-2020-1,November2020-41,1,20,Cumulative Frequency Graphs and Linear Regression,86.3,720,94.59,247.1,90.64,720.0
+P4-Q815,0607,November-2020-1,November2020-41,11,21,Probability,61.54,720,294.26,720,64.63,720.0
+P4-Q856,0607,November-2020-1,November2020-41,6,22,Sequences,61.55,720,205.04,370.28,64.65,720.0
+P4-Q922,0607,November-2020-1,November2020-41,7,23,Functions 2,61.36,720,370.28,693.92,64.45,720.0
