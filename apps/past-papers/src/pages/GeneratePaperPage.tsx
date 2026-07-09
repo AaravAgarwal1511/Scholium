@@ -10,6 +10,7 @@ import {
   listChapters,
   getQuestionsByChapter,
   generatePaper,
+  paperNumOf,
   subjectDisplayName,
 } from "@/lib/papers";
 
@@ -18,12 +19,6 @@ type SelectionMap = {
 };
 
 type ChapterInfo = { number: number; name: string; ids: string[] };
-
-// Component label "Paper 2" -> 2 (matches the P<n>- prefix on question ids).
-function paperNumOf(component: string): number {
-  const m = component.match(/(\d+)/);
-  return m ? parseInt(m[1], 10) : 0;
-}
 
 export default function GeneratePaperPage() {
   const navigate = useNavigate();

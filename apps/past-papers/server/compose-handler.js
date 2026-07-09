@@ -33,13 +33,8 @@ export async function handleCompose(body, loaderFactory) {
 
   try {
     const loader = loaderFactory(subject);
-    const { pdfBase64, metadata } = await composePdf(
-      orderedIds,
-      includeMarkScheme,
-      subject,
-      loader,
-    );
-    return { status: 200, body: { pdfBase64, metadata } };
+    const { bytes, metadata } = await composePdf(orderedIds, subject, loader, { includeMarkScheme });
+    return { status: 200, body: { pdfBase64: Buffer.from(bytes).toString('base64'), metadata } };
   } catch (error) {
     console.error('PDF composition error:', error);
     return {

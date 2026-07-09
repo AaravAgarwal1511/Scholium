@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { createClient } from '@supabase/supabase-js';
+import { fetchRowsByIds } from './supabase-rows.js';
 
 // Lazily create the Supabase client so merely importing this module never throws
 // (env is present at runtime in both the dev server and the serverless function).
@@ -88,6 +89,11 @@ const MONTH_ORDER = { March: 0, June: 1, November: 2 };
 function paperSortKey(meta) {
   return [meta.year, MONTH_ORDER[meta.month] ?? 99, meta.timezone];
 }
+
+// "oldest" → June 2014 first (how the prebuilt topical PDFs are ordered).
+// "newest" → November 2025 first. Only the paper sections flip; question
+// numbers within one exam always ascend.
+export const PAPER_ORDERS = ['oldest', 'newest'];
 
 // Crop spec computation — mirrors `_page_specs` in _build_topicals.py.
 // Returns [{page, yTop, yBot}] in TOP-origin coordinates (PDF points from top).
@@ -241,7 +247,7 @@ class PageLayout {
   }
 }
 
-async function renderSection(layout, cache, items, kind, loader) {
+async function renderSection(layout, cache, items, kind, loader, order) {
   // Group by (paperNum, stem).
   const grouped = new Map();
   for (const it of items) {
@@ -277,12 +283,13 @@ async function renderSection(layout, cache, items, kind, loader) {
     });
   }
 
-  // Order paper sections by (year, month, timezone) — matches Phase 3.
+  // Order paper sections by (year, month, timezone) — ascending matches Phase 3.
+  const direction = order === 'newest' ? -1 : 1;
   sections.sort((a, b) => {
     const ka = paperSortKey(a.entry.meta);
     const kb = paperSortKey(b.entry.meta);
     for (let i = 0; i < 3; i++) {
-      if (ka[i] !== kb[i]) return ka[i] - kb[i];
+      if (ka[i] !== kb[i]) return direction * (ka[i] - kb[i]);
     }
     return 0;
   });
@@ -314,20 +321,42 @@ async function renderSection(layout, cache, items, kind, loader) {
   }
 }
 
-export async function composePdf(questionIds, includeMarkScheme = true, subject, loader) {
+// options:
+//   includeMarkScheme — append a Mark Scheme section after the questions
+//   markSchemeOnly    — emit *only* the Mark Scheme section (chapter "MS" download)
+//   order             — "oldest" | "newest" (see PAPER_ORDERS)
+export async function composePdf(questionIds, subject, loader, options = {}) {
+  const { includeMarkScheme = true, markSchemeOnly = false, order = 'oldest' } = options;
+
   if (!subject) throw new Error('composePdf requires a subject');
   if (!loader) throw new Error('composePdf requires a loader');
-  console.log(`📦 Composing PDF for ${questionIds.length} questions (subject=${subject}, MS=${includeMarkScheme})`);
+  if (!PAPER_ORDERS.includes(order)) {
+    throw new Error(`Invalid order "${order}" (expected ${PAPER_ORDERS.join(' or ')})`);
+  }
+  console.log(
+    `📦 Composing PDF for ${questionIds.length} questions ` +
+      `(subject=${subject}, MS=${includeMarkScheme}, msOnly=${markSchemeOnly}, order=${order})`,
+  );
 
   const supabase = getSupabase();
 
-  const { data: rows, error } = await supabase
-    .from('questions_metadata')
-    .select('id, paper, question_number')
-    .eq('subject', subject)
-    .in('id', questionIds);
-  if (error) throw new Error(`Supabase fetch failed: ${error.message}`);
-  if (!rows || rows.length === 0) throw new Error('No metadata found for selected questions');
+  // Chunked: a single `.in()` over every question of a paper (~1200 ids) comes
+  // back truncated at 1000 rows, silently dropping questions from the PDF.
+  let rows;
+  try {
+    rows = await fetchRowsByIds(
+      (ids) =>
+        supabase
+          .from('questions_metadata')
+          .select('id, paper, question_number')
+          .eq('subject', subject)
+          .in('id', ids),
+      questionIds,
+    );
+  } catch (err) {
+    throw new Error(`Supabase fetch failed: ${err.message}`);
+  }
+  if (rows.length === 0) throw new Error('No metadata found for selected questions');
 
   const byId = new Map(rows.map((r) => [r.id, r]));
   const items = [];
@@ -352,12 +381,14 @@ export async function composePdf(questionIds, includeMarkScheme = true, subject,
   const layout = new PageLayout(outDoc, font, boldFont);
 
   // Section 1 — Questions
-  layout.sectionHeader('Questions');
-  await renderSection(layout, cache, items, 'questions', loader);
+  if (!markSchemeOnly) {
+    layout.sectionHeader('Questions');
+    await renderSection(layout, cache, items, 'questions', loader, order);
+  }
 
   // Section 2 — Mark Scheme (only questions the mark-scheme index actually covers)
   let msCount = 0;
-  if (includeMarkScheme) {
+  if (markSchemeOnly || includeMarkScheme) {
     // loadIndex memoizes into `cache.indexes` under the same keys renderSection
     // uses, so preloading here costs no extra I/O.
     const msIdxByPaper = new Map();
@@ -370,22 +401,25 @@ export async function composePdf(questionIds, includeMarkScheme = true, subject,
     });
     if (msItems.length > 0) {
       layout.sectionHeader('Mark Scheme');
-      await renderSection(layout, cache, msItems, 'mark_schemes', loader);
+      await renderSection(layout, cache, msItems, 'mark_schemes', loader, order);
       msCount = msItems.length;
+    } else if (markSchemeOnly) {
+      throw new Error('No mark schemes are indexed for the selected questions');
     }
   }
 
   const bytes = await outDoc.save();
-  const pdfBase64 = Buffer.from(bytes).toString('base64');
   console.log(`✅ PDF composed: ${(bytes.length / 1024).toFixed(1)} KB, ${outDoc.getPageCount()} pages`);
 
   return {
-    pdfBase64,
+    bytes,
     metadata: {
-      totalQuestions: items.length,
+      totalQuestions: markSchemeOnly ? 0 : items.length,
       totalMarkSchemes: msCount,
       totalPages: outDoc.getPageCount(),
       includeMarkScheme,
+      markSchemeOnly,
+      order,
     },
   };
 }

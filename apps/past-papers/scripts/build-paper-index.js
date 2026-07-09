@@ -81,10 +81,11 @@ function listR2Pdfs() {
 }
 
 // `<subject>/<component>/<file>.pdf` → row. Anything shallower is skipped.
-// The `_source/` prefix holds raw per-exam PDFs for /generate (not browseable
-// chapter compilations), so it's excluded from the index.
+// The `_source/` prefix holds raw per-exam PDFs for /generate and `_cache/` holds
+// composed chapter downloads — neither is a browseable chapter compilation, so
+// both are excluded from the index.
 function toRow(key) {
-  if (key.startsWith('_source/')) return null;
+  if (key.startsWith('_source/') || key.startsWith('_cache/')) return null;
   const parts = key.split('/');
   if (parts.length < 3) return null;
   const [subject, component, ...rest] = parts;

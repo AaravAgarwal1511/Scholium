@@ -180,6 +180,116 @@ export async function listChapters(subject: string, component: string): Promise<
   );
 }
 
+// Component label "Paper 2" → 2 (matches the `P<n>-` prefix on question ids).
+export function paperNumOf(component: string): number {
+  const m = component.match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+// questions_metadata has no year column — it's embedded in `paper`, e.g. "June-2014-1".
+function yearOfPaper(paperField: string): number {
+  const parts = paperField.split("-");
+  return parts.length === 3 ? Number(parts[1]) : NaN;
+}
+
+// PostgREST caps every response at 1000 rows and reports no error — a truncated
+// result looks exactly like a complete one. `questions_metadata` holds ~4000
+// rows, so page through it rather than trusting a bare select().
+const PAGE_SIZE = 1000;
+
+interface PageResult<T> {
+  data: T[] | null;
+  error: { message: string } | null;
+}
+
+// `page(from, to)` must apply `.range(from, to)` to an ordered query.
+async function fetchAllRows<T>(
+  page: (from: number, to: number) => PromiseLike<PageResult<T>>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    const batch = data ?? [];
+    rows.push(...batch);
+    if (batch.length < PAGE_SIZE) break;
+  }
+  return rows;
+}
+
+// Which exam years each chapter of a component actually has questions for, so a
+// chapter card can offer exactly those years and recognise when the user has
+// asked for the full range (which the prebuilt topical PDF already covers).
+//
+// One query for the whole component rather than one per chapter — hence the
+// paging: a truncated result would silently understate a chapter's latest year.
+export async function getChapterYears(
+  subject: string,
+  paperNum: number,
+): Promise<Map<number, number[]>> {
+  const rows = await fetchAllRows<{ chapter_num: number; paper: string }>((from, to) =>
+    supabase
+      .from("questions_metadata")
+      .select("chapter_num, paper")
+      .eq("subject", subject)
+      .like("id", `P${paperNum}-%`)
+      .order("id")
+      .range(from, to),
+  );
+
+  const byChapter = new Map<number, Set<number>>();
+  for (const row of rows) {
+    const year = yearOfPaper(row.paper);
+    if (!Number.isFinite(year)) continue;
+    let years = byChapter.get(row.chapter_num);
+    if (!years) byChapter.set(row.chapter_num, (years = new Set()));
+    years.add(year);
+  }
+
+  return new Map(
+    Array.from(byChapter, ([chapter, years]) => [chapter, Array.from(years).sort((a, b) => a - b)]),
+  );
+}
+
+export type PaperOrder = "oldest" | "newest";
+
+export interface ChapterPaperRequest {
+  subject: string;
+  paperNum: number;
+  chapter: number;
+  yearFrom: number;
+  yearTo: number;
+  order: PaperOrder;
+  kind: "qp" | "ms";
+}
+
+// Compose one chapter over a year range / ordering the prebuilt PDFs don't cover.
+// The server caches the result in R2 and hands back a public URL — a whole chapter
+// is far too large to return inline.
+export async function requestChapterPaper(req: ChapterPaperRequest): Promise<string> {
+  const response = await fetch("/api/chapter-paper", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+
+  if (!response.ok) {
+    let message = `Server error (${response.status})`;
+    try {
+      const body = await response.json();
+      message = body.error || message;
+    } catch {
+      const text = await response.text().catch(() => "");
+      if (text) message = text.slice(0, 200);
+    }
+    throw new Error(message);
+  }
+
+  const { url } = await response.json();
+  if (!url) throw new Error("No PDF URL in response");
+  return url as string;
+}
+
 // Questions for one chapter of one subject + paper. The paper is matched on the
 // `P<n>-` id prefix (e.g. paperNum 2 → ids like "P2-Q001"), so generation stays
 // restricted to the selected component.
@@ -188,16 +298,16 @@ export async function getQuestionsByChapter(
   paperNum: number,
   chapter: number,
 ): Promise<Question[]> {
-  const { data, error } = await supabase
-    .from("questions_metadata")
-    .select("id")
-    .eq("subject", subject)
-    .eq("chapter_num", chapter)
-    .like("id", `P${paperNum}-%`)
-    .order("id");
-
-  if (error) throw error;
-  return (data ?? []) as Question[];
+  return fetchAllRows<Question>((from, to) =>
+    supabase
+      .from("questions_metadata")
+      .select("id")
+      .eq("subject", subject)
+      .eq("chapter_num", chapter)
+      .like("id", `P${paperNum}-%`)
+      .order("id")
+      .range(from, to),
+  );
 }
 
 interface GeneratePaperOptions {
