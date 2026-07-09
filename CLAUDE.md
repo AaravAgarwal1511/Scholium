@@ -12,7 +12,7 @@ pnpm lint         # Lint all packages
 pnpm check-types  # Typecheck all packages (see "Type checking" below)
 pnpm boundaries   # Verify no undeclared cross-package imports
 pnpm preview      # Preview all built apps
-pnpm test         # Vitest browser tests (language-hub, recall-app, poetry-notes, @repo/ui)
+pnpm test         # Vitest — browser tests (language-hub, recall-app, poetry-notes, @repo/ui) + node tests (mock-space)
 pnpm test:e2e     # Playwright (language-hub, recall-app, poetry-notes)
 ```
 
@@ -28,6 +28,7 @@ Running bare `pnpm dev` starts every app at once.
 | poetry-notes | 5173 | — |
 | scholium-home | 3030 | — |
 | past-papers | 3040 | 3002 (`SERVER_PORT`) |
+| mock-space | 3050 | — |
 
 Storybook runs on 6006 for the apps and 6007 for `@repo/ui`.
 
@@ -46,13 +47,16 @@ past the resulting `SelectQueryError` with `as AppLink[]`. Fixing it needs a typ
 
 Baselines, so you can tell a regression from the status quo:
 
-- `pnpm lint` — **49 problems** (language-hub 20, poetry-notes 18, recall-app 6, past-papers 3, scholium-home 2). `@repo/ui` is clean.
+- `pnpm lint` — **49 problems** (language-hub 20, poetry-notes 18, recall-app 6, past-papers 3, scholium-home 2). `@repo/ui` and `mock-space` are clean.
 - `pnpm check-types` — **30 errors** (language-hub 23, recall-app 7). Everything else clean.
+
+Turbo aborts sibling tasks as soon as one fails, so a single `pnpm lint` run cannot show you
+all 49. To confirm a baseline, run `npx eslint .` inside each package.
 - `pnpm test` — **2 failures** in recall-app. Run it with `--concurrency=1`: four packages each start a Chromium browser server, and in parallel they contend and flake.
 
 ## Architecture
 
-This is a **pnpm monorepo** managed by **Turborepo** with five Vite+React apps and one shared UI package.
+This is a **pnpm monorepo** managed by **Turborepo** with six Vite+React apps and one shared UI package.
 
 ```
 apps/
@@ -61,6 +65,7 @@ apps/
   poetry-notes/   — Poetry note-taking app (React 19, Tiptap rich text editor)
   past-papers/    — Past-paper browser/generator (R2-backed PDFs, Express server)
   scholium-home/  — Suite landing page
+  mock-space/     — Sit a past paper under exam conditions (pdf.js + append-only editor)
 packages/
   ui/             — @repo/ui shared component library (React 18/19 compatible)
 database/         — Shared Supabase migrations and RPC definitions
@@ -98,6 +103,32 @@ All apps use **Tailwind CSS** with **shadcn/ui** (Radix UI primitives + CVA). De
 - **recall-app**: ESLint, Storybook, Vitest, and Playwright — same setup as language-hub.
 - **poetry-notes**: uses `@vitejs/plugin-react` (Babel, not SWC), Tiptap editor, Vitest with Storybook addon and Playwright browser provider, and React 19. Its `build` is the only one that typechecks (`tsc -b && vite build`).
 - **past-papers** / **scholium-home**: no Storybook, no tests.
+- **mock-space**: entirely client-side — no Express server, no serverless functions, no tables of
+  its own. The uploaded PDF never leaves the browser; attempts live in IndexedDB (`mock-space` DB).
+  Login is required, but only for identity. Vitest runs in **node**, not a browser, so it does not
+  contend with the Playwright-backed suites. `pnpm make:sample --filter=mock-space` regenerates
+  `public/sample-paper.pdf`, the paper the no-signup `/demo` route opens.
+
+  Four invariants hold the app together; breaking any one silently corrupts a student's script:
+
+  1. **`pdfjs.getDocument({data})` transfers the buffer**, leaving the original detached. The
+     exporter re-reads the original bytes at the end of the attempt, so `loadPdf()` always hands
+     pdf.js a clone and `AttemptContext` keeps the pristine copy in a ref.
+  2. **pdf-lib applies neither kerning nor ligatures** — `widthOfTextAtSize` just sums glyph
+     advances. So `.ms-line` sets `font-kerning: none` and disables `liga`, and widths are additive
+     (a prefix-sum array is exact). `metrics.ts` documents this; `textLayout.test.ts` asserts it.
+  3. **One font, `dejavu-fonts-ttf`, for both screen and export.** `answerFont.ts` fetches it once
+     and hands the same bytes to `FontFace` and `embedFont`. `layoutText()` then decides line breaks
+     for the editor *and* the exporter, which is the only reason the exported PDF wraps where the
+     student saw it wrap. Do not let CSS wrap answer text.
+  4. **Geometry is stored in model space**: PDF points, origin top-left. Screen pixels are derived,
+     never stored. `coords.ts` owns the single y-flip to pdf-lib's bottom-left origin. `loadPdf()`
+     rejects rotated pages and offset crop boxes so that transform stays a scale plus a flip.
+
+  The append-only rules (`model.ts`) are pure functions, deliberately outside React: the integrity
+  guarantee is proved by `model.test.ts`, not by poking the DOM. `AnswerBox.tsx` uses a hidden
+  textarea as a keystroke sink whose `value` is never read — the browser's undo stack is therefore
+  inert by construction rather than suppressed.
 
 ### Storybook
 

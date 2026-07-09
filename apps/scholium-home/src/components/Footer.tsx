@@ -1,6 +1,5 @@
 import { ScholiumLogo } from "@repo/ui";
 import type { AppLink } from "@repo/ui";
-import { SUBJECTS } from "@/content/subjects";
 
 interface FooterProps {
   apps: AppLink[];
@@ -50,15 +49,6 @@ export default function Footer({ apps }: FooterProps) {
               >
                 The memory science
               </a>
-              {SUBJECTS.map((s) => (
-                <a
-                  key={s.slug}
-                  href={`/subjects/${s.slug}`}
-                  className="text-sm text-foreground/75 hover:text-primary transition-colors w-fit"
-                >
-                  {s.name}
-                </a>
-              ))}
             </nav>
           </div>
 

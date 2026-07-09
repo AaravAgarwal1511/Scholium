@@ -11,6 +11,10 @@
       ]
     }
   ],
+  "redirects": [
+    { "source": "/subjects", "destination": "/", "permanent": true },
+    { "source": "/subjects/:slug*", "destination": "/", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]

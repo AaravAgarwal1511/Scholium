@@ -10,7 +10,6 @@ import HomePage from "@/pages/HomePage";
 import ResetPassword from "@/pages/ResetPassword";
 import Auth from "@/pages/Auth";
 import MemorySciencePage from "@/pages/MemorySciencePage";
-import SubjectPage from "@/pages/SubjectPage";
 import HeroScenesPage from "@/dev/hero-scenes/HeroScenesPage";
 
 // Source the suite — titles, icons, URLs, subject tags and descriptions — from
@@ -70,7 +69,6 @@ export default function App() {
           <Route path="/signup" element={<Auth defaultMode="signup" />} />
           <Route path="/auth/reset-password" element={<ResetPassword />} />
           <Route path="/memory-science" element={<MemorySciencePage apps={apps} />} />
-          <Route path="/subjects/:slug" element={<SubjectPage apps={apps} />} />
           <Route path="/terms" element={<TermsOfService />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           {import.meta.env.DEV && (

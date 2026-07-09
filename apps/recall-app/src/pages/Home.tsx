@@ -213,7 +213,7 @@ export default function Home({ description }: { description?: string | null } = 
     <div className="min-h-screen bg-background">
       <header className="max-w-5xl mx-auto px-6 pt-10 pb-2">
         <h1 className="text-foreground text-3xl sm:text-4xl font-bold tracking-tight">
-          Recall.
+          Recall Master.
         </h1>
         <p className="mt-2 text-muted-foreground max-w-2xl leading-relaxed">
           {description ?? "A laboratory for memory. Four progressive passes (match, choose, recall, write) until the answer is yours."}
