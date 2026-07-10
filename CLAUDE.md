@@ -103,11 +103,30 @@ All apps use **Tailwind CSS** with **shadcn/ui** (Radix UI primitives + CVA). De
 - **recall-app**: ESLint, Storybook, Vitest, and Playwright — same setup as language-hub.
 - **poetry-notes**: uses `@vitejs/plugin-react` (Babel, not SWC), Tiptap editor, Vitest with Storybook addon and Playwright browser provider, and React 19. Its `build` is the only one that typechecks (`tsc -b && vite build`).
 - **past-papers** / **scholium-home**: no Storybook, no tests.
-- **mock-space**: entirely client-side — no Express server, no serverless functions, no tables of
-  its own. The uploaded PDF never leaves the browser; attempts live in IndexedDB (`mock-space` DB).
-  Login is required, but only for identity. Vitest runs in **node**, not a browser, so it does not
-  contend with the Playwright-backed suites. `pnpm make:sample --filter=mock-space` regenerates
-  `public/sample-paper.pdf`, the paper the no-signup `/demo` route opens.
+- **mock-space**: no Express server. Everything a student produces belongs to their **account, not
+  their browser** — nothing is stored locally except `localStorage["mock-space:active-attempt"]`, a
+  pointer to whichever attempt the tab has open. Answers, boxes, strokes and the clock live in the
+  `mock_attempts` table (`attemptStore.ts`); the question paper lives in the private Storage bucket
+  `mock-space-papers` under `{user_id}/{attempt_id}.pdf` (`paperStorage.ts`). Both are RLS-scoped to
+  `auth.uid()`, so signing in on another machine resumes the same attempt mid-exam.
+
+  Because Storage holds the *only* copy of the paper, `startAttempt` **awaits** the upload and
+  refuses to begin if it fails — an attempt row must never exist without the paper it refers to.
+  Autosave is debounced (800 ms) and a failure raises the "Not saved" chip rather than losing work
+  silently. The `/demo` attempt is signed out and therefore deliberately ephemeral: it stores
+  nothing and does not survive a reload.
+
+  Retention: `api/prune-papers.js` — the app's one serverless function, run daily by Vercel Cron
+  with `CRON_SECRET` + `SUPABASE_SERVICE_ROLE_KEY` — deletes papers **and** their `mock_attempts`
+  rows once they are older than `PAPER_RETENTION_DAYS` (15). The two expire together because a
+  script cannot be exported without the paper it was written on. That constant is duplicated in the
+  cron (it runs outside Vite and cannot import TS); `paperRetention.test.ts` reads the file and
+  fails if the two drift. Paper deletion must go through the Storage API — dropping rows from
+  `storage.objects` orphans the underlying files.
+
+  Vitest runs in **node**, not a browser, so it does not contend with the Playwright-backed suites.
+  `pnpm make:sample --filter=mock-space` regenerates `public/sample-paper.pdf`, the paper `/demo`
+  opens.
 
   Four invariants hold the app together; breaking any one silently corrupts a student's script:
 

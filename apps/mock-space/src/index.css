@@ -1,0 +1,93 @@
+@import '@repo/ui/tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* The "MockSpaceAnswer" family is registered at runtime by lib/answerFont.ts from
+ * the same bytes that get embedded into the exported PDF — no @font-face here. */
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-body);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
+}
+
+@layer utilities {
+  .gradient-hero  { background: var(--gradient-hero); }
+  .shadow-soft    { box-shadow: var(--shadow-soft); }
+  .shadow-card    { box-shadow: var(--shadow-card); }
+  .shadow-hover   { box-shadow: var(--shadow-hover); }
+}
+
+@layer components {
+  /* One <div> per wrapped line. `pre` because layoutText() already decided where
+   * the breaks go — letting CSS re-wrap would desync the screen from the export.
+   *
+   * Kerning and ligatures are OFF because pdf-lib applies neither: it sums raw
+   * glyph advance widths. With them on, the browser would draw glyph positions
+   * the exporter never measured. See lib/metrics.ts. */
+  .ms-line {
+    white-space: pre;
+    font-family: "MockSpaceAnswer", sans-serif;
+    font-kerning: none;
+    font-variant-ligatures: none;
+    font-feature-settings: "kern" 0, "liga" 0, "clig" 0;
+    /* Stops the browser rounding glyph advances to whole pixels, which would make
+     * rendered text drift from the widths layoutText() measured. */
+    text-rendering: geometricPrecision;
+    /* Black, not --foreground: the answer is written on the paper, and the paper is
+     * white in both themes. It also matches the ink the exporter draws with. */
+    color: #000;
+  }
+
+  /* Committed text is deliberately NOT inside an editable element: that is what
+   * makes mid-text caret placement impossible. Selection stays available because
+   * strikethrough needs it. */
+  .ms-text {
+    user-select: text;
+    cursor: text;
+  }
+
+  .ms-struck {
+    text-decoration: line-through;
+    text-decoration-thickness: 0.06em;
+  }
+
+  /* The editor draws its own selection: focusing the sink destroys the browser's. */
+  .ms-selected {
+    background: hsl(var(--primary) / 0.28);
+  }
+
+  /* Rendered inline at the end of the text so the browser positions it after the
+   * last glyph — no metric assumptions, so kerning can never misplace it. */
+  .ms-caret {
+    display: inline-block;
+    width: 1px;
+    vertical-align: text-bottom;
+    background: #000;
+    @apply animate-caret-blink;
+  }
+
+  /* The keystroke sink. Never read, never shown; it only holds focus and IME. */
+  .ms-sink {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    outline: none;
+    resize: none;
+    overflow: hidden;
+  }
+}
