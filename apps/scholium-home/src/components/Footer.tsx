@@ -40,7 +40,7 @@ export default function Footer({ apps }: FooterProps) {
 
           <div className="col-span-6 sm:col-span-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-              Learn
+              More
             </p>
             <nav className="flex flex-col gap-1.5">
               <a
@@ -48,6 +48,12 @@ export default function Footer({ apps }: FooterProps) {
                 className="text-sm text-foreground/75 hover:text-primary transition-colors w-fit"
               >
                 The memory science
+              </a>
+              <a
+                href="/about"
+                className="text-sm text-foreground/75 hover:text-primary transition-colors w-fit"
+              >
+                About
               </a>
             </nav>
           </div>
