@@ -38,6 +38,9 @@ export const AccentButtons = ({ inputRef, value, onChange, language, disabled }:
           size="sm"
           onClick={() => insertAccent(char)}
           disabled={disabled}
+          // Out of the tab order: these are a pointer shortcut for characters the
+          // keyboard can already type, so Tab should reach the next field instead.
+          tabIndex={-1}
           className="h-8 w-8 p-0 text-sm font-serif"
         >
           {char}
