@@ -116,6 +116,35 @@ describe("backspace — the whole deletion guarantee", () => {
   });
 });
 
+// The macOS accent menu / IME reconversion replaces the just-typed base letter
+// with an accented one. AnswerBox handles that InputEvent as this exact model
+// composition, so pin the composition here where it is regression-proof.
+describe("accent replacement (backspace then append)", () => {
+  const replaceLast = (b: AnswerBox, accented: string) => appendText(backspace(b), accented);
+
+  it("turns the pending base letter into its accented form", () => {
+    expect(replaceLast(type(box(), "cafe"), "é").text).toBe("café");
+  });
+
+  it("works on the accented letter that starts a fresh word", () => {
+    const b = replaceLast(type(box(), "cafe na"), "ï");
+    expect(b.text).toBe("cafe nï");
+  });
+
+  it("leaves the accented letter erasable, like any freshly typed char", () => {
+    const b = backspace(replaceLast(type(box(), "e"), "é"));
+    expect(b.text).toBe("");
+  });
+
+  it("cannot reach a committed letter (nothing pending ⇒ no-op replacement)", () => {
+    // "word " commits, so backspace is inert; the caller only appends when a char
+    // is actually pending, so committed text is never rewritten by a replacement.
+    const committed = type(box(), "word ");
+    expect(committed.text.length).toBe(committed.commitIndex);
+    expect(backspace(committed).text).toBe("word ");
+  });
+});
+
 describe("strike", () => {
   it("is permanent — striking twice is idempotent, and nothing un-strikes", () => {
     let b = strikeRange(type(box(), "abcdef"), 1, 3);

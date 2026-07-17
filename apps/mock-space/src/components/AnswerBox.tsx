@@ -129,11 +129,28 @@ export default function AnswerBox({
         case "deleteContentBackward":
           apply(backspace(b));
           break;
+        case "insertReplacementText":
+          // The macOS press-and-hold accent menu (and IME reconversion) does not
+          // insert the accented letter — it *replaces* the base letter you just
+          // typed with it, e.g. "e" → "é". Blink routes that through this inputType
+          // rather than insertText, which is why holding a key and picking an
+          // accent used to do nothing.
+          //
+          // Accept it only as a replacement of the trailing uncommitted character —
+          // the base letter the popover is anchored to is always still pending, so
+          // requiring one keeps this a true replacement that can never reach
+          // committed text. The length cap keeps a whole-word rewrite (mobile
+          // autocorrect, same inputType) refused: an accent is one grapheme, at
+          // most a base plus one combining mark.
+          if (e.data && [...e.data].length <= 2 && b.text.length > b.commitIndex) {
+            apply(appendText(backspace(b), e.data));
+          }
+          break;
         default:
-          // insertFromPaste, insertFromDrop, insertReplacementText (mobile
-          // autocorrect), historyUndo, historyRedo, deleteWordBackward,
-          // deleteContentForward, deleteByCut … every one of these would let a
-          // student revise committed text. Refused, by falling through.
+          // insertFromPaste, insertFromDrop, historyUndo, historyRedo,
+          // deleteWordBackward, deleteContentForward, deleteByCut … every one of
+          // these would let a student revise committed text. Refused, by falling
+          // through.
           break;
       }
     };
