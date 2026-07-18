@@ -2,6 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Claude data lives in the repo (`Claude/`)
+
+Claude Code stores a project's **memory (notes)** and **conversation transcripts** under `~/.claude/projects/<absolute-path-encoded>/`, keyed to the repo's absolute path — so moving the repo would orphan them. To keep Claude Code working wherever this repo is moved, that data is kept in the **git-ignored `Claude/`** dir at the repo root and bridged into place:
+
+- `Claude/memory/` — the canonical memory notes. Claude Code's `…/projects/<path>/memory` is a **symlink** to this folder, so notes are always read/written here.
+- `Claude/transcripts/` — archived session transcripts (`.jsonl` + per-session subdirs).
+
+The bridge is `.claude/claude-sync.sh`, wired to two hooks in `.claude/settings.local.json`:
+- **SessionStart** — symlinks `…/projects/<current-path>/memory` → `Claude/memory` and restores archived transcripts (so notes work and past conversations `--resume` at whatever path the repo lives).
+- **SessionEnd** — archives the finished transcript(s) into `Claude/transcripts/`.
+
+Both derive the project dir from the event's `transcript_path`, so nothing is hardcoded. **To move the repo:** move the whole directory — `Claude/` and the hooks travel with it, and the next launch re-links everything automatically. Never commit `Claude/` (transcripts can hold sensitive context). Because `Claude/` and `.claude/settings.local.json` are git-ignored, a fresh *clone* (unlike a move) won't carry the notes or hook wiring.
+
 ## Commands
 
 ### Root (runs across all apps via Turbo)

@@ -4,6 +4,7 @@ dist
 .env
 .env.local
 *.log
+*.tsbuildinfo
 .DS_Store
 
 # Google Cloud service-account key (never commit)
@@ -11,3 +12,7 @@ gcp-tts-key.json
 
 # Internal legal/content reports (not for public repo)
 reports/
+
+# Local Claude Code conversation archive (session transcripts — may hold sensitive context)
+/Claude/
+.claude/
