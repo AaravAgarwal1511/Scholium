@@ -35,9 +35,11 @@ CREATE INDEX IF NOT EXISTS idx_recall_two_sider_points_parent
 ALTER TABLE public.recall_two_siders       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recall_two_sider_points ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "recall_two_siders: public read" ON public.recall_two_siders;
 CREATE POLICY "recall_two_siders: public read"
   ON public.recall_two_siders FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "recall_two_sider_points: public read" ON public.recall_two_sider_points;
 CREATE POLICY "recall_two_sider_points: public read"
   ON public.recall_two_sider_points FOR SELECT USING (true);
 
