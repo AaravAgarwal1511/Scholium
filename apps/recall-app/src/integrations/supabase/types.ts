@@ -121,6 +121,80 @@ export type Database = {
           },
         ]
       }
+      recall_two_siders: {
+        Row: {
+          id: string
+          subject: string
+          emoji: string
+          question: string
+          marks: number | null
+          for_label: string
+          against_label: string
+          available: boolean
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          id: string
+          subject: string
+          emoji?: string
+          question: string
+          marks?: number | null
+          for_label?: string
+          against_label?: string
+          available?: boolean
+          sort_order?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          subject?: string
+          emoji?: string
+          question?: string
+          marks?: number | null
+          for_label?: string
+          against_label?: string
+          available?: boolean
+          sort_order?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      recall_two_sider_points: {
+        Row: {
+          id: string
+          two_sider_id: string
+          side: string
+          keyword: string
+          point: string
+          sort_order: number
+        }
+        Insert: {
+          id?: string
+          two_sider_id: string
+          side: string
+          keyword: string
+          point: string
+          sort_order?: number
+        }
+        Update: {
+          id?: string
+          two_sider_id?: string
+          side?: string
+          keyword?: string
+          point?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recall_two_sider_points_two_sider_id_fkey"
+            columns: ["two_sider_id"]
+            isOneToOne: false
+            referencedRelation: "recall_two_siders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

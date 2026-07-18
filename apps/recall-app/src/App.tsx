@@ -12,6 +12,7 @@ import Login from "@/pages/Login";
 import Home from "@/pages/Home";
 import Demo from "@/pages/Demo";
 import Study from "@/pages/Study";
+import TwoSider from "@/pages/TwoSider";
 import PracticeSection from "@/pages/PracticeSection";
 import Settings from "@/pages/Settings";
 import ResetPassword from "@/pages/ResetPassword";
@@ -113,6 +114,14 @@ function FadeRoutes({ description }: { description?: string | null }) {
           element={
             <RequireAuth>
               <Study />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/two-sider/:id"
+          element={
+            <RequireAuth>
+              <TwoSider />
             </RequireAuth>
           }
         />

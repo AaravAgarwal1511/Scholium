@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/collapsible";
 import { useApp } from "@/contexts/AppContext";
 import { useSubjects } from "@/hooks/useSubjects";
+import { TwoSiderLauncher } from "@/components/TwoSiderLauncher";
 import type { Chapter, Section, Subject } from "@/types";
 import { PASS_CONFIG } from "@/components/PassBadge";
 import { cn } from "@/lib/utils";
@@ -255,6 +256,10 @@ export default function Home({ description }: { description?: string | null } = 
               />
             </div>
           ))}
+        </div>
+
+        <div className="mt-6">
+          <TwoSiderLauncher />
         </div>
       </main>
     </div>
