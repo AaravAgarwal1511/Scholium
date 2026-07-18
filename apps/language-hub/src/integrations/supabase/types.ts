@@ -167,7 +167,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      practice_sample: {
+        Args: { sample_count: number }
+        Returns: {
+          id: string
+          term: string
+          definition: string
+          set_id: string
+          language: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

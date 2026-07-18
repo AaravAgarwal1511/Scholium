@@ -68,53 +68,36 @@ const Practice = () => {
 
   const fetchMasteredItems = async () => {
     try {
-      const { data: progressData, error: progressError } = await supabase
-        .from("set_progress")
-        .select("item_id")
-        .eq("mastered", true);
+      // Sample the session in Postgres: one round trip returns exactly `count`
+      // random mastered items with their set language already joined, instead of
+      // downloading the whole mastered library to shuffle and slice on the client.
+      const { data, error } = await supabase.rpc("practice_sample", { sample_count: count });
 
-      if (progressError) throw progressError;
+      if (error) throw error;
 
-      if (!progressData || progressData.length === 0) {
+      if (!data || data.length === 0) {
         toast.error("No mastered items found. Complete some vocabulary sets first!");
         navigate("/");
         return;
       }
 
-      const masteredIds = progressData.map((p) => p.item_id);
-
-      const { data: itemsData, error: itemsError } = await supabase
-        .from("vocabulary_items")
-        .select("*")
-        .in("id", masteredIds);
-
-      if (itemsError) throw itemsError;
-
-      if (!itemsData || itemsData.length === 0) {
-        toast.error("No vocabulary items found");
-        navigate("/");
-        return;
+      if (data.length < count) {
+        toast.info(`Only ${data.length} mastered items available`);
       }
 
-      const shuffled = itemsData.sort(() => Math.random() - 0.5);
-      const selected = shuffled.slice(0, Math.min(count, shuffled.length));
-
-      if (selected.length < count) {
-        toast.info(`Only ${selected.length} mastered items available`);
-      }
-
-      const uniqueSetIds = [...new Set(selected.map((i) => i.set_id))];
-      const { data: setsData } = await supabase
-        .from("vocabulary_sets")
-        .select("id, language")
-        .in("id", uniqueSetIds);
+      const items: VocabularyItem[] = data.map((r) => ({
+        id: r.id,
+        term: r.term,
+        definition: r.definition,
+        set_id: r.set_id,
+      }));
 
       const setLanguageMap: Record<string, string> = {};
-      (setsData || []).forEach((s) => {
-        setLanguageMap[s.id] = s.language || "french";
+      data.forEach((r) => {
+        setLanguageMap[r.set_id] = r.language || "french";
       });
 
-      setQuestions(generateQuestions(selected, setLanguageMap, allowedTypes));
+      setQuestions(generateQuestions(items, setLanguageMap, allowedTypes));
     } catch (error) {
       console.error("Error fetching mastered items:", error);
       toast.error("Failed to load practice items");
