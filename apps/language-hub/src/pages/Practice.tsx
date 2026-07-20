@@ -58,26 +58,36 @@ const Practice = () => {
   const allowedTypes = (searchParams.get("types") || "fr-to-en,en-to-fr,dictation")
     .split(",")
     .filter((t): t is QuestionType => VALID_TYPES.includes(t as QuestionType));
+  // When set, practice is scoped to the mastered items in one folder's sets.
+  const folderId = searchParams.get("folder");
+  const backTo = folderId ? `/folder/${folderId}` : "/";
 
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchMasteredItems();
-  }, [count]);
+  }, [count, folderId]);
 
   const fetchMasteredItems = async () => {
     try {
       // Sample the session in Postgres: one round trip returns exactly `count`
       // random mastered items with their set language already joined, instead of
       // downloading the whole mastered library to shuffle and slice on the client.
-      const { data, error } = await supabase.rpc("practice_sample", { sample_count: count });
+      // Folder practice runs the same sampling, filtered to that folder's sets.
+      const { data, error } = folderId
+        ? await supabase.rpc("practice_sample_folder", { sample_count: count, target_folder: folderId })
+        : await supabase.rpc("practice_sample", { sample_count: count });
 
       if (error) throw error;
 
       if (!data || data.length === 0) {
-        toast.error("No mastered items found. Complete some vocabulary sets first!");
-        navigate("/");
+        toast.error(
+          folderId
+            ? "No mastered items in this folder yet. Study its sets first!"
+            : "No mastered items found. Complete some vocabulary sets first!",
+        );
+        navigate(backTo);
         return;
       }
 
@@ -101,7 +111,7 @@ const Practice = () => {
     } catch (error) {
       console.error("Error fetching mastered items:", error);
       toast.error("Failed to load practice items");
-      navigate("/");
+      navigate(backTo);
     } finally {
       setLoading(false);
     }
@@ -120,18 +130,19 @@ const Practice = () => {
       <QuizSession
         questions={questions}
         title="Practice Mode"
+      requeueIncorrect
       completionTitle="Practice Complete!"
-      completionSubtitle="Cross-Set Review"
+      completionSubtitle={folderId ? "Folder Review" : "Cross-Set Review"}
       completionActions={
         <>
-          <Link to="/practice-setup">
+          <Link to={folderId ? `/practice-setup?folder=${folderId}` : "/practice-setup"}>
             <Button variant="outline">
               <Dumbbell className="mr-2 h-4 w-4" />
               Practice Again
             </Button>
           </Link>
-          <Link to="/">
-            <Button variant="hero">Back to Sets</Button>
+          <Link to={backTo}>
+            <Button variant="hero">{folderId ? "Back to Folder" : "Back to Sets"}</Button>
           </Link>
         </>
       }

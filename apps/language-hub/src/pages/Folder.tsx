@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { SetCard } from "@/components/SetCard";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, FolderOpen, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ArrowLeft, Dumbbell, FolderOpen, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface VocabularySet {
@@ -244,7 +244,13 @@ const FolderPage = () => {
                 </div>
               </div>
             </div>
-            <div className="flex gap-1">
+            <div className="flex items-center gap-2">
+              <Link to={`/practice-setup?folder=${id}`}>
+                <Button variant="accent" size="sm">
+                  <Dumbbell className="mr-2 h-4 w-4" />
+                  Practice
+                </Button>
+              </Link>
               <Dialog open={editOpen} onOpenChange={setEditOpen}>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="icon">

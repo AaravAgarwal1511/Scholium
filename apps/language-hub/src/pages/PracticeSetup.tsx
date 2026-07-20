@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,11 +30,28 @@ const TYPE_OPTIONS: { type: QuestionType; label: string; description: string }[]
 
 const PracticeSetup = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // When set, this configures a practice session scoped to one folder's sets.
+  const folderId = searchParams.get("folder");
+  const backTo = folderId ? `/folder/${folderId}` : "/";
+  const [folderName, setFolderName] = useState<string | null>(null);
   const [count, setCount] = useState(20);
   const [countInput, setCountInput] = useState("20");
   const [selectedTypes, setSelectedTypes] = useState<Set<QuestionType>>(
     new Set(["fr-to-en", "en-to-fr", "dictation"]),
   );
+
+  useEffect(() => {
+    if (!folderId) return;
+    supabase
+      .from("folders")
+      .select("name")
+      .eq("id", folderId)
+      .single()
+      .then(({ data }) => {
+        if (data) setFolderName(data.name);
+      });
+  }, [folderId]);
 
   const toggleType = (type: QuestionType) => {
     setSelectedTypes((prev) => {
@@ -62,19 +80,25 @@ const PracticeSetup = () => {
 
   const startPractice = () => {
     const types = Array.from(selectedTypes).join(",");
-    navigate(`/practice?count=${count}&types=${types}`);
+    const folderParam = folderId ? `&folder=${folderId}` : "";
+    navigate(`/practice?count=${count}&types=${types}${folderParam}`);
   };
 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto max-w-2xl px-6 py-4 flex items-center gap-4">
-          <Link to="/">
+          <Link to={backTo}>
             <Button variant="ghost" size="icon">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <h1 className="text-xl font-bold font-display">Practice Setup</h1>
+          <div>
+            <h1 className="text-xl font-bold font-display">Practice Setup</h1>
+            {folderName && (
+              <p className="text-sm text-muted-foreground">Folder: {folderName}</p>
+            )}
+          </div>
         </div>
       </header>
 

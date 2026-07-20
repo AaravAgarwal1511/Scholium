@@ -177,6 +177,16 @@ export type Database = {
           language: string
         }[]
       }
+      practice_sample_folder: {
+        Args: { sample_count: number; target_folder: string }
+        Returns: {
+          id: string
+          term: string
+          definition: string
+          set_id: string
+          language: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

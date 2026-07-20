@@ -32,6 +32,12 @@ interface QuizSessionProps {
   title: string;
   headerActions?: React.ReactNode;
   onCorrectAnswer?: (question: QuizQuestion) => void;
+  /**
+   * When true, a card answered incorrectly is appended to the end of the deck so
+   * it comes back around after the in-the-moment retype. Practice enables this;
+   * Study leaves the deck fixed.
+   */
+  requeueIncorrect?: boolean;
   completionTitle: string;
   completionSubtitle: string;
   completionActions: React.ReactNode;
@@ -42,6 +48,7 @@ export const QuizSession = ({
   title,
   headerActions,
   onCorrectAnswer,
+  requeueIncorrect = false,
   completionTitle,
   completionSubtitle,
   completionActions,
@@ -56,14 +63,23 @@ export const QuizSession = ({
   const [retypeAnswer, setRetypeAnswer] = useState("");
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [completed, setCompleted] = useState(false);
+  // The live deck. Starts as the given questions; in practice a missed card is
+  // appended here so it reappears at the end. Snapshotted at mount — Study
+  // remounts (via key) to restart, so this never needs to re-sync to the prop.
+  const [queue, setQueue] = useState<QuizQuestion[]>(questions);
 
   const mainInputRef = useRef<HTMLInputElement>(null);
   const retypeInputRef = useRef<HTMLInputElement>(null);
 
-  const currentQuestion = questions[currentIndex];
+  const currentQuestion = queue[currentIndex];
 
   const nextQuestion = useCallback(() => {
-    if (currentIndex < questions.length - 1) {
+    // Re-queue only a genuinely missed card — one the learner did not mark as a
+    // synonym (markAsCorrect flips isCorrect back to true).
+    const requeue = requeueIncorrect && showResult && !isCorrect;
+    if (requeue) setQueue((q) => [...q, currentQuestion]);
+    const lastIndex = queue.length - 1 + (requeue ? 1 : 0);
+    if (currentIndex < lastIndex) {
       setCurrentIndex((i) => i + 1);
       setUserAnswer("");
       setShowResult(false);
@@ -72,7 +88,7 @@ export const QuizSession = ({
     } else {
       setCompleted(true);
     }
-  }, [currentIndex, questions.length]);
+  }, [currentIndex, queue.length, requeueIncorrect, showResult, isCorrect, currentQuestion]);
 
   const checkAnswer = useCallback(() => {
     const correct = normalizeAnswer(userAnswer) === normalizeAnswer(currentQuestion.answer);
@@ -168,7 +184,7 @@ export const QuizSession = ({
               <div>
                 <h1 className="font-bold font-display">{title}</h1>
                 <p className="text-sm text-muted-foreground">
-                  Question {currentIndex + 1} of {questions.length}
+                  Question {currentIndex + 1} of {queue.length}
                 </p>
               </div>
             </div>
@@ -178,7 +194,7 @@ export const QuizSession = ({
       </header>
 
       <div className="container mx-auto max-w-2xl px-6 pt-4">
-        <Progress value={((currentIndex + 1) / questions.length) * 100} className="h-2" />
+        <Progress value={((currentIndex + 1) / queue.length) * 100} className="h-2" />
       </div>
 
       <main className="container mx-auto max-w-2xl px-6 py-8">
@@ -296,7 +312,7 @@ export const QuizSession = ({
                 </Button>
               ) : isCorrect ? (
                 <Button variant="hero" className="w-full" onClick={nextQuestion}>
-                  {currentIndex < questions.length - 1 ? "Next Question" : "See Results"}
+                  {currentIndex < queue.length - 1 ? "Next Question" : "See Results"}
                 </Button>
               ) : !retypeMode ? (
                 <Button variant="hero" className="w-full" onClick={() => setRetypeMode(true)}>
@@ -331,7 +347,7 @@ export const QuizSession = ({
                       normalizeAnswer(retypeAnswer) !== normalizeAnswer(currentQuestion.answer)
                     }
                   >
-                    {currentIndex < questions.length - 1 ? "Next Question" : "See Results"}
+                    {currentIndex < queue.length - 1 ? "Next Question" : "See Results"}
                   </Button>
                 </div>
               )}
