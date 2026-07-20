@@ -52,7 +52,6 @@ export interface TwoSider {
   subject: string;
   emoji: string;
   question: string;
-  marks?: number;
   sides: [TwoSiderSide, TwoSiderSide]; // [for, against]
 }
 

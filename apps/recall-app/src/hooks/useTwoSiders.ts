@@ -28,7 +28,7 @@ export function useTwoSiders() {
     async function load() {
       const { data: siders } = await supabase
         .from("recall_two_siders")
-        .select("id, subject, emoji, question, marks, for_label, against_label, sort_order")
+        .select("id, subject, emoji, question, for_label, against_label, sort_order")
         .eq("available", true)
         .order("sort_order", { ascending: true });
 
@@ -63,7 +63,6 @@ export function useTwoSiders() {
           subject: s.subject,
           emoji: s.emoji,
           question: s.question,
-          marks: s.marks ?? undefined,
           sides: [
             buildSide("for", s.for_label, b.for),
             buildSide("against", s.against_label, b.against),

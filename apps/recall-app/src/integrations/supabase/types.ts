@@ -127,7 +127,6 @@ export type Database = {
           subject: string
           emoji: string
           question: string
-          marks: number | null
           for_label: string
           against_label: string
           available: boolean
@@ -139,7 +138,6 @@ export type Database = {
           subject: string
           emoji?: string
           question: string
-          marks?: number | null
           for_label?: string
           against_label?: string
           available?: boolean
@@ -151,7 +149,6 @@ export type Database = {
           subject?: string
           emoji?: string
           question?: string
-          marks?: number | null
           for_label?: string
           against_label?: string
           available?: boolean

@@ -79,7 +79,6 @@ export default function TwoSider() {
             </div>
             <div className="text-xs text-muted-foreground">
               {twoSider.emoji} {twoSider.subject}
-              {twoSider.marks ? ` · ${twoSider.marks} marks` : ""}
             </div>
           </div>
         </div>
