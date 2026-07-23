@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,28 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
+/** Pure — depends only on its argument, so it lives outside the component and
+ *  stays referentially stable for the memoised fetch below. */
+const parseVocabulary = (text: string) => {
+    const lines = text.split("\n").filter((line) => line.trim());
+    const parsed = lines
+        .map((line) => {
+            const separators = [" : ", ": ", " :", ":", " - ", "- ", " -", "-", " = ", "= ", " =", "="];
+            for (const sep of separators) {
+                if (line.includes(sep)) {
+                    const [term, ...rest] = line.split(sep);
+                    const definition = rest.join(sep);
+                    if (term?.trim() && definition?.trim()) {
+                        return { term: term.trim(), definition: definition.trim() };
+                    }
+                }
+            }
+            return null;
+        })
+        .filter(Boolean) as { term: string; definition: string }[];
+    return parsed;
+};
+
 const EditSet = () => {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
@@ -36,11 +58,7 @@ const EditSet = () => {
     const [fetching, setFetching] = useState(true);
     const [preview, setPreview] = useState<{ term: string; definition: string }[]>([]);
 
-    useEffect(() => {
-        if (id) fetchSet();
-    }, [id]);
-
-    const fetchSet = async () => {
+    const fetchSet = useCallback(async () => {
         try {
             // Fetch the set
             const { data: setData, error: setError } = await supabase
@@ -87,27 +105,11 @@ const EditSet = () => {
         } finally {
             setFetching(false);
         }
-    };
+    }, [id, navigate]);
 
-    const parseVocabulary = (text: string) => {
-        const lines = text.split("\n").filter((line) => line.trim());
-        const parsed = lines
-            .map((line) => {
-                const separators = [" : ", ": ", " :", ":", " - ", "- ", " -", "-", " = ", "= ", " =", "="];
-                for (const sep of separators) {
-                    if (line.includes(sep)) {
-                        const [term, ...rest] = line.split(sep);
-                        const definition = rest.join(sep);
-                        if (term?.trim() && definition?.trim()) {
-                            return { term: term.trim(), definition: definition.trim() };
-                        }
-                    }
-                }
-                return null;
-            })
-            .filter(Boolean) as { term: string; definition: string }[];
-        return parsed;
-    };
+    useEffect(() => {
+        if (id) fetchSet();
+    }, [id, fetchSet]);
 
     const handleTextChange = (text: string) => {
         setVocabularyText(text);

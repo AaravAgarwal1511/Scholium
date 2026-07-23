@@ -1,4 +1,4 @@
-import { useTourCompleted } from '@repo/ui';
+import { useTourCompleted } from '@repo/hooks';
 import { supabase } from './integrations/supabase/client';
 
 function metaKey(key: string) {

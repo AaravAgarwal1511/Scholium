@@ -124,7 +124,7 @@ export function calculateNewNotePosition(
     }
 
     // Start position based on highlight if available
-    let startX = config.startX;
+    const startX = config.startX;
     let startY = config.startY;
 
     if (highlightRect && canvasRect) {

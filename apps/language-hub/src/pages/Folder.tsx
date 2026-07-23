@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,11 +40,39 @@ interface VocabularySet {
   progress: number;
 }
 
+/** A `vocabulary_sets` row as it comes back from the DB, before enrichSets
+ *  computes the per-set counts. */
+type RawVocabularySet = Omit<VocabularySet, "item_count" | "progress">;
+
 interface Folder {
   id: string;
   name: string;
   description: string | null;
 }
+
+/** Adds the per-set item/mastery counts to raw `vocabulary_sets` rows. Uses only
+ *  its argument and the module-level client, so it lives outside the component
+ *  and stays referentially stable for the memoised fetch below. */
+const enrichSets = async (rawSets: RawVocabularySet[]): Promise<VocabularySet[]> => {
+  return Promise.all(
+    rawSets.map(async (set) => {
+      const { count: itemCount } = await supabase
+        .from("vocabulary_items")
+        .select("*", { count: "exact", head: true })
+        .eq("set_id", set.id);
+      const { count: masteredCount } = await supabase
+        .from("set_progress")
+        .select("*", { count: "exact", head: true })
+        .eq("set_id", set.id)
+        .eq("mastered", true);
+      return {
+        ...set,
+        item_count: itemCount || 0,
+        progress: itemCount ? Math.round(((masteredCount || 0) / itemCount) * 100) : 0,
+      };
+    }),
+  );
+};
 
 const FolderPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -62,32 +90,7 @@ const FolderPage = () => {
   const [addOpen, setAddOpen] = useState(false);
   const [selectedSetIds, setSelectedSetIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    if (id) fetchData();
-  }, [id]);
-
-  const enrichSets = async (rawSets: any[]): Promise<VocabularySet[]> => {
-    return Promise.all(
-      rawSets.map(async (set) => {
-        const { count: itemCount } = await supabase
-          .from("vocabulary_items")
-          .select("*", { count: "exact", head: true })
-          .eq("set_id", set.id);
-        const { count: masteredCount } = await supabase
-          .from("set_progress")
-          .select("*", { count: "exact", head: true })
-          .eq("set_id", set.id)
-          .eq("mastered", true);
-        return {
-          ...set,
-          item_count: itemCount || 0,
-          progress: itemCount ? Math.round(((masteredCount || 0) / itemCount) * 100) : 0,
-        };
-      }),
-    );
-  };
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const { data: folderData, error: folderError } = await supabase
         .from("folders")
@@ -115,7 +118,11 @@ const FolderPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, navigate]);
+
+  useEffect(() => {
+    if (id) fetchData();
+  }, [id, fetchData]);
 
   const fetchAvailableSets = async () => {
     const { data, error } = await supabase

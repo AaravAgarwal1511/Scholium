@@ -1,8 +1,12 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
-import { SingleSessionGuard } from "@repo/ui";
+import { SingleSessionGuard } from "@repo/session";
+import { AnalyticsProvider } from "@repo/analytics";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
 interface AuthContextType {
     user: User | null;
@@ -13,6 +17,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {
@@ -89,7 +94,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return (
         <AuthContext.Provider value={{ user, session, loading, signOut }}>
             <SingleSessionGuard supabase={supabase} userId={user?.id ?? null} appKey="language-hub" />
-            {children}
+            <AnalyticsProvider
+                supabase={supabase}
+                supabaseUrl={SUPABASE_URL}
+                supabaseAnonKey={SUPABASE_ANON_KEY}
+                appKey="language-hub"
+                userId={user?.id ?? null}
+            >
+                {children}
+            </AnalyticsProvider>
         </AuthContext.Provider>
     );
 };

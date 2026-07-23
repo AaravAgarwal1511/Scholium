@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAnalytics } from "@repo/analytics";
 import { ChevronLeft, Zap, Download, AlertCircle } from "lucide-react";
 import Layout from "@/components/Layout";
 import { EmptyState } from "@/components/StateViews";
@@ -22,6 +23,7 @@ type ChapterInfo = { number: number; name: string; ids: string[] };
 
 export default function GeneratePaperPage() {
   const navigate = useNavigate();
+  const { track } = useAnalytics();
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
   const [selectedComponent, setSelectedComponent] = useState<string | null>(
     null
@@ -124,6 +126,12 @@ export default function GeneratePaperPage() {
 
     setIsGenerating(true);
     setGenerateError(null);
+    track("generate_submit", {
+      subject: selectedSubject,
+      component: selectedComponent ?? "",
+      n_questions: totalQuestions,
+    });
+    const startedAt = Date.now();
 
     try {
       // For each selected chapter, randomly pick the requested number of ids.
@@ -146,6 +154,11 @@ export default function GeneratePaperPage() {
         randomize,
       });
 
+      track("generate_complete", {
+        duration_ms: Date.now() - startedAt,
+        questions: selectedQuestionIds.length,
+      });
+
       // Download PDF
       const url = URL.createObjectURL(pdf);
       const link = document.createElement("a");
@@ -157,6 +170,9 @@ export default function GeneratePaperPage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (error) {
+      track("generate_failed", {
+        reason: error instanceof Error ? error.message.slice(0, 64) : "unknown",
+      });
       setGenerateError(
         error instanceof Error ? error.message : "Failed to generate paper"
       );
@@ -311,7 +327,7 @@ export default function GeneratePaperPage() {
             <div className="space-y-2">
               {chapters.map((ch) => {
                 const available = ch.ids.length;
-                const isSelected = selections.hasOwnProperty(ch.number);
+                const isSelected = Object.prototype.hasOwnProperty.call(selections, ch.number);
                 const questionCount = selections[ch.number] || 0;
 
                 return (

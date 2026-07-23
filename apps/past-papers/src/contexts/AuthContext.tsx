@@ -1,8 +1,12 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
-import { SingleSessionGuard } from "@repo/ui";
+import { SingleSessionGuard } from "@repo/session";
+import { AnalyticsProvider } from "@repo/analytics";
 import { supabase } from "@/integrations/supabase/client";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
 interface AuthContextType {
   user: User | null;
@@ -43,11 +47,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{ user, loadingAuth, isPasswordRecovery, signOut }}>
       <SingleSessionGuard supabase={supabase} userId={user?.id ?? null} appKey="past-papers" />
-      {children}
+      <AnalyticsProvider
+        supabase={supabase}
+        supabaseUrl={SUPABASE_URL}
+        supabaseAnonKey={SUPABASE_ANON_KEY}
+        appKey="past-papers"
+        userId={user?.id ?? null}
+      >
+        {children}
+      </AnalyticsProvider>
     </AuthContext.Provider>
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used inside AuthProvider");

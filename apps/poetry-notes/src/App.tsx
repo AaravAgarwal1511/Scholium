@@ -6,6 +6,8 @@ import type { AppLink } from '@repo/ui';
 import '@repo/ui/scholium-navbar.css';
 import '@repo/ui/legal.css';
 import { supabase } from './integrations/supabase/client';
+import { Analytics } from '@vercel/analytics/react';
+import { usePageView, useAnalytics } from '@repo/analytics';
 import { Login } from './pages/Login';
 import { Settings } from './pages/Settings';
 import { LandingPage } from './components/LandingPage';
@@ -38,6 +40,8 @@ function AppContent() {
   const { user, loadingAuth, isPasswordRecovery, signOut } = useAuth();
   const { setUserId, saveToCloud } = useProject();
   const [currentView, setCurrentView] = useState<View>('landing');
+  usePageView('/' + currentView);
+  const { track } = useAnalytics();
   const [apps, setApps] = useState<AppLink[]>([]);
 
   useEffect(() => {
@@ -78,6 +82,7 @@ function AppContent() {
     <div className="app">
       <ScholiumNavbar
         apps={apps}
+        onAppClick={(id) => track('nav_app_click', { to_app_id: id })}
         homeUrl={SCHOLIUM_HOME_URL}
         user={user ? { email: user.email ?? '' } : null}
         onSignOut={handleSignOut}
@@ -102,18 +107,25 @@ function AppContent() {
 }
 
 export default function App() {
-  if (typeof window !== 'undefined') {
-    const path = window.location.pathname;
-    if (path === '/demo') return <Demo />;
-    // Legal pages are public and router-free — served directly like /demo.
-    if (path === '/terms') return <TermsOfService homeUrl={SCHOLIUM_HOME_URL} />;
-    if (path === '/privacy') return <PrivacyPolicy homeUrl={SCHOLIUM_HOME_URL} />;
-  }
+  // The /demo and legal pages are public and router-free — served directly. Compute
+  // the page rather than returning early so a single <Analytics /> mounts on every
+  // path (Vercel Web Analytics must see the demo and legal pageviews too).
+  const path = typeof window !== 'undefined' ? window.location.pathname : '';
+  const routerFreePage =
+    path === '/demo' ? <Demo /> :
+    path === '/terms' ? <TermsOfService homeUrl={SCHOLIUM_HOME_URL} /> :
+    path === '/privacy' ? <PrivacyPolicy homeUrl={SCHOLIUM_HOME_URL} /> :
+    null;
   return (
-    <AuthProvider>
-      <ProjectProvider>
-        <AppContent />
-      </ProjectProvider>
-    </AuthProvider>
+    <>
+      <Analytics />
+      {routerFreePage ?? (
+        <AuthProvider>
+          <ProjectProvider>
+            <AppContent />
+          </ProjectProvider>
+        </AuthProvider>
+      )}
+    </>
   );
 }

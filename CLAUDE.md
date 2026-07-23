@@ -60,16 +60,16 @@ past the resulting `SelectQueryError` with `as AppLink[]`. Fixing it needs a typ
 
 Baselines, so you can tell a regression from the status quo:
 
-- `pnpm lint` — **49 problems** (language-hub 20, poetry-notes 18, recall-app 6, past-papers 3, scholium-home 2). `@repo/ui` and `mock-space` are clean.
+- `pnpm lint` — **0 problems**. Every package is clean; treat any new warning as a regression.
 - `pnpm check-types` — **30 errors** (language-hub 23, recall-app 7). Everything else clean.
 
-Turbo aborts sibling tasks as soon as one fails, so a single `pnpm lint` run cannot show you
-all 49. To confirm a baseline, run `npx eslint .` inside each package.
+Turbo aborts sibling tasks as soon as one fails, so a single failing `pnpm lint` run cannot show
+you every problem at once. To confirm a baseline, run `npx eslint .` inside each package.
 - `pnpm test` — **2 failures** in recall-app. Run it with `--concurrency=1`: four packages each start a Chromium browser server, and in parallel they contend and flake.
 
 ## Architecture
 
-This is a **pnpm monorepo** managed by **Turborepo** with six Vite+React apps and one shared UI package.
+This is a **pnpm monorepo** managed by **Turborepo** with six Vite+React apps and three shared packages.
 
 ```
 apps/
@@ -80,23 +80,38 @@ apps/
   scholium-home/  — Suite landing page
   mock-space/     — Sit a past paper under exam conditions (pdf.js + append-only editor)
 packages/
-  ui/             — @repo/ui shared component library (React 18/19 compatible)
+  ui/             — @repo/ui      presentational components only (React 18/19 compatible)
+  hooks/          — @repo/hooks   client-state hooks (localStorage/DOM, no server)
+  session/        — @repo/session Supabase-backed session logic
 database/         — Shared Supabase migrations and RPC definitions
 ```
 
 Only `apps/*` and `packages/*` are workspace packages. `database/`, `scripts/`, and
 `email-templates/` are not — nothing imports from them.
 
-### Shared UI Package (`@repo/ui`)
+### Shared packages
 
-Consumed as raw TypeScript source (`exports["."] → ./src/index.ts`); there is no build step.
-Exports `AuthCard`, `SettingsLayout`, `SettingsCard`, `ScholiumLogo`, `ScholiumNavbar`,
-`ScholiumFooter`, `LegalPage`, `TermsOfService`, `PrivacyPolicy`, `SingleSessionGuard`, the
-`SCHOLIUM_HOME_URL` constant, and the hooks `useDarkMode` / `useTourCompleted` (plus
-`useTourStyles`). Also exports CSS subpaths: `tokens.css`, `auth-card.css`,
-`settings-layout.css`, `settings-card.css`, `scholium-navbar.css`, `legal.css`.
+All three are consumed as raw TypeScript source (`exports["."] → ./src/index.ts`); there is no
+build step. Import only via the declared entrypoints — `pnpm boundaries` fails on deep imports,
+and on importing a package an app has not declared in its own `package.json`.
 
-Import only via the declared entrypoints — `pnpm boundaries` fails on deep imports.
+The split exists to keep **backend logic out of the UI library**. One rule per package:
+
+| Package | Owns | Must never |
+|---|---|---|
+| `@repo/ui` | Rendering. `AuthCard`, `SettingsLayout`, `SettingsCard`, `ScholiumLogo`, `ScholiumNavbar`, `ScholiumFooter`, `LegalPage`, `TermsOfService`, `PrivacyPolicy`, `SCHOLIUM_HOME_URL` | Touch a network, a data client, or `localStorage` |
+| `@repo/hooks` | Client state that reads/writes the browser. `useDarkMode`, `useTourCompleted`, `useTourStyles`, `tourStyles` | Import a data client; remote sync arrives via an injected port |
+| `@repo/session` | Server-backed session logic. `SingleSessionGuard` (`active_sessions` + Realtime) | — the Supabase client is injected as a prop, so it carries no `@supabase/supabase-js` dep |
+
+`@repo/ui` also exports CSS subpaths: `tokens.css`, `auth-card.css`, `settings-layout.css`,
+`settings-card.css`, `scholium-navbar.css`, `legal.css`.
+
+The only edge in the graph is `@repo/ui → @repo/hooks`: `ScholiumNavbar` calls `useDarkMode`, which
+is why every app gets the `dark` class for free just by mounting the navbar. `@repo/session` depends
+on neither of the others.
+
+New shared code goes in the package matching the rule above — if it does a round trip, it does not
+belong in `@repo/ui`.
 
 ### Backend & Database
 

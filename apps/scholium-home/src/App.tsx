@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Route, Routes, useNavigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ScholiumNavbar, TermsOfService, PrivacyPolicy } from "@repo/ui";
 import type { AppLink } from "@repo/ui";
 import "@repo/ui/scholium-navbar.css";
 import "@repo/ui/legal.css";
 import { supabase } from "@/integrations/supabase/client";
+import { Analytics } from "@vercel/analytics/react";
+import { usePageView, useAnalytics } from "@repo/analytics";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import HomePage from "@/pages/HomePage";
 import ResetPassword from "@/pages/ResetPassword";
@@ -35,9 +37,11 @@ async function loadScholiumApps(): Promise<AppLink[]> {
 function NavbarWired({ apps }: { apps: AppLink[] }) {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const { track } = useAnalytics();
   return (
     <ScholiumNavbar
       apps={apps}
+      onAppClick={(id) => track("nav_app_click", { to_app_id: id })}
       user={user ? { email: user.email ?? "" } : null}
       onSignOut={async () => {
         await signOut();
@@ -48,6 +52,11 @@ function NavbarWired({ apps }: { apps: AppLink[] }) {
       }
     />
   );
+}
+
+function RouteAnalytics() {
+  usePageView(useLocation().pathname);
+  return null;
 }
 
 export default function App() {
@@ -62,8 +71,10 @@ export default function App() {
 
   return (
     <AuthProvider>
+      <Analytics />
       <BrowserRouter>
         <NavbarWired apps={apps} />
+        <RouteAnalytics />
         <Routes>
           <Route path="/" element={<HomePage apps={apps} loadingApps={loadingApps} />} />
           <Route path="/signin" element={<Auth defaultMode="signin" />} />

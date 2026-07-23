@@ -32,6 +32,10 @@ export function PoemEditor({ onEditorRef }: PoemEditorProps) {
     const { project, dispatch, viewState, setViewState } = useProject();
     const [showCreateNote, setShowCreateNote] = useState(false);
     const [selectionRect, setSelectionRect] = useState<DOMRect | null>(null);
+    // Container-local position of the floating "+ Note" button. Derived from the
+    // selection rect at capture time (an event callback, where reading the
+    // container ref is legal) rather than during render.
+    const [selectionButtonPos, setSelectionButtonPos] = useState<{ left: number; top: number } | null>(null);
     const editorContainerRef = useRef<HTMLDivElement>(null);
     const isCleaningUpRef = useRef(false);
 
@@ -96,7 +100,12 @@ export function PoemEditor({ onEditorRef }: PoemEditorProps) {
                     return;
                 }
 
+                const containerRect = editorContainerRef.current?.getBoundingClientRect();
                 setSelectionRect(rect);
+                setSelectionButtonPos({
+                    left: rect.right - (containerRect?.left || 0) + 10,
+                    top: rect.top - (containerRect?.top || 0) + rect.height / 2 - 16,
+                });
                 setShowCreateNote(true);
             }
         },
@@ -251,7 +260,7 @@ export function PoemEditor({ onEditorRef }: PoemEditorProps) {
             selectedNoteId: noteId,
             linkingFromNoteId: null
         }));
-    }, [editor, project.notes, selectionRect, dispatch, setViewState]);
+    }, [editor, project.notes, selectionRect, viewState.camera.zoom, dispatch, setViewState]);
 
     // Link selection to existing note
     const handleLinkToNote = useCallback(() => {
@@ -345,12 +354,12 @@ export function PoemEditor({ onEditorRef }: PoemEditorProps) {
             >
                 <EditorContent editor={editor} />
 
-                {showCreateNote && selectionRect && (
+                {showCreateNote && selectionButtonPos && (
                     <div
                         className="selection-buttons-container"
                         style={{
-                            left: selectionRect.right - (editorContainerRef.current?.getBoundingClientRect().left || 0) + 10,
-                            top: selectionRect.top - (editorContainerRef.current?.getBoundingClientRect().top || 0) + (selectionRect.height / 2) - 16,
+                            left: selectionButtonPos.left,
+                            top: selectionButtonPos.top,
                         }}
                     >
                         <button

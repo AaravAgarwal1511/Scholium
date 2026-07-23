@@ -31,6 +31,10 @@ export function LandingPage({ onProjectReady, description }: LandingPageProps) {
     }, [loadProjectList]);
 
     useEffect(() => {
+        // Fetching the project list on entry to the "open" screen is exactly the
+        // external-system synchronisation effects are for; the flagged setState is
+        // the loading flag that has to be raised before the request goes out.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (screen === 'open') fetchProjects();
     }, [screen, fetchProjects]);
 

@@ -1,7 +1,10 @@
 import { useCallback } from "react";
+import { useAnalytics } from "@repo/analytics";
 
 export const useSpeak = () => {
+  const { track } = useAnalytics();
   return useCallback(async (text: string, lang: string) => {
+    track("tts_play", { lang });
     const cleanText = text.replace(/[/]/g, " ").replace(/[-]/g, " ").replace(/\(.*?\)/g, " ");
 
     const fallback = () => {
@@ -23,5 +26,5 @@ export const useSpeak = () => {
     } catch {
       fallback();
     }
-  }, []);
+  }, [track]);
 };

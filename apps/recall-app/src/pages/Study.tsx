@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, BookOpen, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PASS_CONFIG, PassBadge } from "@/components/PassBadge";
+import { PassBadge } from "@/components/PassBadge";
+import { PASS_CONFIG } from "@/lib/passConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { useApp } from "@/contexts/AppContext";
+import { useAnalytics } from "@repo/analytics";
 import type { Chapter } from "@/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -35,6 +37,8 @@ export default function Study() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user, setPassForChapter } = useApp();
+  const { track } = useAnalytics();
+  const startedAt = useRef(Date.now());
 
   const pass = Math.max(1, Math.min(4, Number(searchParams.get("pass") || 1)));
   const [chapter, setChapter] = useState<Chapter | null | undefined>(undefined);
@@ -79,6 +83,12 @@ export default function Study() {
 
   async function onComplete() {
     if (!chapter) return;
+    track("study_complete", {
+      chapter_id: chapter.id,
+      cards: chapter.cardCount ?? chapter.cards.length,
+      pass,
+      duration_ms: Date.now() - startedAt.current,
+    });
     const nextPass = Math.min(pass + 1, 4);
     await setPassForChapter(chapter.id, nextPass);
     toast.success(

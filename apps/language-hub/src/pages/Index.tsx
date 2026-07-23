@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Plus, BookOpen, Trash2, Dumbbell, FolderOpen, FolderPlus } from "lucide-react";
 import { SetCard } from "@/components/SetCard";
-import { useTourStyles } from "@repo/ui";
+import { useTourStyles } from "@repo/hooks";
 import { useTour } from "@/hooks/useTour";
 import { Joyride, type EventData, STATUS } from "react-joyride";
 

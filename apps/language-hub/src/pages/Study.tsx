@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ArrowLeft, RotateCcw, Shuffle, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { QuizSession, QuizQuestion, QuestionType } from "@/components/QuizSession";
+import { useAnalytics } from "@repo/analytics";
 
 interface VocabularyItem {
   id: string;
@@ -48,6 +49,7 @@ const Study = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { track } = useAnalytics();
 
   const [setName, setSetName] = useState("");
   const [setLanguage, setSetLanguage] = useState("french");
@@ -57,11 +59,7 @@ const Study = () => {
   const [allComplete, setAllComplete] = useState(false);
   const [sessionKey, setSessionKey] = useState(0);
 
-  useEffect(() => {
-    if (id) fetchSet();
-  }, [id]);
-
-  const fetchSet = async () => {
+  const fetchSet = useCallback(async () => {
     try {
       const { data: setData, error: setError } = await supabase
         .from("vocabulary_sets")
@@ -113,7 +111,11 @@ const Study = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, navigate]);
+
+  useEffect(() => {
+    if (id) fetchSet();
+  }, [id, fetchSet]);
 
   const updateProgress = async (question: QuizQuestion) => {
     const { data: existing } = await supabase
@@ -205,6 +207,7 @@ const Study = () => {
       key={sessionKey}
       questions={questions}
       title={setName}
+      onComplete={(s) => track("study_complete", { set_id: id ?? "", cards: s.cards, correct: s.correct })}
       headerActions={
         <Button variant="ghost" size="sm" onClick={restartStudy}>
           <Shuffle className="h-4 w-4" />

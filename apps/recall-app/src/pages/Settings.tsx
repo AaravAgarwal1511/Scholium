@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { toast } from "sonner";
-import { SettingsLayout, SettingsCard, useDarkMode } from "@repo/ui";
+import { SettingsLayout, SettingsCard } from "@repo/ui";
+import { useDarkMode } from "@repo/hooks";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function Settings() {

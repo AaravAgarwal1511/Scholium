@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Download, FileCheck2 } from "lucide-react";
 import { useAttempt } from "@/contexts/AttemptContext";
+import { useAnalytics } from "@repo/analytics";
 import { downloadPdf, exportAttempt } from "@/lib/exportPdf";
 import { answerFontBytes } from "@/lib/answerFont";
 import { formatClock } from "@/lib/useTimer";
@@ -9,12 +10,30 @@ import { formatClock } from "@/lib/useTimer";
 export default function ExportPage() {
   const navigate = useNavigate();
   const { attempt, getPdfBytes, clearAttempt, restoring } = useAttempt();
+  const { track } = useAnalytics();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!restoring && !attempt) navigate("/", { replace: true });
   }, [restoring, attempt, navigate]);
+
+  // Reaching the finished screen with a valid attempt is the submit event.
+  const attemptId = attempt?.id;
+  useEffect(() => {
+    if (!attempt) return;
+    const answeredBoxes = attempt.boxes.filter((b) => b.text.length > 0);
+    const wordCount = answeredBoxes.reduce(
+      (n, b) => n + b.text.split(/\s+/).filter((w) => w && !/^\s*$/.test(w)).length,
+      0,
+    );
+    track("attempt_submit", {
+      duration_ms: attempt.timer.durationMs - attempt.timer.remainingMs,
+      boxes: answeredBoxes.length,
+      words: wordCount,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per attempt, keyed on its id
+  }, [attemptId, track]);
 
   if (restoring || !attempt) return null;
 
@@ -34,10 +53,13 @@ export default function ExportPage() {
     }
     setBusy(true);
     setError(null);
+    const startedAt = Date.now();
     try {
       const out = await exportAttempt(attempt, bytes, await answerFontBytes());
       downloadPdf(out, `${attempt.title} — mock.pdf`);
+      track("export_pdf", { ok: true, duration_ms: Date.now() - startedAt });
     } catch (e) {
+      track("export_pdf", { ok: false, duration_ms: Date.now() - startedAt });
       setError(e instanceof Error ? e.message : "The export failed.");
     } finally {
       setBusy(false);

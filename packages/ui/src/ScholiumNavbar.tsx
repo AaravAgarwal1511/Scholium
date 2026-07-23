@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { ScholiumLogo } from './ScholiumLogo';
-import { useDarkMode } from './useDarkMode';
+import { useDarkMode } from '@repo/hooks';
 import './ScholiumNavbar.css';
 
 export interface AppLink {
@@ -35,6 +35,10 @@ export interface ScholiumNavbarProps {
   onSignIn?: () => void;
   /** When provided, the "Join now" button calls this instead of linking to `${homeUrl}/signup`. */
   onSignUp?: () => void;
+  /** Fired when a tool card in the Study-tools dropdown is clicked, with that app's id.
+   *  Optional so `@repo/ui` stays free of analytics — the app injects an emitter
+   *  (e.g. `(id) => track('nav_app_click', { to_app_id: id })`). */
+  onAppClick?: (appId: string) => void;
 }
 
 function sameOrigin(url: string, origin: string): boolean {
@@ -52,6 +56,7 @@ export function ScholiumNavbar({
   onSignOut,
   onSignIn,
   onSignUp,
+  onAppClick,
 }: ScholiumNavbarProps) {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -194,7 +199,7 @@ export function ScholiumNavbar({
                         rel="noopener noreferrer"
                         className={`rui-app-card${current ? ' rui-app-card--current' : ''}`}
                         role="menuitem"
-                        onClick={() => setToolsOpen(false)}
+                        onClick={() => { setToolsOpen(false); onAppClick?.(app.id); }}
                       >
                         {app.icon ? <span className="rui-app-icon">{app.icon}</span> : null}
                         <span className="rui-app-title">{app.title}</span>

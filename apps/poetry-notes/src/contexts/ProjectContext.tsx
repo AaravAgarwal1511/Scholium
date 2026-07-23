@@ -1,4 +1,5 @@
 import { createContext, useContext, useReducer, useEffect, useCallback, useState, useRef } from 'react';
+import { useAnalytics } from '@repo/analytics';
 import type { ReactNode, Dispatch, SetStateAction } from 'react';
 import DOMPurify from 'dompurify';
 import { v4 as uuidv4 } from 'uuid';
@@ -193,16 +194,23 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     const toggleDarkMode = useCallback(() => setIsDarkMode((prev: boolean) => !prev), []);
     const hasUnsavedChanges = project.lastModified !== lastSavedAt;
 
+    const { track } = useAnalytics();
+
     const saveToCloud = useCallback(async () => {
         if (!userId || isSavingRef.current) return;
         isSavingRef.current = true;
+        const startedAt = Date.now();
         try {
             await saveProjectToStorage(userId, project);
             setLastSavedAt(project.lastModified);
+            track("cloud_save", { ok: true, duration_ms: Date.now() - startedAt });
+        } catch (e) {
+            track("cloud_save", { ok: false, duration_ms: Date.now() - startedAt });
+            throw e;
         } finally {
             isSavingRef.current = false;
         }
-    }, [userId, project]);
+    }, [userId, project, track]);
 
     // Auto-save every 30s
     useEffect(() => {
@@ -224,8 +232,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         if (loaded) {
             dispatch({ type: 'SET_PROJECT', payload: ensureSpecialNotes(loaded) });
             setLastSavedAt(loaded.lastModified);
+            track("project_opened");
         }
-    }, [userId]);
+    }, [userId, track]);
 
     const deleteProject = useCallback(async (projectId: string) => {
         if (!userId) return;
@@ -243,8 +252,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         const newProject = createEmptyProject();
         dispatch({ type: 'SET_PROJECT', payload: newProject });
         setLastSavedAt(newProject.lastModified);
+        track("project_created");
         if (userId) await saveProjectToStorage(userId, newProject);
-    }, [userId]);
+    }, [userId, track]);
 
     // Legacy: export as JSON download
     const exportProject = useCallback(() => {
@@ -289,6 +299,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useProject() {
     const ctx = useContext(ProjectContext);
     if (!ctx) throw new Error('useProject must be used within a ProjectProvider');

@@ -41,9 +41,9 @@ const ResetPassword = () => {
 
             if (error) throw error;
             setSuccess(true);
-        } catch (error: any) {
+        } catch (error) {
             console.error("Update password error:", error);
-            toast.error(error.message || "Failed to update password");
+            toast.error(error instanceof Error ? error.message : "Failed to update password");
         } finally {
             setLoading(false);
         }

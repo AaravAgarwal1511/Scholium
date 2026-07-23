@@ -15,6 +15,9 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@repo/analytics": "workspace:*",
+    "@repo/hooks": "workspace:*",
+    "@repo/session": "workspace:*",
     "@repo/ui": "workspace:*",
     "@supabase/supabase-js": "^2.104.1",
     "@tiptap/core": "^3.19.0",
@@ -22,6 +25,7 @@
     "@tiptap/pm": "^3.19.0",
     "@tiptap/react": "^3.19.0",
     "@tiptap/starter-kit": "^3.19.0",
+    "@vercel/analytics": "^2.0.1",
     "dompurify": "^3.4.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

@@ -41,6 +41,8 @@ interface QuizSessionProps {
   completionTitle: string;
   completionSubtitle: string;
   completionActions: React.ReactNode;
+  /** Fired once when the deck is finished, with the final tally. */
+  onComplete?: (stats: { correct: number; total: number; cards: number }) => void;
 }
 
 export const QuizSession = ({
@@ -52,6 +54,7 @@ export const QuizSession = ({
   completionTitle,
   completionSubtitle,
   completionActions,
+  onComplete,
 }: QuizSessionProps) => {
   const { playCorrect, playIncorrect } = useSounds();
   const speak = useSpeak();
@@ -89,6 +92,11 @@ export const QuizSession = ({
       setCompleted(true);
     }
   }, [currentIndex, queue.length, requeueIncorrect, showResult, isCorrect, currentQuestion]);
+
+  useEffect(() => {
+    if (completed) onComplete?.({ correct: score.correct, total: score.total, cards: queue.length });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once when the session completes
+  }, [completed]);
 
   const checkAnswer = useCallback(() => {
     const correct = normalizeAnswer(userAnswer) === normalizeAnswer(currentQuestion.answer);

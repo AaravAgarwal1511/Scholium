@@ -22,4 +22,9 @@ export default defineConfig([globalIgnores(['dist']), {
     ecmaVersion: 2020,
     globals: globals.browser,
   },
+  rules: {
+    // A leading underscore is how this codebase marks an argument that exists to
+    // document a signature but is deliberately unused (see src/__mocks__).
+    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+  },
 }, ...storybook.configs["flat/recommended"]])

@@ -8,9 +8,13 @@ import {
   type ReactNode,
 } from "react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { SingleSessionGuard } from "@repo/ui";
+import { SingleSessionGuard } from "@repo/session";
+import { AnalyticsProvider } from "@repo/analytics";
 import { supabase } from "@/integrations/supabase/client";
 import type { Passes, User } from "@/types";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
 interface AppState {
   user: User | null;
@@ -107,11 +111,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppContext.Provider value={value}>
       <SingleSessionGuard supabase={supabase} userId={supabaseUser?.id ?? null} appKey="recall-app" />
-      {children}
+      <AnalyticsProvider
+        supabase={supabase}
+        supabaseUrl={SUPABASE_URL}
+        supabaseAnonKey={SUPABASE_ANON_KEY}
+        appKey="recall-app"
+        userId={supabaseUser?.id ?? null}
+      >
+        {children}
+      </AnalyticsProvider>
     </AppContext.Provider>
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useApp() {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error("useApp must be used inside AppProvider");

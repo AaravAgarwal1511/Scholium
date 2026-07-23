@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useAnalytics } from "@repo/analytics";
 import { ArrowLeft, Check, Loader2, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,11 @@ export default function TwoSider() {
   const { twoSiders, loading } = useTwoSiders();
   const { completed, complete } = useTwoSiderProgress();
   const [activeStage, setActiveStage] = useState<number | null>(null);
+  const { track } = useAnalytics();
+
+  useEffect(() => {
+    if (id) track("two_sider_open", { two_sider_id: id });
+  }, [id, track]);
 
   const twoSider = twoSiders.find((t) => t.id === id);
 

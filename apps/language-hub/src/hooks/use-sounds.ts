@@ -1,8 +1,17 @@
 import { useCallback } from "react";
 
+/** Safari below 14.1 only exposes the prefixed constructor. */
+type WebkitAudioWindow = Window & { webkitAudioContext?: typeof AudioContext };
+
+function createAudioContext(): AudioContext {
+  const Ctor = window.AudioContext ?? (window as WebkitAudioWindow).webkitAudioContext;
+  if (!Ctor) throw new Error("Web Audio API is not supported in this browser");
+  return new Ctor();
+}
+
 export const useSounds = () => {
   const playCorrect = useCallback(() => {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const audioContext = createAudioContext();
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
     
@@ -21,7 +30,7 @@ export const useSounds = () => {
   }, []);
 
   const playIncorrect = useCallback(() => {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const audioContext = createAudioContext();
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
     

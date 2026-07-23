@@ -7,7 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { SettingsLayout, SettingsCard, useDarkMode } from "@repo/ui";
+import { SettingsLayout, SettingsCard } from "@repo/ui";
+import { useDarkMode } from "@repo/hooks";
 
 const Settings = () => {
     const navigate = useNavigate();
@@ -28,8 +29,8 @@ const Settings = () => {
             if (error) throw error;
             setResetSent(true);
             toast.success("Password reset email sent!");
-        } catch (error: any) {
-            toast.error(error.message || "Failed to send reset email");
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to send reset email");
         } finally {
             setLoading(false);
         }

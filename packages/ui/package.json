@@ -49,6 +49,7 @@
     "vitest": "^4.1.0"
   },
   "dependencies": {
-    "@fontsource-variable/ibm-plex-sans": "^5.2.8"
+    "@fontsource-variable/ibm-plex-sans": "^5.2.8",
+    "@repo/hooks": "workspace:*"
   }
 }

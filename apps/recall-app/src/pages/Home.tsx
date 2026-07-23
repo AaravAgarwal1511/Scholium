@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAnalytics } from "@repo/analytics";
 import { ChevronDown, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +19,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useSubjects } from "@/hooks/useSubjects";
 import { TwoSiderLauncher } from "@/components/TwoSiderLauncher";
 import type { Chapter, Section, Subject } from "@/types";
-import { PASS_CONFIG } from "@/components/PassBadge";
+import { PASS_CONFIG } from "@/lib/passConfig";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -188,6 +189,7 @@ function SectionCard({
 export default function Home({ description }: { description?: string | null } = {}) {
   const navigate = useNavigate();
   const { user, loadingAuth } = useApp();
+  const { track } = useAnalytics();
   const { subjects, loading: loadingSubjects } = useSubjects();
   const [activeSubject, setActiveSubject] = useState<string | null>(null);
 
@@ -207,6 +209,7 @@ export default function Home({ description }: { description?: string | null } = 
   }
 
   function onStudy(chapter: Chapter, pass: number) {
+    track("chapter_open", { chapter_id: chapter.id, subject: subject?.name ?? "" });
     navigate(`/study/${chapter.id}?pass=${pass}`);
   }
 

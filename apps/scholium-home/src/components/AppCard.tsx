@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ArrowUpRight, LockOpen, PlayCircle, Sparkles } from "lucide-react";
+import { useAnalytics } from "@repo/analytics";
 
 // Fallback for tools with a no-signup trial at `<app-url>/demo`, used only when
 // the DB `has_demo` flag is absent (e.g. before the tags migration is applied).
@@ -125,6 +126,7 @@ export default function AppCard({
   highlighted,
   imageSide = "right",
 }: AppCardProps) {
+  const { track } = useAnalytics();
   const slug = useMemo(() => resolveAppSlug(title, url), [title, url]);
   const showDemo = has_demo ?? DEMO_SLUGS.has(slug);
   const tryUrl = showDemo ? `${url.replace(/\/+$/, "")}/demo` : null;
@@ -160,6 +162,7 @@ export default function AppCard({
             href={tryUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => track("demo_click", { app_id: id })}
             className="sch-focus inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-[0.08em] shadow-soft transition-transform hover:-translate-y-0.5"
             style={{
               background: "hsl(var(--card))",
@@ -192,6 +195,7 @@ export default function AppCard({
       target="_blank"
       rel="noopener noreferrer"
       data-app-id={id}
+      onClick={() => track("app_card_click", { app_id: id, source: "grid" })}
       className={`sch-focus group relative flex flex-col ${rowDirection} bg-paper rounded-[var(--radius-lg)] border border-[color:var(--color-border)] overflow-hidden transition-all duration-500`}
       style={highlightStyle}
       onMouseEnter={(e) => {

@@ -14,6 +14,7 @@ import {
   setActiveAttemptId,
 } from "@/lib/attemptStore";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAnalytics } from "@repo/analytics";
 
 /** Each save is a network round trip now, so a slightly longer window than a disk write. */
 const SAVE_DEBOUNCE_MS = 800;
@@ -48,6 +49,7 @@ const AttemptContext = createContext<AttemptContextType | null>(null);
 
 export function AttemptProvider({ children }: { children: ReactNode }) {
   const { user, loadingAuth } = useAuth();
+  const { track } = useAnalytics();
 
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
@@ -67,8 +69,11 @@ export function AttemptProvider({ children }: { children: ReactNode }) {
   const persist = useCallback((next: Attempt) => {
     saveAttempt(next)
       .then(() => setSaveFailed(false))
-      .catch(() => setSaveFailed(true));
-  }, []);
+      .catch(() => {
+        setSaveFailed(true);
+        track("autosave_failed");
+      });
+  }, [track]);
 
   const flush = useCallback(() => {
     if (saveTimer.current !== null) {
@@ -138,7 +143,10 @@ export function AttemptProvider({ children }: { children: ReactNode }) {
         const pages = await open(draft, bytes);
 
         // Signed out (/demo) the attempt is deliberately ephemeral.
-        if (!userId) return true;
+        if (!userId) {
+          track("attempt_start", { pages: pages.length, source: "demo" });
+          return true;
+        }
 
         // Storage now holds the only copy of the paper, so the attempt row must never
         // exist without it. Await the upload and refuse to start if it fails, rather
@@ -147,6 +155,7 @@ export function AttemptProvider({ children }: { children: ReactNode }) {
         if (!uploaded) {
           clearAttempt();
           setError("Could not save the paper to your account. Check your connection and try again.");
+          track("attempt_start_failed", { reason: "upload" });
           return false;
         }
 
@@ -156,22 +165,27 @@ export function AttemptProvider({ children }: { children: ReactNode }) {
         } catch {
           clearAttempt();
           setError("Could not save this attempt to your account. Check your connection and try again.");
+          track("attempt_start_failed", { reason: "save" });
           return false;
         }
 
         setActiveAttemptId(id);
+        track("attempt_start", { pages: pages.length, source: "upload" });
         return true;
       } catch (e) {
         clearAttempt();
         setError(
           e instanceof UnsupportedPdfError ? e.message : "That file could not be opened as a PDF.",
         );
+        track("attempt_start_failed", {
+          reason: e instanceof UnsupportedPdfError ? "bad_pdf" : "unknown",
+        });
         return false;
       } finally {
         setLoading(false);
       }
     },
-    [open, clearAttempt],
+    [open, clearAttempt, track],
   );
 
   const resumeAttempt = useCallback(

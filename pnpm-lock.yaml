@@ -101,6 +101,15 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.2.7
         version: 1.2.8(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@repo/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
+      '@repo/hooks':
+        specifier: workspace:*
+        version: link:../../packages/hooks
+      '@repo/session':
+        specifier: workspace:*
+        version: link:../../packages/session
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -110,6 +119,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.83.0
         version: 5.100.5(react@18.3.1)
+      '@vercel/analytics':
+        specifier: ^2.0.1
+        version: 2.0.1(react@18.3.1)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -276,12 +288,24 @@ importers:
       '@pdf-lib/fontkit':
         specifier: ^1.1.1
         version: 1.1.1
+      '@repo/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
+      '@repo/hooks':
+        specifier: workspace:*
+        version: link:../../packages/hooks
+      '@repo/session':
+        specifier: workspace:*
+        version: link:../../packages/session
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@supabase/supabase-js':
         specifier: ^2.86.0
         version: 2.104.1
+      '@vercel/analytics':
+        specifier: ^2.0.1
+        version: 2.0.1(react@18.3.1)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -370,12 +394,24 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1083.0
         version: 3.1083.0
+      '@repo/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
+      '@repo/hooks':
+        specifier: workspace:*
+        version: link:../../packages/hooks
+      '@repo/session':
+        specifier: workspace:*
+        version: link:../../packages/session
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@supabase/supabase-js':
         specifier: ^2.86.0
         version: 2.104.1
+      '@vercel/analytics':
+        specifier: ^2.0.1
+        version: 2.0.1(react@18.3.1)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -464,6 +500,15 @@ importers:
 
   apps/poetry-notes:
     dependencies:
+      '@repo/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
+      '@repo/hooks':
+        specifier: workspace:*
+        version: link:../../packages/hooks
+      '@repo/session':
+        specifier: workspace:*
+        version: link:../../packages/session
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -485,6 +530,9 @@ importers:
       '@tiptap/starter-kit':
         specifier: ^3.19.0
         version: 3.22.4
+      '@vercel/analytics':
+        specifier: ^2.0.1
+        version: 2.0.1(react@19.2.5)
       dompurify:
         specifier: ^3.4.2
         version: 3.4.2
@@ -594,12 +642,24 @@ importers:
       '@radix-ui/react-tabs':
         specifier: ^1.1.12
         version: 1.1.13(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@repo/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
+      '@repo/hooks':
+        specifier: workspace:*
+        version: link:../../packages/hooks
+      '@repo/session':
+        specifier: workspace:*
+        version: link:../../packages/session
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@supabase/supabase-js':
         specifier: ^2.86.0
         version: 2.104.1
+      '@vercel/analytics':
+        specifier: ^2.0.1
+        version: 2.0.1(react@18.3.1)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -709,12 +769,21 @@ importers:
 
   apps/scholium-home:
     dependencies:
+      '@repo/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
+      '@repo/session':
+        specifier: workspace:*
+        version: link:../../packages/session
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@supabase/supabase-js':
         specifier: ^2.86.0
         version: 2.104.1
+      '@vercel/analytics':
+        specifier: ^2.0.1
+        version: 2.0.1(react@18.3.1)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -786,11 +855,125 @@ importers:
         specifier: ^7.2.4
         version: 7.3.2(@types/node@22.19.17)(jiti@1.21.7)
 
+  packages/analytics:
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.39.1
+        version: 9.39.4
+      '@types/react':
+        specifier: ^18 || ^19
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^18 || ^19
+        version: 19.2.3(@types/react@19.2.14)
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.4(jiti@1.21.7)
+      eslint-plugin-react-hooks:
+        specifier: ^7.0.1
+        version: 7.1.1(eslint@9.39.4(jiti@1.21.7))
+      eslint-plugin-react-refresh:
+        specifier: ^0.4.24
+        version: 0.4.26(eslint@9.39.4(jiti@1.21.7))
+      globals:
+        specifier: ^16.5.0
+        version: 16.5.0
+      react:
+        specifier: ^19.2.0
+        version: 19.2.5
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.5(react@19.2.5)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.46.4
+        version: 8.59.0(eslint@9.39.4(jiti@1.21.7))(typescript@5.9.3)
+      vitest:
+        specifier: ^4.1.0
+        version: 4.1.10(@types/node@24.12.2)(vite@7.3.2(@types/node@24.12.2)(jiti@1.21.7))
+
+  packages/hooks:
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.39.1
+        version: 9.39.4
+      '@types/react':
+        specifier: ^18 || ^19
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^18 || ^19
+        version: 19.2.3(@types/react@19.2.14)
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.4(jiti@1.21.7)
+      eslint-plugin-react-hooks:
+        specifier: ^7.0.1
+        version: 7.1.1(eslint@9.39.4(jiti@1.21.7))
+      eslint-plugin-react-refresh:
+        specifier: ^0.4.24
+        version: 0.4.26(eslint@9.39.4(jiti@1.21.7))
+      globals:
+        specifier: ^16.5.0
+        version: 16.5.0
+      react:
+        specifier: ^19.2.0
+        version: 19.2.5
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.5(react@19.2.5)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.46.4
+        version: 8.59.0(eslint@9.39.4(jiti@1.21.7))(typescript@5.9.3)
+
+  packages/session:
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.39.1
+        version: 9.39.4
+      '@types/react':
+        specifier: ^18 || ^19
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^18 || ^19
+        version: 19.2.3(@types/react@19.2.14)
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.4(jiti@1.21.7)
+      eslint-plugin-react-hooks:
+        specifier: ^7.0.1
+        version: 7.1.1(eslint@9.39.4(jiti@1.21.7))
+      eslint-plugin-react-refresh:
+        specifier: ^0.4.24
+        version: 0.4.26(eslint@9.39.4(jiti@1.21.7))
+      globals:
+        specifier: ^16.5.0
+        version: 16.5.0
+      react:
+        specifier: ^19.2.0
+        version: 19.2.5
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.5(react@19.2.5)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.46.4
+        version: 8.59.0(eslint@9.39.4(jiti@1.21.7))(typescript@5.9.3)
+
   packages/ui:
     dependencies:
       '@fontsource-variable/ibm-plex-sans':
         specifier: ^5.2.8
         version: 5.2.8
+      '@repo/hooks':
+        specifier: workspace:*
+        version: link:../hooks
     devDependencies:
       '@eslint/js':
         specifier: ^9.39.1
@@ -3036,6 +3219,35 @@ packages:
   '@typescript-eslint/visitor-keys@8.59.0':
     resolution: {integrity: sha512-/uejZt4dSere1bx12WLlPfv8GktzcaDtuJ7s42/HEZ5zGj9oxRaD4bj7qwSunXkf+pbAhFt2zjpHYUiT5lHf0Q==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@vercel/analytics@2.0.1':
+    resolution: {integrity: sha512-MTQG6V9qQrt1tsDeF+2Uoo5aPjqbVPys1xvnIftXSJYG2SrwXRHnqEvVoYID7BTruDz4lCd2Z7rM1BdkUehk2g==}
+    peerDependencies:
+      '@remix-run/react': ^2
+      '@sveltejs/kit': ^1 || ^2
+      next: '>= 13'
+      nuxt: '>= 3'
+      react: ^18 || ^19 || ^19.0.0-rc
+      svelte: '>= 4'
+      vue: ^3
+      vue-router: ^4
+    peerDependenciesMeta:
+      '@remix-run/react':
+        optional: true
+      '@sveltejs/kit':
+        optional: true
+      next:
+        optional: true
+      nuxt:
+        optional: true
+      react:
+        optional: true
+      svelte:
+        optional: true
+      vue:
+        optional: true
+      vue-router:
+        optional: true
 
   '@vitejs/plugin-react-swc@3.11.0':
     resolution: {integrity: sha512-YTJCGFdNMHCMfjODYtxRNVAYmTWQ1Lb8PulP/2/f/oEEtglw8oKxKIZmmRkyXrVrHfsKOaVkAc3NT9/dMutO5w==}
@@ -7545,6 +7757,14 @@ snapshots:
       '@typescript-eslint/types': 8.59.0
       eslint-visitor-keys: 5.0.1
 
+  '@vercel/analytics@2.0.1(react@18.3.1)':
+    optionalDependencies:
+      react: 18.3.1
+
+  '@vercel/analytics@2.0.1(react@19.2.5)':
+    optionalDependencies:
+      react: 19.2.5
+
   '@vitejs/plugin-react-swc@3.11.0(vite@7.3.2(@types/node@22.19.17)(jiti@1.21.7))':
     dependencies:
       '@rolldown/pluginutils': 1.0.0-beta.27
@@ -7674,6 +7894,14 @@ snapshots:
       magic-string: 0.30.21
     optionalDependencies:
       vite: 7.3.2(@types/node@22.19.17)(jiti@1.21.7)
+
+  '@vitest/mocker@4.1.10(vite@7.3.2(@types/node@24.12.2)(jiti@1.21.7))':
+    dependencies:
+      '@vitest/spy': 4.1.10
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 7.3.2(@types/node@24.12.2)(jiti@1.21.7)
 
   '@vitest/mocker@4.1.5(vite@7.3.2(@types/node@22.19.17)(jiti@1.21.7))':
     dependencies:
@@ -9925,6 +10153,33 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 22.19.17
+    transitivePeerDependencies:
+      - msw
+
+  vitest@4.1.10(@types/node@24.12.2)(vite@7.3.2(@types/node@24.12.2)(jiti@1.21.7)):
+    dependencies:
+      '@vitest/expect': 4.1.10
+      '@vitest/mocker': 4.1.10(vite@7.3.2(@types/node@24.12.2)(jiti@1.21.7))
+      '@vitest/pretty-format': 4.1.10
+      '@vitest/runner': 4.1.10
+      '@vitest/snapshot': 4.1.10
+      '@vitest/spy': 4.1.10
+      '@vitest/utils': 4.1.10
+      es-module-lexer: 2.1.0
+      expect-type: 1.3.0
+      magic-string: 0.30.21
+      obug: 2.1.1
+      pathe: 2.0.3
+      picomatch: 4.0.4
+      std-env: 4.1.0
+      tinybench: 2.9.0
+      tinyexec: 1.1.1
+      tinyglobby: 0.2.16
+      tinyrainbow: 3.1.0
+      vite: 7.3.2(@types/node@24.12.2)(jiti@1.21.7)
+      why-is-node-running: 2.3.0
+    optionalDependencies:
+      '@types/node': 24.12.2
     transitivePeerDependencies:
       - msw
 

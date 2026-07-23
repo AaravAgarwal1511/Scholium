@@ -8,6 +8,7 @@ export default function TwoSiders() {
   const [list, setList] = useState<TwoSiderRow[]>([]);
   const [counts, setCounts] = useState<Counts>({});
   const [openId, setOpenId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [err, setErr] = useState("");
 
   async function load() {
@@ -42,6 +43,19 @@ export default function TwoSiders() {
       setList((prev) => prev.map((r) => (r.id === row.id ? { ...r, available: !next } : r)));
       setErr(error.message);
     }
+  }
+
+  // The points cascade with the essay (FK ON DELETE CASCADE), so the count goes
+  // in the prompt — it is the only warning of what else is about to go.
+  async function del(row: TwoSiderRow) {
+    const c = counts[row.id] ?? { for: 0, against: 0 };
+    if (!confirm(`Delete "${row.question}" and its ${c.for + c.against} points? This cannot be undone.`))
+      return;
+    setBusyId(row.id);
+    const { error } = await supabase.rpc("admin_delete_two_sider", { p_id: row.id });
+    setBusyId(null);
+    if (error) return setErr(error.message);
+    setList((prev) => prev.filter((r) => r.id !== row.id));
   }
 
   async function swap(a: TwoSiderRow, b: TwoSiderRow) {
@@ -117,8 +131,16 @@ export default function TwoSiders() {
                   {!row.available && <span className="text-amber-600 font-medium"> · Hidden</span>}
                 </div>
               </button>
-              <div className="flex items-center gap-2 pr-3 flex-shrink-0">
+              <div className="flex items-center gap-3 pr-3 flex-shrink-0">
                 <AvailToggle available={row.available} onToggle={() => toggleAvailable(row)} />
+                <button
+                  onClick={(e) => { e.stopPropagation(); del(row); }}
+                  disabled={busyId === row.id}
+                  className="text-xs text-slate-400 hover:text-red-600 disabled:opacity-40 disabled:hover:text-slate-400"
+                  title="Delete this essay and all its points"
+                >
+                  {busyId === row.id ? "Deleting…" : "Delete"}
+                </button>
                 <span className="text-slate-400 text-sm">Edit →</span>
               </div>
             </div>

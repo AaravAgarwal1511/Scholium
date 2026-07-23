@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useAnalytics } from "@repo/analytics";
 import type { AppLink } from "@repo/ui";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -79,6 +80,7 @@ interface SubjectEntry {
 }
 
 export default function SubjectPicker({ apps, onPick }: SubjectPickerProps) {
+  const { track } = useAnalytics();
   const entries: SubjectEntry[] = useMemo(() => {
     const byKey = new Map<string, SubjectEntry>();
     for (const app of apps) {
@@ -123,7 +125,7 @@ export default function SubjectPicker({ apps, onPick }: SubjectPickerProps) {
               <li key={`${entry.subject}-${entry.appIds.join(",")}`}>
                 <button
                   type="button"
-                  onClick={() => onPick(entry.subject, entry.appIds)}
+                  onClick={() => { track("subject_chip_click", { subject: entry.subject }); onPick(entry.subject, entry.appIds); }}
                   className="sch-focus inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all"
                   style={{
                     background: "hsl(var(--primary) / 0.08)",

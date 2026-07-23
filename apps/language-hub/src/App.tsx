@@ -10,6 +10,8 @@ import type { AppLink } from "@repo/ui";
 import "@repo/ui/scholium-navbar.css";
 import "@repo/ui/legal.css";
 import { supabase } from "@/integrations/supabase/client";
+import { Analytics } from "@vercel/analytics/react";
+import { usePageView, useAnalytics } from "@repo/analytics";
 import Index from "./pages/Index";
 import Demo from "./pages/Demo";
 import CreateSet from "./pages/CreateSet";
@@ -47,9 +49,11 @@ async function loadScholiumApps(): Promise<AppLink[]> {
 function NavbarWired({ apps }: { apps: AppLink[] }) {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const { track } = useAnalytics();
   return (
     <ScholiumNavbar
       apps={apps}
+      onAppClick={(id) => track("nav_app_click", { to_app_id: id })}
       homeUrl={SCHOLIUM_HOME_URL}
       user={user ? { email: user.email ?? "" } : null}
       onSignIn={() => navigate("/signin")}
@@ -62,6 +66,7 @@ function NavbarWired({ apps }: { apps: AppLink[] }) {
 
 function FadeRoutes({ description }: { description?: string | null }) {
   const location = useLocation();
+  usePageView(location.pathname);
   return (
     <div key={location.key} className="page-fade-in">
       <Routes>
@@ -99,6 +104,7 @@ const App = () => {
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <Analytics />
         <BrowserRouter>
           <Routes>
             <Route path="/demo" element={<Demo />} />

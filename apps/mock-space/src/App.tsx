@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Route, Routes, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   ScholiumNavbar,
   ScholiumFooter,
   TermsOfService,
   PrivacyPolicy,
   SCHOLIUM_HOME_URL,
-  useDarkMode,
 } from "@repo/ui";
+import { useDarkMode } from "@repo/hooks";
 import type { AppLink } from "@repo/ui";
 import "@repo/ui/scholium-navbar.css";
 import "@repo/ui/legal.css";
 import DesktopGuard from "@/components/DesktopGuard";
 import { supabase } from "@/integrations/supabase/client";
+import { Analytics } from "@vercel/analytics/react";
+import { usePageView, useAnalytics } from "@repo/analytics";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AttemptProvider } from "@/contexts/AttemptContext";
 import HomePage from "@/pages/HomePage";
@@ -44,9 +46,11 @@ async function loadScholiumApps(): Promise<AppLink[]> {
 function NavbarWired({ apps }: { apps: AppLink[] }) {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { track } = useAnalytics();
   return (
     <ScholiumNavbar
       apps={apps}
+      onAppClick={(id) => track("nav_app_click", { to_app_id: id })}
       homeUrl={SCHOLIUM_HOME_URL}
       user={user ? { email: user.email ?? "" } : null}
       onSignIn={() => navigate("/signin")}
@@ -76,6 +80,7 @@ export default function App() {
 
   return (
     <AuthProvider>
+      <Analytics />
       <AttemptProvider>
         <BrowserRouter>
           <Routes>
@@ -98,6 +103,7 @@ export default function App() {
 }
 
 function MainRoutes({ apps, ownDescription }: { apps: AppLink[]; ownDescription: string | null }) {
+  usePageView(useLocation().pathname);
   return (
     <div className="flex min-h-screen flex-col">
       <NavbarWired apps={apps} />

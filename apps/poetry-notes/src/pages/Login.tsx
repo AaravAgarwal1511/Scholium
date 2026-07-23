@@ -1,15 +1,21 @@
 import { AuthCard } from '@repo/ui';
+import { useAnalytics } from '@repo/analytics';
 import { supabase } from '../integrations/supabase/client';
 
 export function Login() {
+  const { track } = useAnalytics();
   async function handleSignIn(email: string, password: string): Promise<string | null> {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error ? error.message : null;
+    if (error) return error.message;
+    track('sign_in');
+    return null;
   }
 
   async function handleSignUp(email: string, password: string): Promise<string | null> {
     const { error } = await supabase.auth.signUp({ email, password });
-    return error ? error.message : null;
+    if (error) return error.message;
+    track('sign_up');
+    return null;
   }
 
   async function handleForgotPassword(email: string): Promise<string | null> {

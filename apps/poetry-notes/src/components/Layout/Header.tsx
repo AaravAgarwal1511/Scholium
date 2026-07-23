@@ -12,13 +12,18 @@ export function Header({ onBackToLanding }: HeaderProps) {
     const [titleValue, setTitleValue] = React.useState(project.title);
     const inputRef = React.useRef<HTMLInputElement>(null);
 
+    // Re-sync the draft title when the project's title changes upstream. Adjusting
+    // state during render is React's documented alternative to a setState effect:
+    // it re-renders before children see the stale value, without a second commit.
+    const [syncedTitle, setSyncedTitle] = React.useState(project.title);
+    if (syncedTitle !== project.title) {
+        setSyncedTitle(project.title);
+        setTitleValue(project.title);
+    }
+
     const handleToggleDarkMode = () => {
         toggleDarkMode();
     };
-
-    React.useEffect(() => {
-        setTitleValue(project.title);
-    }, [project.title]);
 
     React.useEffect(() => {
         if (isEditingTitle && inputRef.current) {

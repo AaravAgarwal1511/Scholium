@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
-import { SettingsLayout, SettingsCard, useDarkMode } from "@repo/ui";
+import { SettingsLayout, SettingsCard } from "@repo/ui";
+import { useDarkMode } from "@repo/hooks";
 import "@repo/ui/settings-layout.css";
 import "@repo/ui/settings-card.css";
 import { PAPER_RETENTION_DAYS } from "@/lib/paperRetention";

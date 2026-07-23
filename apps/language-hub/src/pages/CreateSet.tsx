@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useAnalytics } from "@repo/analytics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +15,7 @@ import { toast } from "sonner";
 const CreateSet = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { track } = useAnalytics();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [language, setLanguage] = useState("french");
@@ -79,6 +81,7 @@ const CreateSet = () => {
 
       if (itemsError) throw itemsError;
 
+      track("set_created", { cards: items.length });
       toast.success(`Created "${name}" with ${items.length} terms!`);
       navigate("/");
     } catch (error) {

@@ -47,10 +47,14 @@ export function Note({
     const [resizeStartX, setResizeStartX] = useState(0);
     const [localContent, setLocalContent] = useState(note.content);
 
-    // Sync local content with prop
-    useEffect(() => {
+    // Sync local content with prop. Adjusting state during render is React's
+    // documented alternative to a setState effect: it re-renders before children
+    // see the stale value, without a second commit.
+    const [syncedContent, setSyncedContent] = useState(note.content);
+    if (syncedContent !== note.content) {
+        setSyncedContent(note.content);
         setLocalContent(note.content);
-    }, [note.content]);
+    }
 
     // Auto-focus new notes
     useEffect(() => {

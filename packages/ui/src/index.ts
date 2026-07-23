@@ -3,7 +3,6 @@ export type { AuthCardProps } from './AuthCard';
 
 export { SettingsLayout } from './SettingsLayout';
 export { SettingsCard } from './SettingsCard';
-export { useDarkMode } from './useDarkMode';
 
 export { ScholiumNavbar } from './ScholiumNavbar';
 export type { ScholiumNavbarProps, AppLink } from './ScholiumNavbar';
@@ -18,10 +17,5 @@ export type { LegalPageProps } from './LegalPage';
 export { TermsOfService } from './TermsOfService';
 export type { LegalDocProps } from './TermsOfService';
 export { PrivacyPolicy } from './PrivacyPolicy';
-
-export { useTourCompleted, tourStyles, useTourStyles } from './useTourCompleted';
-
-export { SingleSessionGuard } from './SingleSessionGuard';
-export type { SingleSessionGuardProps } from './SingleSessionGuard';
 
 export { SCHOLIUM_HOME_URL } from './constants';

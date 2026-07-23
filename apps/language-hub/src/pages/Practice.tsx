@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { Dumbbell } from "lucide-react";
 import { toast } from "sonner";
 import { QuizSession, QuizQuestion, QuestionType } from "@/components/QuizSession";
+import { useAnalytics } from "@repo/analytics";
 
 interface VocabularyItem {
   id: string;
@@ -49,27 +50,29 @@ const generateQuestions = (
   return questions.sort(() => Math.random() - 0.5);
 };
 
+const VALID_TYPES: QuestionType[] = ["fr-to-en", "en-to-fr", "dictation"];
+
 const Practice = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const VALID_TYPES: QuestionType[] = ["fr-to-en", "en-to-fr", "dictation"];
   const rawCount = parseInt(searchParams.get("count") || "20", 10);
   const count = Number.isFinite(rawCount) ? Math.min(Math.max(rawCount, 5), 200) : 20;
-  const allowedTypes = (searchParams.get("types") || "fr-to-en,en-to-fr,dictation")
-    .split(",")
-    .filter((t): t is QuestionType => VALID_TYPES.includes(t as QuestionType));
+  const typesParam = searchParams.get("types") || "fr-to-en,en-to-fr,dictation";
+  // Memoised on the raw param string: a fresh array each render would change the
+  // identity of the fetch callback below and refetch on every render.
+  const allowedTypes = useMemo(
+    () => typesParam.split(",").filter((t): t is QuestionType => VALID_TYPES.includes(t as QuestionType)),
+    [typesParam],
+  );
   // When set, practice is scoped to the mastered items in one folder's sets.
   const folderId = searchParams.get("folder");
   const backTo = folderId ? `/folder/${folderId}` : "/";
+  const { track } = useAnalytics();
 
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchMasteredItems();
-  }, [count, folderId]);
-
-  const fetchMasteredItems = async () => {
+  const fetchMasteredItems = useCallback(async () => {
     try {
       // Sample the session in Postgres: one round trip returns exactly `count`
       // random mastered items with their set language already joined, instead of
@@ -115,7 +118,11 @@ const Practice = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [count, folderId, allowedTypes, backTo, navigate]);
+
+  useEffect(() => {
+    fetchMasteredItems();
+  }, [fetchMasteredItems]);
 
   if (loading) {
     return (
@@ -129,6 +136,7 @@ const Practice = () => {
     <>
       <QuizSession
         questions={questions}
+        onComplete={(s) => track("practice_complete", { size: s.cards, source: folderId ? "folder" : "cross_set" })}
         title="Practice Mode"
       requeueIncorrect
       completionTitle="Practice Complete!"
