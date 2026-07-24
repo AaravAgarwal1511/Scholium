@@ -14,15 +14,11 @@ export type TwoSiderRow = {
 };
 
 // One point per line, "Keyword : Full point" — same parser as the card editor.
-// The keyword's initial is the mnemonic letter, so the mnemonic previews live
-// as you type. term → keyword, definition → point.
+// Keywords need only be memorable on their own; nothing has to spell anything,
+// so pick the word that actually triggers the point. term → keyword,
+// definition → point. Line order is the numbering students learn.
 function toPoints(text: string) {
   return parseCards(text).map((c) => ({ keyword: c.term, point: c.definition }));
-}
-function mnemonic(text: string) {
-  return toPoints(text)
-    .map((p) => (p.keyword.trim()[0] ?? "").toUpperCase())
-    .join("");
 }
 
 export default function TwoSiderEditor({
@@ -157,7 +153,6 @@ export default function TwoSiderEditor({
             onLabel={setForLabel}
             text={forText}
             onText={setForText}
-            mnemonic={mnemonic(forText)}
             count={forPts.length}
           />
           <SidePanel
@@ -166,7 +161,6 @@ export default function TwoSiderEditor({
             onLabel={setAgainstLabel}
             text={againstText}
             onText={setAgainstText}
-            mnemonic={mnemonic(againstText)}
             count={againstPts.length}
           />
         </div>
@@ -203,7 +197,6 @@ function SidePanel({
   onLabel,
   text,
   onText,
-  mnemonic,
   count,
 }: {
   heading: string;
@@ -211,15 +204,14 @@ function SidePanel({
   onLabel: (v: string) => void;
   text: string;
   onText: (v: string) => void;
-  mnemonic: string;
   count: number;
 }) {
   return (
     <div className="bg-white rounded-xl shadow p-5 flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{heading}</span>
-        <span className="font-mono font-bold tracking-[0.15em] text-indigo-600 text-sm">
-          {mnemonic || "—"}
+        <span className="font-bold text-indigo-600 text-sm tabular-nums">
+          {count} point{count === 1 ? "" : "s"}
         </span>
       </div>
       <input
@@ -235,7 +227,7 @@ function SidePanel({
         placeholder={"Dumping : Shields domestic firms from goods sold below cost.\nRevenue : Tariffs raise government revenue."}
       />
       <div className="text-xs text-slate-500">
-        {count} point{count === 1 ? "" : "s"} · one per line, <code>Keyword : Point</code>. The keyword initials form the mnemonic above.
+        One point per line, <code>Keyword : Point</code>. Line order is the order students learn them in — put the strongest first.
       </div>
     </div>
   );

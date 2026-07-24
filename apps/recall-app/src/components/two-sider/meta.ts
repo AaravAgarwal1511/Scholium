@@ -12,7 +12,7 @@ export interface StageMeta {
 }
 
 export const STAGES: StageMeta[] = [
-  { key: "anchor", name: "Anchor", tagline: "Compress each point to a trigger word", principle: "Chunking + mnemonic", icon: Anchor },
+  { key: "anchor", name: "Anchor", tagline: "Compress each point to a trigger word", principle: "Chunking", icon: Anchor },
   { key: "faceoff", name: "Face-Off", tagline: "Sort shuffled points onto the right side", principle: "Discrimination", icon: Swords },
   { key: "blank", name: "Blank Slate", tagline: "Rebuild both lists from an empty page", principle: "Free recall", icon: PenLine },
 ];

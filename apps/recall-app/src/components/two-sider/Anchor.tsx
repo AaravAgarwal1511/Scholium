@@ -4,14 +4,17 @@ import type { SidePoint, TwoSiderSide } from "@/types";
 import { cn } from "@/lib/utils";
 import { sideTheme, type SideTheme } from "./meta";
 
-// Stage 1 — Anchor. Compress each point to one keyword; the keywords' initials
-// spell a word. Tapping a rung is an active-recall beat: try to say the point,
-// then reveal to check. A rung cycles hidden → keyword → full point.
+// Stage 1 — Anchor. Compress each point to one keyword and learn the side's
+// count, so a missing point announces itself ("five of six"). Tapping a rung is
+// an active-recall beat: try to say the point, then reveal to check. A rung
+// cycles hidden → keyword → full point.
 function Rung({
+  index,
   point,
   theme,
   onRevealed,
 }: {
+  index: number;
   point: SidePoint;
   theme: SideTheme;
   onRevealed: () => void;
@@ -35,12 +38,12 @@ function Rung({
     >
       <span
         className={cn(
-          "w-11 h-11 rounded-lg grid place-items-center font-bold text-xl font-display",
+          "w-11 h-11 rounded-lg grid place-items-center font-bold text-xl font-display tabular-nums",
           theme.softBg,
           theme.text,
         )}
       >
-        {point.letter}
+        {index + 1}
       </span>
       <span className="min-w-0">
         {state === 0 ? (
@@ -65,10 +68,12 @@ function Column({ side, onRevealed }: { side: TwoSiderSide; onRevealed: () => vo
           <span className={cn("w-2 h-2 rounded-sm", theme.solid)} />
           {side.label}
         </span>
-        <span className={cn("font-display font-bold tracking-[0.18em] text-sm", theme.text)}>{side.mnemonic}</span>
+        <span className={cn("font-display font-bold text-sm tabular-nums", theme.text)}>
+          {side.points.length} point{side.points.length === 1 ? "" : "s"}
+        </span>
       </div>
       {side.points.map((p, i) => (
-        <Rung key={i} point={p} theme={theme} onRevealed={onRevealed} />
+        <Rung key={i} index={i} point={p} theme={theme} onRevealed={onRevealed} />
       ))}
     </div>
   );
@@ -88,10 +93,11 @@ export function Anchor({
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-muted-foreground">
-        Each point shrinks to one keyword; the initials spell{" "}
+        Each point shrinks to one keyword. Two numbers to hold onto:{" "}
         {sides.map((s, i) => (
           <span key={s.stance}>
-            <b className={cn("font-display", sideTheme(s.stance).text)}>{s.mnemonic}</b>
+            <b className={cn("font-display tabular-nums", sideTheme(s.stance).text)}>{s.points.length}</b>{" "}
+            {s.label.toLowerCase()}
             {i < sides.length - 1 ? " and " : ""}
           </span>
         ))}
@@ -109,7 +115,7 @@ export function Anchor({
           {done ? "Continue to Face-Off →" : `Reveal every point to continue (${revealed}/${total})`}
         </Button>
         {!done && (
-          <p className="text-xs text-muted-foreground">Once the two words are automatic you never lose count of your points.</p>
+          <p className="text-xs text-muted-foreground">Learn the counts and a gap announces itself — name five of six and you know one is still missing.</p>
         )}
       </div>
     </div>

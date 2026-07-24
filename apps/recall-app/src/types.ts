@@ -35,16 +35,14 @@ export type Passes = Record<string, number>;
 export type Side = "for" | "against";
 
 export interface SidePoint {
-  letter: string;  // mnemonic initial, e.g. "D"
   keyword: string; // the point compressed to one trigger word, e.g. "Dumping"
   point: string;   // the full point, one sentence
 }
 
 export interface TwoSiderSide {
   stance: Side;
-  label: string;    // how the side reads in this question, e.g. "FOR tariffs"
-  mnemonic: string; // the initials of the keywords, e.g. "DRIVES"
-  points: SidePoint[];
+  label: string; // how the side reads in this question, e.g. "FOR tariffs"
+  points: SidePoint[]; // display order is the numbering the student learns
 }
 
 export interface TwoSider {

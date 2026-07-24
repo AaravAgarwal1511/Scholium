@@ -7,10 +7,13 @@ import { sideTheme, type SideTheme } from "./meta";
 
 type Grade = "got" | "hint" | "miss";
 
-// Stage 3 — Blank Slate. The real exam task: an empty page. Recall each point
-// cold; if you stall, a hint gives up only the letter, then the keyword, then
-// the full line. Using a hint means it wasn't unaided, so it counts as queued
-// for the next pass. Honest self-grading drives what resurfaces tomorrow.
+// Stage 3 — Blank Slate. The real exam task: an empty page — numbered slots,
+// one per point, so the page shows how many are still missing. Recall each cold;
+// if you stall, a hint gives up the keyword, then the full line. Grading a slot
+// reveals the point either way, so you always get to check what you said against
+// what was there — the grade is already committed by then, so nothing leaks.
+// Using a hint means it wasn't unaided, so it counts as queued for the next
+// pass. Honest self-grading drives what resurfaces tomorrow.
 function Slot({
   index,
   point,
@@ -28,6 +31,10 @@ function Slot({
   onReveal: () => void;
   onGrade: (g: "got" | "miss") => void;
 }) {
+  // Grading commits your answer, so it costs nothing to show the point in full
+  // straight after — you can only check yourself once the grade is locked in.
+  const shown = grade ? 2 : hint;
+
   return (
     <div
       className={cn(
@@ -42,14 +49,13 @@ function Slot({
         <button
           type="button"
           onClick={onReveal}
+          disabled={shown >= 2}
           className="flex-1 min-w-0 text-left text-sm py-0.5"
         >
-          {hint === 0 && <span className="text-muted-foreground/70">tap for a hint…</span>}
-          {hint >= 1 && <span className={cn("font-display font-bold", theme.text)}>{point.letter}</span>}
-          {hint === 1 && <span className="text-muted-foreground/70"> — tap for the keyword</span>}
-          {hint >= 2 && <span className="font-semibold text-foreground"> {point.keyword}</span>}
-          {hint === 2 && <span className="text-muted-foreground/70"> — tap for the full point</span>}
-          {hint >= 3 && <span className="block text-muted-foreground mt-1 leading-snug">{point.point}</span>}
+          {shown === 0 && <span className="text-muted-foreground/70">tap for a hint…</span>}
+          {shown >= 1 && <span className={cn("font-semibold", theme.text)}>{point.keyword}</span>}
+          {shown === 1 && <span className="text-muted-foreground/70"> — tap for the full point</span>}
+          {shown >= 2 && <span className="block text-muted-foreground mt-1 leading-snug">{point.point}</span>}
         </button>
         <div className="flex gap-1.5 flex-shrink-0">
           <button
@@ -92,10 +98,11 @@ export function BlankSlate({
 
   const total = sides.reduce((n, s) => n + s.points.length, 0);
 
+  // Hints only ever move the reveal ladder. Grading is the student's own act,
+  // so it stays the one thing that fills a slot's grade — which is what lets a
+  // graded slot show its answer without a hint tap being mistaken for one.
   function reveal(key: string) {
-    setHints((h) => ({ ...h, [key]: Math.min(3, (h[key] ?? 0) + 1) }));
-    // a revealed hint means it wasn't recalled unaided
-    setGrades((g) => (g[key] === "got" || g[key] === undefined ? { ...g, [key]: "hint" } : g));
+    setHints((h) => ({ ...h, [key]: Math.min(2, (h[key] ?? 0) + 1) }));
   }
 
   function grade(key: string, g: "got" | "miss") {
@@ -116,7 +123,9 @@ export function BlankSlate({
   return (
     <div className="flex flex-col gap-5">
       <div className="rounded-xl border border-border bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
-        Recall each point cold — tap a slot only if you stall, then grade yourself honestly.
+        Recall each point cold — one numbered slot per point, so an empty row is a point you still owe.
+        Tap a slot only if you stall. Grade yourself honestly and the point appears, so you can check
+        what you said against what was there.
       </div>
 
       <div className="grid sm:grid-cols-2 gap-5">
@@ -127,6 +136,7 @@ export function BlankSlate({
               <span className={cn("inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold w-fit", theme.softBg, theme.text)}>
                 <span className={cn("w-2 h-2 rounded-sm", theme.solid)} />
                 {side.label}
+                <span className="tabular-nums opacity-70">· {side.points.length}</span>
               </span>
               {side.points.map((p, i) => {
                 const key = `${side.stance}-${i}`;

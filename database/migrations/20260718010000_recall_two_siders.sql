@@ -1,8 +1,8 @@
 -- Two-Sider essays for RecallApp: a question argued on two sides, each side a
--- short list of points. Every point's keyword initial spells the side's
--- mnemonic, so only the keyword + full point are stored — the letter and the
--- mnemonic are derived in the app. Public SELECT so the app reads them;
--- admin-only writes via the RPCs below (same pattern as recall_chapters).
+-- short list of points. A point is a keyword (the trigger word it compresses
+-- to) plus the full sentence; sort_order is the numbering students learn the
+-- side by. Public SELECT so the app reads them; admin-only writes via the RPCs
+-- below (same pattern as recall_chapters).
 
 -- ── recall_two_siders ──────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.recall_two_siders (
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS public.recall_two_sider_points (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   two_sider_id  text NOT NULL REFERENCES public.recall_two_siders(id) ON DELETE CASCADE,
   side          text NOT NULL CHECK (side IN ('for', 'against')),
-  keyword       text NOT NULL,                    -- trigger word; its initial forms the mnemonic
+  keyword       text NOT NULL,                    -- the point compressed to one trigger word
   point         text NOT NULL,                    -- the full point, one sentence
   sort_order    int NOT NULL DEFAULT 0
 );
@@ -161,27 +161,27 @@ INSERT INTO public.recall_two_siders (id, subject, emoji, question, marks, for_l
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.recall_two_sider_points (two_sider_id, side, keyword, point, sort_order) VALUES
-  -- eco-tariffs · FOR (DRIVES)
+  -- eco-tariffs · FOR
   ('eco-tariffs', 'for', 'Dumping',          'Shields domestic firms from foreign goods sold below cost.', 0),
   ('eco-tariffs', 'for', 'Revenue',          'Tariffs are a source of government tax revenue.', 1),
   ('eco-tariffs', 'for', 'Infant industry',  'Protects young industries until they reach an efficient scale.', 2),
   ('eco-tariffs', 'for', 'Vulnerable jobs',  'Safeguards employment in sectors exposed to import competition.', 3),
   ('eco-tariffs', 'for', 'External balance', 'Curbs imports to help narrow a current-account deficit.', 4),
   ('eco-tariffs', 'for', 'Security',         'Protects strategically vital industries — steel, food, defence.', 5),
-  -- eco-tariffs · AGAINST (PRICER)
+  -- eco-tariffs · AGAINST
   ('eco-tariffs', 'against', 'Prices',          'Consumers pay more, lowering real incomes.', 0),
   ('eco-tariffs', 'against', 'Retaliation',     'Partners impose counter-tariffs, risking a trade war.', 1),
   ('eco-tariffs', 'against', 'Inefficiency',    'Protected firms lack incentive to cut costs — X-inefficiency.', 2),
   ('eco-tariffs', 'against', 'Choice',          'The range of goods available to consumers narrows.', 3),
   ('eco-tariffs', 'against', 'Efficiency loss', 'Ignoring comparative advantage misallocates resources; welfare falls.', 4),
   ('eco-tariffs', 'against', 'Regressive',      'Price rises hit low-income households hardest.', 5),
-  -- eco-minimum-wage · FOR (SPEND)
+  -- eco-minimum-wage · FOR
   ('eco-minimum-wage', 'for', 'Standards',    'Lifts low-paid workers'' living standards, cutting in-work poverty.', 0),
   ('eco-minimum-wage', 'for', 'Productivity', 'Firms train and invest to justify the higher wage — the efficiency-wage effect.', 1),
   ('eco-minimum-wage', 'for', 'Extra demand', 'Higher incomes raise consumer spending, supporting growth.', 2),
   ('eco-minimum-wage', 'for', 'Narrower gap', 'Reduces income inequality between low and high earners.', 3),
   ('eco-minimum-wage', 'for', 'Dependency',   'Less reliance on state top-up benefits, easing the fiscal burden.', 4),
-  -- eco-minimum-wage · AGAINST (COBRA)
+  -- eco-minimum-wage · AGAINST
   ('eco-minimum-wage', 'against', 'Costs',         'Raises firms'' labour costs, squeezing profits and small businesses.', 0),
   ('eco-minimum-wage', 'against', 'Output prices', 'Firms pass costs on, adding to cost-push inflation.', 1),
   ('eco-minimum-wage', 'against', 'Barriers',      'Prices low-skilled and young workers out of jobs, raising unemployment.', 2),
