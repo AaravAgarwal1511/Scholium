@@ -44,12 +44,6 @@ async function distinctColumn(
 
 export type PaperType = "QP" | "MS";
 
-// The browser only ever needs the id — /api/compose-paper re-fetches everything
-// else server-side, and the crop geometry lives in the R2 index files.
-export interface Question {
-  id: string;
-}
-
 export interface PaperFile {
   type: PaperType;
   url: string;
@@ -217,37 +211,53 @@ async function fetchAllRows<T>(
   return rows;
 }
 
-// Which exam years each chapter of a component actually has questions for, so a
-// chapter card can offer exactly those years and recognise when the user has
-// asked for the full range (which the prebuilt topical PDF already covers).
-//
-// One query for the whole component rather than one per chapter — hence the
-// paging: a truncated result would silently understate a chapter's latest year.
-export async function getChapterYears(
+export interface ChapterQuestion {
+  id: string;
+  year: number;
+}
+
+// Every indexed question of a component, grouped by chapter and tagged with the
+// year of the exam it came from. One query for the whole component rather than
+// one per chapter — hence the paging: a truncated result would silently drop
+// questions off the end of the index.
+export async function getChapterQuestions(
   subject: string,
   paperNum: number,
-): Promise<Map<number, number[]>> {
-  const rows = await fetchAllRows<{ chapter_num: number; paper: string }>((from, to) =>
+): Promise<Map<number, ChapterQuestion[]>> {
+  const rows = await fetchAllRows<{ id: string; chapter_num: number; paper: string }>((from, to) =>
     supabase
       .from("questions_metadata")
-      .select("chapter_num, paper")
+      .select("id, chapter_num, paper")
       .eq("subject", subject)
       .like("id", `P${paperNum}-%`)
       .order("id")
       .range(from, to),
   );
 
-  const byChapter = new Map<number, Set<number>>();
+  const byChapter = new Map<number, ChapterQuestion[]>();
   for (const row of rows) {
     const year = yearOfPaper(row.paper);
     if (!Number.isFinite(year)) continue;
-    let years = byChapter.get(row.chapter_num);
-    if (!years) byChapter.set(row.chapter_num, (years = new Set()));
-    years.add(year);
+    let questions = byChapter.get(row.chapter_num);
+    if (!questions) byChapter.set(row.chapter_num, (questions = []));
+    questions.push({ id: row.id, year });
   }
+  return byChapter;
+}
 
+// Which exam years each chapter of a component actually has questions for, so a
+// chapter card can offer exactly those years and recognise when the user has
+// asked for the full range (which the prebuilt topical PDF already covers).
+export async function getChapterYears(
+  subject: string,
+  paperNum: number,
+): Promise<Map<number, number[]>> {
+  const byChapter = await getChapterQuestions(subject, paperNum);
   return new Map(
-    Array.from(byChapter, ([chapter, years]) => [chapter, Array.from(years).sort((a, b) => a - b)]),
+    Array.from(byChapter, ([chapter, questions]) => [
+      chapter,
+      Array.from(new Set(questions.map((q) => q.year))).sort((a, b) => a - b),
+    ]),
   );
 }
 
@@ -290,36 +300,54 @@ export async function requestChapterPaper(req: ChapterPaperRequest): Promise<str
   return url as string;
 }
 
-// Questions for one chapter of one subject + paper. The paper is matched on the
-// `P<n>-` id prefix (e.g. paperNum 2 → ids like "P2-Q001"), so generation stays
-// restricted to the selected component.
-export async function getQuestionsByChapter(
-  subject: string,
-  paperNum: number,
-  chapter: number,
-): Promise<Question[]> {
-  return fetchAllRows<Question>((from, to) =>
-    supabase
-      .from("questions_metadata")
-      .select("id")
-      .eq("subject", subject)
-      .eq("chapter_num", chapter)
-      .like("id", `P${paperNum}-%`)
-      .order("id")
-      .range(from, to),
-  );
-}
-
 interface GeneratePaperOptions {
   includeMarkScheme?: boolean;
   randomize?: boolean;
+  // What the browser should save the PDF as. Only reaches the user when the paper
+  // is too big to come back inline and is served from R2 instead.
+  fileName?: string;
+}
+
+// How many questions one generated paper may hold. Kept in step with
+// MAX_QUESTIONS in server/compose-handler.js, which is the limit that actually
+// enforces it — this copy only exists so the page can head the user off before
+// spending a minute on a request that will be refused.
+export const MAX_GENERATED_QUESTIONS = 400;
+
+// A composed paper comes back inline when it fits in a serverless response body,
+// and as an R2 URL when it doesn't (see server/compose-handler.js). Papers of a
+// dozen chapters routinely land on the second path.
+export type GeneratedPaper =
+  | { kind: "blob"; blob: Blob }
+  | { kind: "url"; url: string };
+
+// Roughly how long composing a paper takes, in seconds, as a function of the
+// question count — used only to drive the progress estimate the user sees while
+// waiting. Now that composition always reads source PDFs from R2 over HTTP, the
+// wall-clock time is dominated by fetching each *distinct exam PDF* the selection
+// touches, not by the raw question count. Measured against the live bucket:
+//
+//     N (questions):   1    5   10   20   40   80  120
+//     distinct papers: 1    5    9   16   31   56   67
+//     seconds:         3.2  6.5 10.5 23.6 48.8 91.2 95.3
+//
+// Up to ~80 questions each one tends to pull in a new paper, so time rises almost
+// linearly at ~1.15 s/question; beyond that, questions increasingly reuse papers
+// already fetched (and edge-cached), so the curve flattens — 120 questions took
+// 95s, not the ~140s a straight line predicts. A single linear fit `≈ 2 + 1.15·N`
+// tracks the representative 1–80 range well and stays conservative past it, which
+// is what a progress estimate wants: better to finish early than overrun. It is
+// an estimate, not a guarantee — a cold cache or a selection spread across more
+// papers runs slower.
+export function estimateGenerationSeconds(questionCount: number): number {
+  return Math.round(2 + 1.15 * Math.max(0, questionCount));
 }
 
 export async function generatePaper(
   subject: string,
   questionIds: string[],
   options: GeneratePaperOptions = {}
-): Promise<Blob> {
+): Promise<GeneratedPaper> {
   const response = await fetch("/api/compose-paper", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -328,6 +356,7 @@ export async function generatePaper(
       selections: Object.fromEntries(questionIds.map((id) => [id, true])),
       includeMarkScheme: options.includeMarkScheme ?? true,
       randomize: options.randomize ?? false,
+      fileName: options.fileName,
     }),
   });
 
@@ -346,12 +375,13 @@ export async function generatePaper(
   const text = await response.text();
   if (!text) throw new Error("Empty response from server");
 
-  const { pdfBase64 } = JSON.parse(text);
+  const { pdfBase64, url } = JSON.parse(text);
+  if (url) return { kind: "url", url: url as string };
   if (!pdfBase64) throw new Error("No PDF data in response");
   const binaryString = atob(pdfBase64);
   const bytes = new Uint8Array(binaryString.length);
   for (let i = 0; i < binaryString.length; i++) {
     bytes[i] = binaryString.charCodeAt(i);
   }
-  return new Blob([bytes], { type: "application/pdf" });
+  return { kind: "blob", blob: new Blob([bytes], { type: "application/pdf" }) };
 }
