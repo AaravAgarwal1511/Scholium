@@ -17,12 +17,21 @@ type EventRow = {
   visitors: number;
 };
 
+type DailyRow = {
+  day: string;
+  events: number;
+  visitors: number;
+  sessions: number;
+  signed_out_events: number;
+};
+
 const DAY_OPTIONS = [7, 30, 90];
 
 export default function Analytics() {
   const [days, setDays] = useState(30);
   const [overview, setOverview] = useState<OverviewRow[] | null>(null);
   const [events, setEvents] = useState<EventRow[] | null>(null);
+  const [daily, setDaily] = useState<DailyRow[] | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
@@ -30,15 +39,19 @@ export default function Analytics() {
     setErr("");
     setOverview(null);
     setEvents(null);
+    setDaily(null);
     Promise.all([
       supabase.rpc("admin_analytics_overview", { p_days: days }),
       supabase.rpc("admin_analytics_events", { p_days: days, p_app_key: null }),
-    ]).then(([ov, ev]) => {
+      supabase.rpc("admin_analytics_daily", { p_app_key: null, p_days: days }),
+    ]).then(([ov, ev, dy]) => {
       if (cancelled) return;
       if (ov.error) return setErr(ov.error.message);
       if (ev.error) return setErr(ev.error.message);
+      if (dy.error) return setErr(dy.error.message);
       setOverview((ov.data as OverviewRow[]) ?? []);
       setEvents((ev.data as EventRow[]) ?? []);
+      setDaily((dy.data as DailyRow[]) ?? []);
     });
     return () => {
       cancelled = true;
@@ -79,7 +92,7 @@ export default function Analytics() {
         </div>
       </div>
 
-      {!overview || !events ? (
+      {!overview || !events || !daily ? (
         <div className="text-slate-500">Loading analytics…</div>
       ) : overview.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-slate-500">
@@ -152,6 +165,46 @@ export default function Analytics() {
                     <td className="px-4 py-2 text-right text-slate-500">{r.visitors}</td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2 mt-8">
+            Daily activity ({days}d, all apps)
+          </h2>
+          <p className="text-xs text-slate-400 mb-2">
+            From the nightly <code>analytics_daily</code> rollup — refreshed at 04:37 UTC, kept
+            beyond the 180-day raw retention.
+          </p>
+          <div className="bg-white rounded-xl shadow overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-100 text-left text-slate-600">
+                <tr>
+                  <th className="px-4 py-2">Day</th>
+                  <th className="px-4 py-2 text-right">Events</th>
+                  <th className="px-4 py-2 text-right">Visitors</th>
+                  <th className="px-4 py-2 text-right">Sessions</th>
+                  <th className="px-4 py-2 text-right">Signed-out events</th>
+                </tr>
+              </thead>
+              <tbody>
+                {daily.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-3 text-slate-400" colSpan={5}>
+                      No rollup rows yet.
+                    </td>
+                  </tr>
+                ) : (
+                  daily.map((r) => (
+                    <tr key={r.day} className="border-t">
+                      <td className="px-4 py-2 text-slate-500">{r.day}</td>
+                      <td className="px-4 py-2 text-right">{r.events}</td>
+                      <td className="px-4 py-2 text-right">{r.visitors}</td>
+                      <td className="px-4 py-2 text-right">{r.sessions}</td>
+                      <td className="px-4 py-2 text-right text-slate-500">{r.signed_out_events}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
