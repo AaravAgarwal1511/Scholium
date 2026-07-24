@@ -1,25 +1,164 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAnalytics } from "@repo/analytics";
 import { ChevronLeft, Zap, Download, AlertCircle } from "lucide-react";
 import Layout from "@/components/Layout";
+import Tetris from "@/components/Tetris";
 import { EmptyState } from "@/components/StateViews";
 import { useAsync } from "@/hooks/useAsync";
 import {
   listSubjects,
   listComponents,
   listChapters,
-  getQuestionsByChapter,
+  getChapterQuestions,
   generatePaper,
   paperNumOf,
   subjectDisplayName,
+  estimateGenerationSeconds,
+  MAX_GENERATED_QUESTIONS,
+  type ChapterQuestion,
+  type GeneratedPaper,
 } from "@/lib/papers";
 
 type SelectionMap = {
   [chapterNum: number]: number; // chapter -> question count
 };
 
-type ChapterInfo = { number: number; name: string; ids: string[] };
+type ChapterInfo = { number: number; name: string; questions: ChapterQuestion[] };
+
+// The paper arrives inline as a blob when it is small enough for a serverless
+// response body, and as an R2 URL when it isn't. Either way it is one anchor
+// click: the R2 object is stored with an attachment disposition, so the browser
+// saves it rather than navigating away from the app.
+function downloadPaper(paper: GeneratedPaper, fileName: string) {
+  const href = paper.kind === "blob" ? URL.createObjectURL(paper.blob) : paper.url;
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  if (paper.kind === "blob") URL.revokeObjectURL(href);
+}
+
+const selectClass =
+  "rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm font-medium text-foreground focus:outline-none focus:border-primary";
+
+// Same control as the one on ChaptersPage, applied to the pool the generator
+// draws from rather than to a prebuilt chapter download.
+function YearRangeBar({
+  years,
+  yearFrom,
+  yearTo,
+  onFrom,
+  onTo,
+}: {
+  years: number[];
+  yearFrom: number;
+  yearTo: number;
+  onFrom: (y: number) => void;
+  onTo: (y: number) => void;
+}) {
+  return (
+    <div className="mb-4 rounded-xl border border-border bg-card p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="text-sm font-medium text-foreground" htmlFor="generate-year-from">
+          Years
+        </label>
+        <select
+          id="generate-year-from"
+          className={selectClass}
+          value={yearFrom}
+          onChange={(e) => onFrom(Number(e.target.value))}
+        >
+          {years.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+        <span className="text-sm text-muted-foreground">to</span>
+        <select
+          className={selectClass}
+          value={yearTo}
+          aria-label="Latest year"
+          onChange={(e) => onTo(Number(e.target.value))}
+        >
+          {years
+            .filter((y) => y >= yearFrom)
+            .map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+        </select>
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">
+        Questions are drawn only from exams in this range. Narrowing it lowers how many each
+        chapter can offer.
+      </p>
+    </div>
+  );
+}
+
+// Shown while the server composes the paper. Large papers read every source PDF
+// from R2 over HTTP, so this can run tens of seconds — the progress bar tracks a
+// measured estimate (see estimateGenerationSeconds) and there's a game of Tetris
+// to pass the time.
+function GeneratingOverlay({
+  elapsed,
+  estimate,
+}: {
+  elapsed: number;
+  estimate: number;
+}) {
+  const progress = Math.min(elapsed / Math.max(estimate, 1), 0.99);
+  const remaining = Math.max(0, Math.ceil(estimate - elapsed));
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "hsl(var(--background) / 0.8)", backdropFilter: "blur(4px)" }}
+      role="dialog"
+      aria-label="Generating paper"
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border border-border bg-card p-6"
+        style={{ boxShadow: "var(--shadow-card)" }}
+      >
+        <div className="flex items-center gap-3 mb-1">
+          <div className="p-2 rounded-lg bg-accent/10">
+            <Zap size={18} className="text-accent" />
+          </div>
+          <h2 className="font-display font-bold text-lg">Building your paper…</h2>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          {elapsed < estimate
+            ? `About ${remaining}s to go — cropping and stitching questions from each exam.`
+            : "Almost there — finishing up the last few pages."}
+        </p>
+
+        <div className="h-2 w-full rounded-full bg-muted overflow-hidden mb-2">
+          <div
+            className="h-full rounded-full transition-[width] duration-200 ease-linear"
+            style={{ width: `${progress * 100}%`, background: "hsl(var(--primary))" }}
+          />
+        </div>
+        <div className="flex justify-between text-xs text-muted-foreground tabular-nums mb-5">
+          <span>{elapsed.toFixed(0)}s elapsed</span>
+          <span>~{estimate}s estimated</span>
+        </div>
+
+        <div className="rounded-xl border border-border bg-background/50 p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-3 text-center">
+            A game while you wait
+          </p>
+          <Tetris />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function GeneratePaperPage() {
   const navigate = useNavigate();
@@ -31,10 +170,24 @@ export default function GeneratePaperPage() {
   const [selections, setSelections] = useState<SelectionMap>({});
   const [chapters, setChapters] = useState<ChapterInfo[]>([]);
   const [loadingChapters, setLoadingChapters] = useState(false);
+  const [pickedFrom, setPickedFrom] = useState<number | null>(null);
+  const [pickedTo, setPickedTo] = useState<number | null>(null);
   const [includeMarkScheme, setIncludeMarkScheme] = useState(true);
   const [randomize, setRandomize] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [estimate, setEstimate] = useState(0);
   const [generateError, setGenerateError] = useState<string | null>(null);
+
+  // Count up while a paper is composing, so the overlay can show elapsed time and
+  // advance the progress bar against the estimate.
+  useEffect(() => {
+    if (!isGenerating) return;
+    setElapsed(0);
+    const start = performance.now();
+    const id = setInterval(() => setElapsed((performance.now() - start) / 1000), 200);
+    return () => clearInterval(id);
+  }, [isGenerating]);
 
   // Load subjects
   const { data: subjects, loading: loadingSubjects } = useAsync(
@@ -49,9 +202,9 @@ export default function GeneratePaperPage() {
     [selectedSubject]
   );
 
-  // Load chapters (with their question ids) for the selected subject + paper.
-  // Questions are restricted to the chosen paper via the P<n>- id prefix, so
-  // Paper 1 only ever offers Paper 1 questions, etc.
+  // Load chapters (with their questions and exam years) for the selected subject
+  // + paper. Questions are restricted to the chosen paper via the P<n>- id
+  // prefix, so Paper 1 only ever offers Paper 1 questions, etc.
   useEffect(() => {
     if (!selectedSubject || !selectedComponent) {
       setChapters([]);
@@ -63,17 +216,19 @@ export default function GeneratePaperPage() {
     setLoadingChapters(true);
     (async () => {
       try {
-        const entries = await listChapters(subject, selectedComponent);
-        const withIds = await Promise.all(
-          entries.map(async (e) => {
-            const qs = await getQuestionsByChapter(subject, paperNum, e.number);
-            return { number: e.number, name: e.name, ids: qs.map((q) => q.id) };
-          })
-        );
+        const [entries, questionsByChapter] = await Promise.all([
+          listChapters(subject, selectedComponent),
+          getChapterQuestions(subject, paperNum),
+        ]);
         if (!cancelled) {
           setChapters(
-            withIds
-              .filter((c) => c.ids.length > 0)
+            entries
+              .map((e) => ({
+                number: e.number,
+                name: e.name,
+                questions: questionsByChapter.get(e.number) ?? [],
+              }))
+              .filter((c) => c.questions.length > 0)
               .sort((a, b) => a.number - b.number)
           );
         }
@@ -88,15 +243,82 @@ export default function GeneratePaperPage() {
     };
   }, [selectedSubject, selectedComponent]);
 
+  // Every year this component has, across all its chapters. Derived rather than
+  // held in state, so it can't fall out of step with the loaded chapters.
+  const allYears = useMemo(() => {
+    const seen = new Set<number>();
+    for (const ch of chapters) for (const q of ch.questions) seen.add(q.year);
+    return Array.from(seen).sort((a, b) => a - b);
+  }, [chapters]);
+
+  // `allYears` only exists once the chapters have loaded, so the range defaults
+  // to "everything" lazily rather than being captured as initial state.
+  const minYear = allYears[0] ?? 0;
+  const maxYear = allYears[allYears.length - 1] ?? 0;
+  const yearFrom = pickedFrom ?? minYear;
+  const yearTo = pickedTo ?? maxYear;
+
+  // The pool each chapter can actually draw from under the current year range.
+  const idsInRange = useMemo(
+    () =>
+      new Map(
+        chapters.map((ch) => [
+          ch.number,
+          ch.questions.filter((q) => q.year >= yearFrom && q.year <= yearTo).map((q) => q.id),
+        ])
+      ),
+    [chapters, yearFrom, yearTo]
+  );
+
+  const availableIn = (chapter: number) => idsInRange.get(chapter)?.length ?? 0;
+
+  // Narrowing the years can leave a chapter with fewer questions than the user
+  // already asked for — or with none at all. Bring the counts back inside what
+  // the range can supply instead of letting generation fail on them later.
+  useEffect(() => {
+    setSelections((prev) => {
+      const next: SelectionMap = {};
+      let changed = false;
+      for (const [key, count] of Object.entries(prev)) {
+        const available = idsInRange.get(Number(key))?.length ?? 0;
+        if (available === 0) {
+          changed = true;
+          continue;
+        }
+        if (count > available) changed = true;
+        next[Number(key)] = Math.min(count, available);
+      }
+      return changed ? next : prev;
+    });
+  }, [idsInRange]);
+
+  const resetSelection = () => {
+    setSelections({});
+    setPickedFrom(null);
+    setPickedTo(null);
+    setGenerateError(null);
+  };
+
   const handleSubjectSelect = (subject: string) => {
     setSelectedSubject(subject);
     setSelectedComponent(null);
-    setSelections({});
+    resetSelection();
   };
 
   const handleComponentSelect = (component: string) => {
     setSelectedComponent(component);
-    setSelections({});
+    resetSelection();
+  };
+
+  const handleYearFrom = (next: number) => {
+    setPickedFrom(next);
+    if (next > yearTo) setPickedTo(next);
+    setGenerateError(null);
+  };
+
+  const handleYearTo = (next: number) => {
+    setPickedTo(next);
+    setGenerateError(null);
   };
 
   const handleChapterToggle = (chapter: number, count: number) => {
@@ -114,6 +336,7 @@ export default function GeneratePaperPage() {
 
   const selectedChapters = Object.keys(selections).map(Number);
   const totalQuestions = Object.values(selections).reduce((a, b) => a + b, 0);
+  const overLimit = totalQuestions > MAX_GENERATED_QUESTIONS;
   const estimatedTime = Math.round(totalQuestions * 2.5);
   const chapterName = (n: number) =>
     chapters.find((c) => c.number === n)?.name ?? "Unknown";
@@ -123,7 +346,14 @@ export default function GeneratePaperPage() {
       setGenerateError("Please select at least one chapter with questions");
       return;
     }
+    if (overLimit) {
+      setGenerateError(
+        `Too many questions (${totalQuestions}). One paper can hold at most ${MAX_GENERATED_QUESTIONS}.`
+      );
+      return;
+    }
 
+    setEstimate(estimateGenerationSeconds(totalQuestions));
     setIsGenerating(true);
     setGenerateError(null);
     track("generate_submit", {
@@ -134,24 +364,31 @@ export default function GeneratePaperPage() {
     const startedAt = Date.now();
 
     try {
-      // For each selected chapter, randomly pick the requested number of ids.
+      // For each selected chapter, randomly pick the requested number of ids
+      // from the questions the chosen year range leaves available.
       const selectedQuestionIds: string[] = [];
 
       for (const chapter of selectedChapters) {
-        const info = chapters.find((c) => c.number === chapter);
-        if (!info || info.ids.length === 0) {
-          throw new Error(`No questions available for Chapter ${chapter}`);
+        const ids = idsInRange.get(chapter) ?? [];
+        if (ids.length === 0) {
+          throw new Error(
+            `Chapter ${chapter} has no questions between ${yearFrom} and ${yearTo}`
+          );
         }
         const requested = selections[chapter];
-        const shuffled = [...info.ids].sort(() => Math.random() - 0.5);
+        const shuffled = [...ids].sort(() => Math.random() - 0.5);
         selectedQuestionIds.push(
           ...shuffled.slice(0, Math.min(requested, shuffled.length))
         );
       }
 
-      const pdf = await generatePaper(selectedSubject, selectedQuestionIds, {
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const fileName = `${subjectDisplayName(selectedSubject)}-${selectedComponent}-${timestamp}.pdf`;
+
+      const paper = await generatePaper(selectedSubject, selectedQuestionIds, {
         includeMarkScheme,
         randomize,
+        fileName,
       });
 
       track("generate_complete", {
@@ -159,16 +396,7 @@ export default function GeneratePaperPage() {
         questions: selectedQuestionIds.length,
       });
 
-      // Download PDF
-      const url = URL.createObjectURL(pdf);
-      const link = document.createElement("a");
-      link.href = url;
-      const timestamp = new Date().toISOString().slice(0, 10);
-      link.download = `${subjectDisplayName(selectedSubject)}-${selectedComponent}-${timestamp}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      downloadPaper(paper, fileName);
     } catch (error) {
       track("generate_failed", {
         reason: error instanceof Error ? error.message.slice(0, 64) : "unknown",
@@ -184,6 +412,7 @@ export default function GeneratePaperPage() {
 
   return (
     <Layout>
+      {isGenerating && <GeneratingOverlay elapsed={elapsed} estimate={estimate} />}
       <button
         onClick={() => navigate("/")}
         className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mb-6"
@@ -309,8 +538,18 @@ export default function GeneratePaperPage() {
             <span className="flex items-center justify-center w-7 h-7 rounded-full bg-success/10 text-success text-sm font-bold">
               3
             </span>
-            Choose Chapters & Question Counts
+            Choose Years, Chapters & Question Counts
           </h2>
+
+          {allYears.length > 0 && (
+            <YearRangeBar
+              years={allYears}
+              yearFrom={yearFrom}
+              yearTo={yearTo}
+              onFrom={handleYearFrom}
+              onTo={handleYearTo}
+            />
+          )}
 
           {loadingChapters ? (
             <div className="space-y-2">
@@ -326,7 +565,7 @@ export default function GeneratePaperPage() {
           ) : (
             <div className="space-y-2">
               {chapters.map((ch) => {
-                const available = ch.ids.length;
+                const available = availableIn(ch.number);
                 const isSelected = Object.prototype.hasOwnProperty.call(selections, ch.number);
                 const questionCount = selections[ch.number] || 0;
 
@@ -341,6 +580,7 @@ export default function GeneratePaperPage() {
                       backgroundColor: isSelected
                         ? "hsl(var(--success) / 0.04)"
                         : "transparent",
+                      opacity: available === 0 ? 0.55 : 1,
                     }}
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -348,13 +588,14 @@ export default function GeneratePaperPage() {
                         <input
                           type="checkbox"
                           checked={isSelected}
+                          disabled={available === 0}
                           onChange={(e) => {
                             handleChapterToggle(
                               ch.number,
                               e.target.checked ? Math.min(5, available) : 0
                             );
                           }}
-                          className="w-5 h-5 rounded mt-0.5 cursor-pointer"
+                          className="w-5 h-5 rounded mt-0.5 cursor-pointer disabled:cursor-not-allowed"
                           aria-label={`Select ${ch.name}`}
                         />
                         <div>
@@ -362,7 +603,9 @@ export default function GeneratePaperPage() {
                             Chapter {ch.number}: {ch.name}
                           </label>
                           <p className="text-xs text-muted-foreground">
-                            {available} questions available
+                            {available === 0
+                              ? `Nothing from ${yearFrom}–${yearTo}`
+                              : `${available} questions available`}
                           </p>
                         </div>
                       </div>
@@ -430,9 +673,16 @@ export default function GeneratePaperPage() {
               <p className="text-xs font-medium text-muted-foreground mb-3">
                 PAPER SUMMARY
               </p>
-              <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                 <div>
-                  <p className="text-2xl font-display font-bold text-foreground">
+                  <p
+                    className="text-2xl font-display font-bold"
+                    style={{
+                      color: overLimit
+                        ? "hsl(var(--destructive))"
+                        : "hsl(var(--foreground))",
+                    }}
+                  >
                     {totalQuestions}
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -455,6 +705,12 @@ export default function GeneratePaperPage() {
                     Minutes
                   </p>
                 </div>
+                <div>
+                  <p className="text-xl font-display font-bold text-foreground leading-8">
+                    {yearFrom === yearTo ? yearFrom : `${yearFrom}–${yearTo}`}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Years</p>
+                </div>
               </div>
 
               <div className="text-xs text-muted-foreground space-y-1 mb-4">
@@ -470,6 +726,19 @@ export default function GeneratePaperPage() {
                 ))}
               </div>
 
+              {overLimit && !generateError && (
+                <div className="mb-4 flex items-start gap-2 p-3 rounded bg-destructive/10 border border-destructive/20">
+                  <AlertCircle
+                    size={16}
+                    className="text-destructive mt-0.5 shrink-0"
+                  />
+                  <p className="text-sm text-destructive">
+                    One paper can hold at most {MAX_GENERATED_QUESTIONS} questions. Remove{" "}
+                    {totalQuestions - MAX_GENERATED_QUESTIONS} to generate.
+                  </p>
+                </div>
+              )}
+
               {generateError && (
                 <div className="mb-4 flex items-start gap-2 p-3 rounded bg-destructive/10 border border-destructive/20">
                   <AlertCircle
@@ -482,22 +751,29 @@ export default function GeneratePaperPage() {
 
               <button
                 onClick={handleGenerate}
-                disabled={isGenerating}
+                disabled={isGenerating || overLimit}
                 className="w-full px-4 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
                 style={{
-                  backgroundColor: isGenerating
-                    ? "hsl(var(--muted))"
-                    : "hsl(var(--primary))",
-                  color: isGenerating
-                    ? "hsl(var(--muted-foreground))"
-                    : "hsl(var(--primary-foreground))",
-                  cursor: isGenerating ? "not-allowed" : "pointer",
-                  opacity: isGenerating ? 0.6 : 1,
+                  backgroundColor:
+                    isGenerating || overLimit
+                      ? "hsl(var(--muted))"
+                      : "hsl(var(--primary))",
+                  color:
+                    isGenerating || overLimit
+                      ? "hsl(var(--muted-foreground))"
+                      : "hsl(var(--primary-foreground))",
+                  cursor: isGenerating || overLimit ? "not-allowed" : "pointer",
+                  opacity: isGenerating || overLimit ? 0.6 : 1,
                 }}
               >
                 <Download size={18} />
                 {isGenerating ? "Generating..." : "Generate & Download"}
               </button>
+
+              <p className="mt-3 text-xs text-muted-foreground">
+                A large paper is built and served as a download link, so it may take a few
+                seconds to start.
+              </p>
             </div>
           </div>
         </section>
