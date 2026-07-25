@@ -16,5 +16,13 @@ export default defineConfig({
     // classList, MutationObserver), so a DOM is not optional.
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],
+    // Ratchet floor. The uncovered remainder is useTourCompleted's joyride style
+    // builder (tourStyles), which is data, not logic.
+    coverage: {
+      provider: 'v8',
+      include: ['src/**'],
+      exclude: ['src/index.ts', 'src/**/*.test.*'],
+      thresholds: { lines: 78, functions: 65, statements: 75, branches: 58 },
+    },
   },
 });

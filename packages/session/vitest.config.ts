@@ -15,5 +15,12 @@ export default defineConfig({
     // render half still needs a DOM.
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],
+    // High floor — this package is small and nearly fully exercised.
+    coverage: {
+      provider: 'v8',
+      include: ['src/**'],
+      exclude: ['src/index.ts', 'src/**/*.test.*'],
+      thresholds: { lines: 90, functions: 75, statements: 90, branches: 85 },
+    },
   },
 });

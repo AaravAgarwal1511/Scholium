@@ -88,6 +88,28 @@ jobs:
       - name: Test
         run: pnpm exec turbo run test --concurrency=1 --continue
 
+  coverage:
+    name: Coverage floors
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Ratchet floors on the logic-heavy, single-config packages (thresholds in
+      # each package's vitest config). Node/jsdom only — the browser-mode
+      # (Storybook) packages merge two coverage providers and are out of scope.
+      - name: Coverage thresholds
+        run: |
+          pnpm --filter @repo/session test:coverage
+          pnpm --filter @repo/hooks test:coverage
+          pnpm --filter @repo/analytics test:coverage
+          pnpm --filter mock-space test:coverage
+
   build:
     name: Build
     runs-on: ubuntu-latest

@@ -16,6 +16,9 @@ blob-report/
 # Lighthouse CI reports
 .lighthouseci/
 
+# Coverage reports
+coverage/
+
 # Google Cloud service-account key (never commit)
 gcp-tts-key.json
 
