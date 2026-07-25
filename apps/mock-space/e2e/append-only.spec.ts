@@ -78,3 +78,22 @@ test('an answer with text cannot be emptied by blurring it away', async ({ page 
   await expect(page.locator('.ms-text').first()).toContainText('committed');
   await expect(page.locator('[data-box]')).toHaveCount(2); // the blur-click made a second box
 });
+
+test('crossing out a word is a confirmed, permanent strike', async ({ page }) => {
+  // Crossing out is the only way to retract committed text — and it is deliberate:
+  // a click on a word asks first, and once struck the word is frozen for good.
+  await page.keyboard.type('blunder ');
+  await expect(page.locator('.ms-text').first()).toContainText('blunder');
+
+  // Click the word; the confirm popover appears rather than striking on one click.
+  await page.locator('.ms-text span', { hasText: 'blunder' }).first().click();
+  await expect(page.getByTestId('strike-confirm')).toBeVisible();
+
+  await page.getByTestId('strike-confirm-yes').click();
+  await expect(page.getByTestId('strike-confirm')).toBeHidden();
+
+  // The word is now rendered struck, and the word text survives (struck, not deleted).
+  const struck = page.locator('.ms-text .ms-struck');
+  await expect(struck).toBeVisible();
+  await expect(struck).toContainText('blunder');
+});
