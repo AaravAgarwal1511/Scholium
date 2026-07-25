@@ -7,6 +7,12 @@ dist
 *.tsbuildinfo
 .DS_Store
 
+# Playwright e2e artifacts (all apps)
+test-results/
+playwright-report/
+playwright/.cache/
+blob-report/
+
 # Google Cloud service-account key (never commit)
 gcp-tts-key.json
 

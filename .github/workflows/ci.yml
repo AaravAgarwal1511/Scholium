@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push to the same branch supersedes the run in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  DO_NOT_TRACK: 1
+
+jobs:
+  static:
+    name: Lint & boundaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Baseline is 0 problems across every package — treat any warning as a
+      # regression. --continue because turbo otherwise stops at the first
+      # failing package and hides the rest.
+      - name: Lint
+        run: pnpm exec turbo run lint --continue
+
+      # database/ is not a workspace package, so turbo never reaches it.
+      - name: Lint database suite
+        run: pnpm lint:db
+
+      # Fails on deep imports, on importing a package an app has not declared,
+      # and on the Storybook 10 import rules (@storybook/react-vite, not
+      # @storybook/react).
+      - name: Package boundaries
+        run: pnpm boundaries
+
+  types:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Ratchet, not a pass/fail gate: two apps carry known pre-existing errors
+      # and `vite build` never typechecks, so this is the only thing standing
+      # between the repo and silent type rot. See the script for the baseline.
+      - name: Typecheck (ratchet against known baseline)
+        run: ./scripts/check-types-ratchet.sh
+
+      # Outside the ratchet on purpose: database/ starts at zero errors and is
+      # held there, rather than being folded into the apps' inherited debt.
+      - name: Typecheck database suite
+        run: pnpm check-types:db
+
+  test:
+    name: Unit & component tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # language-hub, recall-app, poetry-notes and @repo/ui run their Storybook
+      # stories as tests inside a real browser.
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # --concurrency=1: four packages each start a Chromium browser server, and
+      # in parallel they contend and flake.
+      - name: Test
+        run: pnpm exec turbo run test --concurrency=1 --continue
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build all apps
+        run: pnpm build
+
+  e2e:
+    name: End-to-end
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # All run their dev server in --mode test (committed .env.test), so no
+        # secrets are needed. mock-space rides the signed-out /demo route; the
+        # rest seed a fake session and stub Supabase at the network layer
+        # (each app's e2e/support/auth.ts). past-papers additionally stubs the
+        # Storage list endpoint for its paper tree.
+        app: [mock-space, recall-app, language-hub, poetry-notes, past-papers]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter ${{ matrix.app }} exec playwright install --with-deps chromium
+
+      - name: Run ${{ matrix.app }} e2e
+        run: pnpm --filter ${{ matrix.app }} test:e2e
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.app }}
+          path: apps/${{ matrix.app }}/playwright-report/
+          retention-days: 7

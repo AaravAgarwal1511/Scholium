@@ -1,0 +1,39 @@
+-- SECURITY FIX: refresh_analytics_daily() is callable with the anon key.
+--
+-- The function is SECURITY DEFINER and performs:
+--
+--   DELETE FROM public.analytics_daily WHERE day >= current_date - p_trailing_days;
+--   INSERT INTO public.analytics_daily
+--     SELECT … FROM public.analytics_events
+--      WHERE occurred_at >= current_date - p_trailing_days;
+--
+-- It has no admin check, and the anon key is public by construction — it ships
+-- inside all six client bundles. So any visitor can call
+-- refresh_analytics_daily(100000), which deletes the entire analytics_daily
+-- rollup and rebuilds only the portion still backed by analytics_events.
+--
+-- analytics_events is pruned at 180 days by the `prune-analytics-events` cron
+-- (20260724030000), so analytics_daily is the *only* record of anything older.
+-- The result is permanent, unrecoverable loss of all analytics history beyond
+-- the retention window, triggerable by anyone, unauthenticated.
+--
+-- 20260724040000 did try to close this — it ran
+--   REVOKE ALL ON FUNCTION public.refresh_analytics_daily(int) FROM public;
+-- but that only drops the PUBLIC grant. Supabase's default privileges hand
+-- EXECUTE directly to the `anon` and `authenticated` roles, and a direct role
+-- grant survives a revoke aimed at PUBLIC. The live ACL confirms it:
+--   {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}
+-- Note the missing leading "=X/postgres": PUBLIC really was revoked. anon was not.
+--
+-- Fix: revoke from the two roles that actually hold the grant.
+--
+-- NOT fixed by adding _assert_admin(): the function's only legitimate caller is
+-- the `refresh-analytics-daily` pg_cron job, which runs as `postgres` with no
+-- JWT. auth.uid() is NULL there, so the guard would raise IS DISTINCT FROM and
+-- break the nightly rollup. Grants are the right layer for this one.
+
+REVOKE EXECUTE ON FUNCTION public.refresh_analytics_daily(int) FROM anon, authenticated;
+
+-- Belt and braces for any future redefinition: CREATE OR REPLACE preserves the
+-- ACL, but a DROP + CREATE would re-apply the default grants. Anything that
+-- recreates this function must re-run the revoke above.
