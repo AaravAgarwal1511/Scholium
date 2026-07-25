@@ -122,6 +122,20 @@ The five seeding gotchas — storage-key hostname derivation, loadEnv in the con
 order, single-vs-list on the `accept` header, and (meta) that a `rest/v1` glob inside a block comment
 closes it early — are documented in each `auth.ts` header. Read it before extending.
 
+### Accessibility gates (`e2e/a11y-scan.spec.ts` per app)
+
+Every app has an axe scan (`@axe-core/playwright`) on its primary page(s), reusing the same seeding
+fixture. The gate is **zero serious/critical WCAG 2.1 A/AA violations**, with `color-contrast`
+disabled — that rule is design-token-dependent (brand-tint badges, hover states) and belongs to a
+separate design pass; the gate targets unambiguous semantic defects (missing accessible names,
+invalid ARIA, roles). All six apps currently pass, so the bar is zero, not a baseline. Standing up
+these gates surfaced and fixed real bugs: the shared `ScholiumNavbar` search input carried
+`aria-expanded`/`aria-autocomplete` without `role="combobox"` (invalid ARIA on **every** page of every
+app — fixed in `@repo/ui` as a proper combobox with `aria-controls`/`aria-activedescendant`), and
+language-hub's icon-only edit/delete/back controls and its progress bar had no accessible names.
+When adding a page or an icon-only control, run the app's a11y scan; a bare icon button needs an
+`aria-label`.
+
 ### Database security suite (`pnpm test:db`)
 
 Two files under `database/tests/`, run via `vitest.db.config.ts`. **Deliberately outside `pnpm test`

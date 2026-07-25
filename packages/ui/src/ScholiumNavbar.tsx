@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useId } from 'react';
 import { ScholiumLogo } from './ScholiumLogo';
 import { useDarkMode } from '@repo/hooks';
 import './ScholiumNavbar.css';
@@ -63,6 +63,9 @@ export function ScholiumNavbar({
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
+  // Ids wiring the input to its suggestion listbox as an ARIA combobox.
+  const searchListboxId = useId();
+  const searchOptionId = (i: number) => `${searchListboxId}-opt-${i}`;
 
   const toolsRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
@@ -233,15 +236,25 @@ export function ScholiumNavbar({
             onKeyDown={onSearchKeyDown}
             placeholder="Search a subject…"
             className="rui-navbar-search-input"
+            // A combobox: an input that owns a popup listbox. Without role,
+            // aria-expanded / aria-autocomplete are invalid ARIA (axe: critical
+            // aria-allowed-attr). This navbar mounts on every page of every app,
+            // so the one violation reported six ways over.
+            role="combobox"
             aria-label="Search a subject"
             aria-autocomplete="list"
+            aria-controls={searchListboxId}
             aria-expanded={searchOpen && suggestions.length > 0}
+            aria-activedescendant={
+              searchOpen && suggestions.length > 0 ? searchOptionId(activeIdx) : undefined
+            }
           />
           {searchOpen && suggestions.length > 0 && (
-            <ul className="rui-navbar-search-dropdown" role="listbox">
+            <ul id={searchListboxId} className="rui-navbar-search-dropdown" role="listbox">
               {suggestions.map((entry, i) => (
                 <li
                   key={`${entry.subject}-${entry.appId}`}
+                  id={searchOptionId(i)}
                   role="option"
                   aria-selected={i === activeIdx}
                   className={`rui-navbar-search-item${i === activeIdx ? ' rui-navbar-search-item--active' : ''}`}

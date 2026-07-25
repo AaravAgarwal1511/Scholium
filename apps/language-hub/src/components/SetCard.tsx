@@ -44,10 +44,11 @@ export const SetCard = ({ set, action, animationDelay }: SetCardProps) => {
             )}
           </div>
           <div className="flex gap-1">
-            <Link to={`/edit/${set.id}`}>
+            <Link to={`/edit/${set.id}`} aria-label={`Edit ${set.name}`}>
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label={`Edit ${set.name}`}
                 className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary hover:bg-primary/10"
               >
                 <Pencil className="h-4 w-4" />

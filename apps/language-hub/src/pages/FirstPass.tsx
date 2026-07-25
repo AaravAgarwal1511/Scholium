@@ -136,8 +136,8 @@ const FirstPass = () => {
       <div className="min-h-screen bg-background">
         <header className="border-b border-border bg-card/50 backdrop-blur-sm">
           <div className="container mx-auto max-w-2xl px-6 py-4">
-            <Link to="/">
-              <Button variant="ghost" size="icon">
+            <Link to="/" aria-label="Back to home">
+              <Button variant="ghost" size="icon" aria-label="Back to home">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
@@ -174,8 +174,8 @@ const FirstPass = () => {
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto max-w-2xl px-6 py-4">
           <div className="flex items-center gap-4">
-            <Link to="/">
-              <Button variant="ghost" size="icon">
+            <Link to="/" aria-label="Back to home">
+              <Button variant="ghost" size="icon" aria-label="Back to home">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
@@ -190,7 +190,11 @@ const FirstPass = () => {
       </header>
 
       <div className="container mx-auto max-w-2xl px-6 pt-4">
-        <Progress value={((currentIndex + 1) / items.length) * 100} className="h-2" />
+        <Progress
+          value={((currentIndex + 1) / items.length) * 100}
+          className="h-2"
+          aria-label={`First pass progress: term ${currentIndex + 1} of ${items.length}`}
+        />
       </div>
 
       <main className="container mx-auto max-w-2xl px-6 py-8">
