@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:visual": "playwright test --config=playwright.visual.config.ts",
     "make:sample": "node scripts/make-sample-paper.mjs"
   },
   "dependencies": {

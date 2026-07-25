@@ -136,6 +136,23 @@ language-hub's icon-only edit/delete/back controls and its progress bar had no a
 When adding a page or an icon-only control, run the app's a11y scan; a bare icon button needs an
 `aria-label`.
 
+### Visual regression (`pnpm --filter <app> test:visual`)
+
+Five apps have full-page screenshot baselines (`toHaveScreenshot`) of their primary HTML pages, driven
+through the same stubbed seeding so the render is deterministic. Kept **separate from the default e2e
+run**: the specs are `e2e-visual/*.visual.ts` (not `.spec.ts`) under their own
+`playwright.visual.config.ts`, so `playwright test` never collects them — only `test:visual` does.
+Canvas/PDF surfaces (mock-space's attempt page) are deliberately not snapshotted; pdf.js rasterisation
+varies by platform and they are covered functionally.
+
+**These baselines are a LOCAL guard, not CI-enforced.** Screenshots are platform-specific (Playwright
+suffixes them `-darwin` / `-linux`) and the committed ones were generated on the dev machine. CI runs
+on Linux and would need `-linux` baselines. The `visual-baselines.yml` workflow (manual dispatch)
+regenerates them on ubuntu and uploads them as an artifact; commit those into each
+`e2e-visual/*-snapshots/` dir to enable enforcement, then add the suite to `ci.yml`. After any
+intended UI change, refresh with `pnpm --filter <app> test:visual -- --update-snapshots` and review
+the diff before committing.
+
 ### Database security suite (`pnpm test:db`)
 
 Two files under `database/tests/`, run via `vitest.db.config.ts`. **Deliberately outside `pnpm test`

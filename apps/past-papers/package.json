@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:visual": "playwright test --config=playwright.visual.config.ts",
     "check-types": "tsc -p tsconfig.app.json --noEmit",
     "preview": "vite preview",
     "upload:questions": "node --env-file=.env scripts/upload-questions.js",

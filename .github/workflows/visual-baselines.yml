@@ -1,0 +1,43 @@
+name: Visual baselines (Linux)
+
+# Visual regression baselines are platform-specific: the committed ones are
+# whatever a developer's machine generated (likely -darwin). CI runs on Linux, so
+# it needs -linux baselines before the visual suite can be *enforced* there.
+#
+# This workflow (manual only) regenerates every app's baselines on ubuntu and
+# uploads them as an artifact. Download it, drop the PNGs into each app's
+# e2e-visual/*-snapshots/ dir, commit, and then the visual suite can be wired
+# into the enforcing CI run. Until then, visual regression is a LOCAL guard
+# (`pnpm --filter <app> test:visual`) and is intentionally not part of ci.yml.
+on:
+  workflow_dispatch:
+
+jobs:
+  baselines:
+    name: Generate ${{ matrix.app }} baselines
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [recall-app, language-hub, poetry-notes, past-papers, mock-space]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter ${{ matrix.app }} exec playwright install --with-deps chromium
+
+      - name: Regenerate baselines
+        run: pnpm --filter ${{ matrix.app }} test:visual -- --update-snapshots
+
+      - name: Upload baselines
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-baselines-${{ matrix.app }}
+          path: apps/${{ matrix.app }}/e2e-visual/**/*.png
+          retention-days: 14
