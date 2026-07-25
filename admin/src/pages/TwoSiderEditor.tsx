@@ -37,7 +37,7 @@ export default function TwoSiderEditor({
   const isNew = twoSiderId.startsWith("new:");
 
   const [question, setQuestion] = useState(existing?.question ?? "");
-  const [subject, setSubject] = useState(existing?.subject ?? "Economics");
+  const [subject, setSubject] = useState(existing?.subject ?? "");
   const [emoji, setEmoji] = useState(existing?.emoji ?? "📈");
   const [forLabel, setForLabel] = useState(existing?.for_label ?? "For");
   const [againstLabel, setAgainstLabel] = useState(existing?.against_label ?? "Against");
@@ -46,6 +46,22 @@ export default function TwoSiderEditor({
   const [loadingPoints, setLoadingPoints] = useState(!isNew);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [subjectOptions, setSubjectOptions] = useState<string[]>([]);
+
+  // RecallApp lists an essay under the subject tab whose name it matches, so
+  // the subject has to be picked from the subjects that actually have content —
+  // free text let a typo hide the essay from every tab.
+  useEffect(() => {
+    supabase
+      .from("recall_chapters")
+      .select("subject_name, subject_sort_order")
+      .order("subject_sort_order", { ascending: true })
+      .then(({ data }) => {
+        const names = [...new Set((data ?? []).map((r) => r.subject_name))];
+        setSubjectOptions(names);
+        setSubject((s) => s || names[0] || "");
+      });
+  }, []);
 
   useEffect(() => {
     if (isNew || !existing) return;
@@ -137,7 +153,22 @@ export default function TwoSiderEditor({
           </label>
           <label className="flex flex-col gap-1 col-span-2">
             <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Subject</span>
-            <input value={subject} onChange={(e) => setSubject(e.target.value)} className="border rounded-lg px-3 py-2" />
+            <select
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              className="border rounded-lg px-3 py-2 bg-white"
+            >
+              {/* An essay saved before this was a dropdown may name a subject
+                  that has no chapters; keep it selectable rather than silently
+                  reassigning it on the next save. */}
+              {subject === "" && <option value="">Loading subjects…</option>}
+              {[...new Set([...subjectOptions, subject])].filter(Boolean).map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <span className="text-xs text-slate-500">
+              RecallApp lists the essay under this subject's tab.
+            </span>
           </label>
         </div>
       </div>
