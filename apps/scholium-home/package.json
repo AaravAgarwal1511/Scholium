@@ -10,7 +10,7 @@
     "test": "vitest run",
     "check-types": "tsc -p tsconfig.app.json --noEmit",
     "preview": "vite preview",
-    "lighthouse": "vite build && lhci autorun --config=lighthouserc.cjs"
+    "lighthouse": "vite build --mode test && lhci autorun --config=lighthouserc.cjs"
   },
   "dependencies": {
     "@repo/analytics": "workspace:*",

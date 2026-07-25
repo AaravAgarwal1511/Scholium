@@ -1,31 +1,40 @@
 name: Lighthouse
 
-# Performance / a11y / best-practices / SEO budgets for scholium-home — the public
-# marketing site, the one app where these signals matter and where no auth blocks
-# Lighthouse. Runs against a production build served by `vite preview` (dev-server
-# scores are meaningless). Budgets live in apps/scholium-home/lighthouserc.cjs,
-# calibrated from measured medians and held ~2–10 points below to catch a real
-# regression without flaking.
+# Performance / a11y / best-practices / SEO budgets, run against production builds
+# served by `vite preview` (dev-server scores are meaningless). Budgets live in
+# each app's lighthouserc.cjs, calibrated from measured medians and held below
+# them to catch a real regression without flaking. Both apps build in --mode test
+# (committed .env.test), so no secrets are needed.
 #
-# Own workflow rather than a job in ci.yml: it needs Chrome and runs Lighthouse 9
-# times (3 URLs × 3), so it is heavier and only worth running when this app or its
-# budgets change.
+# - scholium-home: the public marketing site (/, /about, /memory-science).
+# - recall-app: a gated app's PUBLIC pages (/signin, /demo) — /signin renders the
+#   shared AuthCard before any auth, so Lighthouse can reach it without a session.
+#
+# Own workflow rather than a job in ci.yml: it needs Chrome and runs Lighthouse
+# many times, so it is heavier and only worth running when an app or its budgets
+# change.
 on:
   push:
     branches: [main]
     paths:
       - 'apps/scholium-home/**'
+      - 'apps/recall-app/**'
       - '.github/workflows/lighthouse.yml'
   pull_request:
     paths:
       - 'apps/scholium-home/**'
+      - 'apps/recall-app/**'
       - '.github/workflows/lighthouse.yml'
   workflow_dispatch:
 
 jobs:
   lighthouse:
-    name: scholium-home budgets
+    name: ${{ matrix.app }} budgets
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [scholium-home, recall-app]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -37,12 +46,12 @@ jobs:
 
       # ubuntu-latest ships Chrome; LHCI's chrome-launcher finds it.
       - name: Run Lighthouse budgets
-        run: pnpm --filter scholium-home lighthouse
+        run: pnpm --filter ${{ matrix.app }} lighthouse
 
       - name: Upload Lighthouse reports on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: lighthouse-reports
-          path: apps/scholium-home/.lighthouseci/
+          name: lighthouse-reports-${{ matrix.app }}
+          path: apps/${{ matrix.app }}/.lighthouseci/
           retention-days: 7
