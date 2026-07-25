@@ -3,17 +3,35 @@ import { ChevronRight, Scale } from "lucide-react";
 import { useTwoSiders } from "@/hooks/useTwoSiders";
 import { useTwoSiderProgress } from "@/hooks/useTwoSiderProgress";
 import { STAGES } from "@/components/two-sider/meta";
+import type { Subject, TwoSider } from "@/types";
 import { cn } from "@/lib/utils";
 
+// recall_two_siders.subject is a free-text display label typed in the Admin
+// Dashboard ("Economics"); the dashboard's subject tabs come from
+// recall_chapters, which carries both an id ("economics") and a name
+// ("Economics"). Slugify both sides so capitalisation or stray spacing can't
+// strand an essay under no tab at all.
+const slug = (s: string) =>
+  s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+function belongsTo(twoSider: TwoSider, subject: Subject) {
+  const key = slug(twoSider.subject);
+  return key === slug(subject.id) || key === slug(subject.name);
+}
+
 // Dashboard entry point for the Two-Sider section. Lists the essay questions
-// (published from the Admin Dashboard) and how far up the three-stage ladder
-// the student has climbed for each.
-export function TwoSiderLauncher() {
+// (published from the Admin Dashboard) for the subject tab currently open and
+// how far up the three-stage ladder the student has climbed for each.
+export function TwoSiderLauncher({ subject }: { subject?: Subject }) {
   const navigate = useNavigate();
   const { completed } = useTwoSiderProgress();
   const { twoSiders, loading } = useTwoSiders();
 
-  if (loading || twoSiders.length === 0) return null;
+  // No subject selected means there is nothing to scope the essays to, so show
+  // none — an essay belongs to one subject and must not appear under another.
+  const essays = subject ? twoSiders.filter((ts) => belongsTo(ts, subject)) : [];
+
+  if (loading || essays.length === 0) return null;
 
   return (
     <section className="rounded-xl border-2 border-border bg-card shadow-card overflow-hidden mb-4">
@@ -28,7 +46,7 @@ export function TwoSiderLauncher() {
       </div>
 
       <div className="p-3 flex flex-col gap-2">
-        {twoSiders.map((ts) => {
+        {essays.map((ts) => {
           const done = completed(ts.id);
           return (
             <button

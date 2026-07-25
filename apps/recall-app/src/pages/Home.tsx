@@ -259,7 +259,7 @@ export default function Home({ description }: { description?: string | null } = 
         </div>
 
         <div className="mt-6">
-          <TwoSiderLauncher />
+          <TwoSiderLauncher subject={subject} />
         </div>
       </main>
     </div>
