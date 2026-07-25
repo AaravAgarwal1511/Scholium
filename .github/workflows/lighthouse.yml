@@ -1,0 +1,48 @@
+name: Lighthouse
+
+# Performance / a11y / best-practices / SEO budgets for scholium-home — the public
+# marketing site, the one app where these signals matter and where no auth blocks
+# Lighthouse. Runs against a production build served by `vite preview` (dev-server
+# scores are meaningless). Budgets live in apps/scholium-home/lighthouserc.cjs,
+# calibrated from measured medians and held ~2–10 points below to catch a real
+# regression without flaking.
+#
+# Own workflow rather than a job in ci.yml: it needs Chrome and runs Lighthouse 9
+# times (3 URLs × 3), so it is heavier and only worth running when this app or its
+# budgets change.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/scholium-home/**'
+      - '.github/workflows/lighthouse.yml'
+  pull_request:
+    paths:
+      - 'apps/scholium-home/**'
+      - '.github/workflows/lighthouse.yml'
+  workflow_dispatch:
+
+jobs:
+  lighthouse:
+    name: scholium-home budgets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # ubuntu-latest ships Chrome; LHCI's chrome-launcher finds it.
+      - name: Run Lighthouse budgets
+        run: pnpm --filter scholium-home lighthouse
+
+      - name: Upload Lighthouse reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: apps/scholium-home/.lighthouseci/
+          retention-days: 7

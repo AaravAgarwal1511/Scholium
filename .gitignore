@@ -13,6 +13,9 @@ playwright-report/
 playwright/.cache/
 blob-report/
 
+# Lighthouse CI reports
+.lighthouseci/
+
 # Google Cloud service-account key (never commit)
 gcp-tts-key.json
 

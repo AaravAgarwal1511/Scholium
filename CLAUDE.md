@@ -153,6 +153,20 @@ regenerates them on ubuntu and uploads them as an artifact; commit those into ea
 intended UI change, refresh with `pnpm --filter <app> test:visual -- --update-snapshots` and review
 the diff before committing.
 
+### Lighthouse budgets (`pnpm --filter scholium-home lighthouse`)
+
+Performance / accessibility / best-practices / SEO budgets for **scholium-home** — the public
+marketing site, the one app where these signals matter and where no auth blocks Lighthouse. Config in
+`apps/scholium-home/lighthouserc.cjs`: it builds, serves the result with `vite preview` (dev-server
+scores are meaningless), and runs Lighthouse 3× per URL over `/`, `/about`, `/memory-science`, taking
+the median. Budgets are `minScore 0.9` on all four categories — calibrated from measured medians
+(perf 1.00, a11y 0.92–0.96, best-practices 0.96, seo 0.92) and held below them so a real regression
+(a dropped meta tag, a heavy new dependency, an unlabelled control) fails while run-to-run noise does
+not. Unlike visual baselines, category scores are portable enough to enforce in CI: `lighthouse.yml`
+runs on any change under `apps/scholium-home/**`. The other apps are gated behind auth (Lighthouse
+can't use the network stubs), so this is scoped to the public site; extend to their `/signin` pages if
+wanted. `.lighthouseci/` reports are gitignored.
+
 ### Database security suite (`pnpm test:db`)
 
 Two files under `database/tests/`, run via `vitest.db.config.ts`. **Deliberately outside `pnpm test`
