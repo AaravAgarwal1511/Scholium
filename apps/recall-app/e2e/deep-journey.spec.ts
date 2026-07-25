@@ -49,3 +49,22 @@ test('completing the Pass 1 matching round', async ({ page, context }) => {
   // Continue advances past the matching round rather than staying on it.
   await expect(page.getByText('Round complete!')).toBeHidden();
 });
+
+test('answering the Pass 2 multiple-choice round correctly scores full marks', async ({ page, context }) => {
+  await seedAuth(context, stub);
+  // Jump straight to Pass 2 via the URL (Study reads ?pass); questions are in card
+  // order, so the correct term for each is simply the next card's term.
+  await page.goto(`/study/${CHAPTER_ID}?pass=2`);
+  await page.getByRole('button', { name: /Start Studying/ }).click();
+
+  for (let i = 0; i < CARDS.length; i++) {
+    // Read the definition, choose the term. The correct term is a unique option
+    // on the page (distractors are the other cards' terms).
+    await page.getByRole('button', { name: CARDS[i].term, exact: true }).click();
+    const last = i === CARDS.length - 1;
+    await page.getByRole('button', { name: last ? 'See results' : 'Next' }).click();
+  }
+
+  // Every answer correct → the completion screen shows a full tally.
+  await expect(page.getByText(`${CARDS.length} / ${CARDS.length} correct`)).toBeVisible();
+});
