@@ -10,7 +10,15 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 //
 // Run via `pnpm lint:db`, which scopes it to database/ rather than the repo root.
 export default defineConfig([
-  globalIgnores(['**/node_modules', '**/dist', 'apps', 'packages', 'admin']),
+  // The schema snapshot is generated Supabase output, not hand-written code.
+  globalIgnores([
+    '**/node_modules',
+    '**/dist',
+    'apps',
+    'packages',
+    'admin',
+    'database/schema-types.snapshot.ts',
+  ]),
   {
     files: ['database/**/*.ts'],
     extends: [js.configs.recommended, tseslint.configs.recommended],
