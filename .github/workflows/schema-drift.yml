@@ -32,15 +32,29 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      # The `secrets` context is NOT allowed in an `if:` condition (it makes the
+      # whole workflow invalid). So detect the secrets in a run step and gate the
+      # later steps on its output, exactly as db-security.yml does.
+      - name: Check credentials are configured
+        id: creds
+        run: |
+          if [ -n "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ] && [ -n "${{ secrets.SUPABASE_PROJECT_REF }}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SUPABASE_ACCESS_TOKEN / SUPABASE_PROJECT_REF not set — schema-drift check skipped."
+          fi
+
       - name: Link Supabase project
-        if: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' && secrets.SUPABASE_PROJECT_REF != '' }}
+        if: steps.creds.outputs.present == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: pnpm exec supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
 
-      # The script itself skips (exit 0) when it cannot generate types, so an
-      # unconfigured repo does not fail here.
+      # The script itself also skips (exit 0) when it cannot generate types, so an
+      # unconfigured repo never fails here either.
       - name: Check schema drift
+        if: steps.creds.outputs.present == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: pnpm schema:drift
