@@ -79,9 +79,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # language-hub, recall-app, poetry-notes and @repo/ui run their Storybook
-      # stories as tests inside a real browser.
+      # stories as tests inside a real browser. `playwright` is a dependency of
+      # the app packages, not the workspace root, so the install must run inside
+      # one of them (`--filter`) — a bare `pnpm exec playwright` at the root fails
+      # with "Command playwright not found". Browsers install to a shared cache,
+      # and the whole repo resolves a single playwright version, so installing
+      # once here covers every Storybook browser suite.
       - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm --filter language-hub exec playwright install --with-deps chromium
 
       # --concurrency=1: four packages each start a Chromium browser server, and
       # in parallel they contend and flake.
