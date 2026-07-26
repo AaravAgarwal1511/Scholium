@@ -20,6 +20,20 @@ import csv, json, os, sys, urllib.request, urllib.error
 # Chapter name -> number, keyed by subject. Numbers match the R2 folder
 # numbering so /generate chapters line up with the browse view.
 CHAPTER_NUM = {
+    # One syllabus-wide numbering, split across the two components: Paper 1 carries
+    # chapters 1-6, Paper 2 carries 7-9, and Boolean Logic (10) is examined on both.
+    "0478": {
+        "Data Representation": 1,
+        "Data Transmission": 2,
+        "Hardware": 3,
+        "Software": 4,
+        "The Internet and Its Uses": 5,
+        "Automated and Emerging Technologies": 6,
+        "Algorithm Design and Problem-Solving": 7,
+        "Programming": 8,
+        "Databases": 9,
+        "Boolean Logic": 10,
+    },
     "0606": {
         "Functions": 1,
         "Simultaneous Equations and Quadratics": 2,
@@ -63,6 +77,33 @@ CHAPTER_NUM = {
         "Sequences": 22,
         "Functions 2": 23,
         "Unclassified": 24,
+    },
+    "0625": {
+        "Physical Quantities and Measurement Techniques": 1,
+        "Motion": 2,
+        "Mass and Weight": 3,
+        "Density": 4,
+        "Forces": 5,
+        "Momentum": 6,
+        "Energy, Work and Power": 7,
+        "Pressure": 8,
+        "Kinetic Particle Model of Matter": 9,
+        "Thermal Properties and Temperature": 10,
+        "Transfer of Thermal Energy": 11,
+        "General Properties of Waves": 12,
+        "Light": 13,
+        "Electromagnetic Spectrum": 14,
+        "Sound": 15,
+        "Simple Phenomena of Magnetism": 16,
+        "Electrical Quantities": 17,
+        "Electric Circuits": 18,
+        "Electrical Safety": 19,
+        "Electromagnetic Effects": 20,
+        "The Nuclear Model of the Atom": 21,
+        "Radioactivity": 22,
+        "Earth and the Solar System": 23,
+        "Stars and the Universe": 24,
+        "Unclassified": 25,
     },
 }
 
