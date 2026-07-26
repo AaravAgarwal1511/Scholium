@@ -17,8 +17,11 @@ import SettingsPage from "@/pages/Settings";
 import Auth from "@/pages/Auth";
 import ResetPassword from "@/pages/ResetPassword";
 
-// This app's own row in scholium_apps. Ids are UUIDs (not slugs), so match by URL.
-const OWN_APP_URL = "https://past-papers-app.vercel.app";
+// This app's own row in scholium_apps. Ids are UUIDs (not slugs), so match by URL
+// — which means this must stay byte-equal to that row's `url`. The row moved to
+// the custom domain while this still said past-papers-app.vercel.app, so the
+// lookup silently missed and the subtitle fell back to its hardcoded default.
+const OWN_APP_URL = "https://pastpapers.thescholium.com";
 
 async function loadScholiumApps(): Promise<AppLink[]> {
   const first = await supabase
