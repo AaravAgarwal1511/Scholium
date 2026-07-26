@@ -31,7 +31,7 @@ interface AttemptRow {
 }
 
 /** Postgres speaks ISO timestamps; the model counts epoch milliseconds. */
-function fromRow(row: AttemptRow): Attempt {
+export function fromRow(row: AttemptRow): Attempt {
   return {
     id: row.id,
     userId: row.user_id,
@@ -45,7 +45,7 @@ function fromRow(row: AttemptRow): Attempt {
   };
 }
 
-function toRow(attempt: Attempt): AttemptRow {
+export function toRow(attempt: Attempt): AttemptRow {
   if (!attempt.userId) {
     throw new Error("An anonymous attempt has no account to be stored against.");
   }

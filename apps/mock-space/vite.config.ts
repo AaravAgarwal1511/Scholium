@@ -16,5 +16,16 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // Ratchet floor over the exam-logic library (src/lib). Set just below the
+    // current measured coverage so a drop — untested new logic — fails, without
+    // forcing coverage of the browser-only modules (pdfRender, domSelection,
+    // paperStorage) that can't run under the node test env. Raise it as those
+    // get covered; never lower it silently.
+    coverage: {
+      provider: "v8",
+      include: ["src/lib/**"],
+      exclude: ["src/lib/**/*.test.ts"],
+      thresholds: { lines: 68, functions: 60, statements: 66, branches: 60 },
+    },
   },
 });
