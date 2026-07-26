@@ -1,0 +1,84 @@
+name: Mirror main
+
+# Keeps AaravAgarwal1511/Scholium in sync with DD10654/Scholium.
+#
+# WHY THIS EXISTS
+# The repo is pushed to two GitHub remotes. Locally that is already handled:
+# `origin` has one fetch URL (DD10654) and two push URLs, so every `git push`
+# hits both. The gap is *server-side* merges — clicking "Merge" on a PR creates
+# a merge commit inside GitHub that never passes through anyone's clone. Doing
+# that on both repos for the same branch produced two different merge commits
+# over identical trees, and the two mains forked (repaired 2026-07-26 in d991662).
+#
+# THE RULE THIS ENFORCES
+# DD10654 is canonical: open and merge PRs there ONLY. AaravAgarwal1511 is a
+# pure mirror — never merge a PR on it. This workflow makes that rule
+# self-healing rather than something to remember.
+#
+# Only `main` is mirrored. Feature branches already reach both repos via the
+# dual push URLs, and force-pushing every branch would be needlessly destructive.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A second push while the first is still mirroring would race to force-push.
+# Queue them instead; never cancel, or the final state could be a stale commit.
+concurrency:
+  group: mirror-main
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Push main to AaravAgarwal1511/Scholium
+    runs-on: ubuntu-latest
+    # This file is itself mirrored, so it also lands on AaravAgarwal1511. Without
+    # this guard the mirror would run it and push to itself. Canonical repo only.
+    if: github.repository == 'DD10654/Scholium'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: a shallow clone cannot be pushed to another repo.
+          fetch-depth: 0
+          # Don't leave the default GITHUB_TOKEN in .git/config; this job talks
+          # to a *different* repo and should use only the PAT below.
+          persist-credentials: false
+
+      # `secrets` is not allowed in an `if:` condition — it invalidates the whole
+      # workflow file. Detect the token in a run step and gate on its output,
+      # exactly as schema-drift.yml and db-security.yml do.
+      - name: Check mirror token is configured
+        id: token
+        run: |
+          if [ -n "${{ secrets.MIRROR_TOKEN }}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::MIRROR_TOKEN not set — mirror push skipped. See .github/workflows/mirror.yml for setup."
+          fi
+
+      - name: Push main to the mirror
+        if: steps.token.outputs.present == 'true'
+        env:
+          # Kept in the environment rather than inlined into the command so the
+          # token is not reconstructed in a traced shell line.
+          MIRROR_URL: https://x-access-token:${{ secrets.MIRROR_TOKEN }}@github.com/AaravAgarwal1511/Scholium.git
+        run: |
+          set -euo pipefail
+
+          # Report what the force-push would discard, so a genuine divergence is
+          # visible in the log instead of vanishing silently.
+          git fetch "$MIRROR_URL" main:refs/remotes/_mirror/main 2>/dev/null || true
+          if git rev-parse --verify -q refs/remotes/_mirror/main >/dev/null; then
+            behind=$(git rev-list --count refs/remotes/_mirror/main..HEAD)
+            ahead=$(git rev-list --count HEAD..refs/remotes/_mirror/main)
+            echo "mirror is $behind commit(s) behind, $ahead commit(s) ahead of canonical main"
+            if [ "$ahead" -gt 0 ]; then
+              echo "::warning::Mirror had $ahead commit(s) not on canonical main; they are being discarded. If that is unexpected, someone merged a PR on the mirror — check before dismissing."
+              git log --oneline HEAD..refs/remotes/_mirror/main
+            fi
+          fi
+
+          # Force, because the mirror is by definition downstream: canonical wins.
+          git push --force "$MIRROR_URL" HEAD:refs/heads/main
+          echo "mirrored $(git rev-parse --short HEAD) to AaravAgarwal1511/Scholium"

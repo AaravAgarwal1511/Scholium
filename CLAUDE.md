@@ -233,6 +233,34 @@ Storybook substitutes `src/__mocks__/supabase-client.ts` for the real client via
 poetry-notes imports the client by *relative* path everywhere, so its stories get the real client and
 rely on `.env.test` instead.
 
+### Two remotes: merge PRs on DD10654 only
+
+The repo lives on **two** GitHub remotes. `origin` has one fetch URL and *two push URLs*, so a plain
+`git push` already reaches both:
+
+| Repo | Role |
+|---|---|
+| `DD10654/Scholium` | **Canonical.** origin's fetch URL; open and merge PRs here |
+| `AaravAgarwal1511/Scholium` | **Pure mirror.** Never merge a PR on it |
+
+Local pushes were never the problem — *server-side* merges are. Clicking "Merge" on a PR creates a
+merge commit inside GitHub that never passes through any clone, so doing it on both repos for the
+same branch yields two different merge commits over **identical trees** and the two mains fork. That
+happened to `unit-tests`, `new-subjects` and `fix/schema-drift-secrets-if`, and was repaired in
+`d991662` by merging the mirror back in — not by force-pushing, which would have orphaned the other
+repo's PR merges for no content gain.
+
+To diagnose a suspected fork: `git diff main mirror/main` empty means the *content* already matches,
+and `git log --oneline --no-merges main..mirror/main` empty means the extra commits are merges only.
+That combination is cosmetic — merge, don't force.
+
+`.github/workflows/mirror.yml` makes this self-healing: on every push to `main` it force-pushes
+canonical → mirror. It is guarded by `if: github.repository == 'DD10654/Scholium'` because the file
+is itself mirrored and would otherwise run on the mirror and push to itself. It needs a
+`MIRROR_TOKEN` secret (PAT, write access to the mirror) and skips with a warning if that is unset, so
+an unconfigured fork never shows a red X. Only `main` is mirrored — feature branches already reach
+both repos via the dual push URLs.
+
 ## Architecture
 
 This is a **pnpm monorepo** managed by **Turborepo** with six Vite+React apps and three shared packages.
