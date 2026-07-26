@@ -30,8 +30,8 @@ const CONTENT_BOTTOM = MARGIN;
 // Phase 3 crop knobs (see BUILD.md → Stage 3, Stage 5).
 const FRACTION_HEADROOM = 14;       // question pipeline
 const MS_HEADROOM = 2;              // mark-scheme pipeline
-const BOTTOM_FOOTER_SENTINEL = 720.0;
-const HEADER_SKIP = 45;             // continuation pages
+export const BOTTOM_FOOTER_SENTINEL = 720.0;
+export const HEADER_SKIP = 45;             // continuation pages
 
 // Source PDF + index cache (per request, so a single composition reuses I/O).
 function makeCache() {
@@ -69,14 +69,14 @@ async function loadSourcePdf(cache, loader, paperNum, kind, stem) {
 // The suffix in "P2-Q081" is a serial number (sorted-CSV index), NOT the
 // question number within the paper. The in-paper question number lives in
 // questions_metadata.question_number.
-function parsePaperNum(id) {
+export function parsePaperNum(id) {
   const m = id.match(/^P(\d+)-Q\d+$/);
   if (!m) throw new Error(`Invalid question id: ${id}`);
   return parseInt(m[1], 10);
 }
 
 // CSV "June-2014-1" + paperNum 2 → stem "June2014-21".
-function makeStem(paperField, paperNum) {
+export function makeStem(paperField, paperNum) {
   const parts = paperField.split('-');
   if (parts.length !== 3) {
     throw new Error(`Unexpected paper format: ${paperField}`);
@@ -86,7 +86,7 @@ function makeStem(paperField, paperNum) {
 }
 
 const MONTH_ORDER = { March: 0, June: 1, November: 2 };
-function paperSortKey(meta) {
+export function paperSortKey(meta) {
   return [meta.year, MONTH_ORDER[meta.month] ?? 99, meta.timezone];
 }
 
@@ -97,7 +97,7 @@ export const PAPER_ORDERS = ['oldest', 'newest'];
 
 // Crop spec computation — mirrors `_page_specs` in _build_topicals.py.
 // Returns [{page, yTop, yBot}] in TOP-origin coordinates (PDF points from top).
-function pageSpecs(qRecord, byQ, skippablePages, headroom) {
+export function pageSpecs(qRecord, byQ, skippablePages, headroom) {
   const specs = [];
   const yStart = Math.max(0, qRecord.y_start - headroom);
   const yEnd = qRecord.y_end - headroom;

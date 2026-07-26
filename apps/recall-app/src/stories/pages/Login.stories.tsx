@@ -23,13 +23,14 @@ export const SignInView: Story = {};
 export const SignUpView: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByText('Create an account'));
+    // Copy comes from @repo/ui's AuthCard, not from this app.
+    await userEvent.click(canvas.getByRole('button', { name: 'Create Account' }));
   },
 };
 
 export const ForgotPasswordView: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByText('Forgot password?'));
+    await userEvent.click(canvas.getByRole('button', { name: 'Forgot Password?' }));
   },
 };

@@ -1,0 +1,24 @@
+{
+  // database/ is deliberately NOT a workspace package (see CLAUDE.md), so these
+  // files fall outside `turbo run check-types`. This config exists so they are
+  // still typechecked, via the root `pnpm check-types:db`.
+  //
+  // No pre-existing-error baseline here: unlike language-hub and recall-app,
+  // this directory starts at zero and must stay there.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node", "vitest/globals"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "isolatedModules": true
+  },
+  "include": ["**/*.ts"]
+}

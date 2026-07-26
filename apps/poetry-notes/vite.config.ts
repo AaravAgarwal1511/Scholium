@@ -24,6 +24,16 @@ export default defineConfig({
   },
   test: {
     projects: [{
+      // Plain unit tests. Kept as its own project because a `projects` array
+      // replaces the root-level `include` — without this entry, src/**/*.test.ts
+      // is collected by nothing and passes silently.
+      extends: true,
+      test: {
+        name: 'unit',
+        environment: 'jsdom',
+        include: ['src/**/*.test.{ts,tsx}'],
+      },
+    }, {
       extends: true,
       plugins: [
       // The plugin will run tests for the stories defined in your Storybook config

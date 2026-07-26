@@ -1,0 +1,50 @@
+name: DB security
+
+# Kept out of ci.yml deliberately. This suite asserts things about the *deployed*
+# database, not about the checkout, so it must not gate a PR — a green PR would
+# otherwise imply a claim about production that the PR's code has no bearing on.
+# It also needs credentials, which fork PRs cannot have.
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily, after the 04:17/04:37 UTC analytics crons
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "database/**"
+      - ".github/workflows/db-security.yml"
+
+jobs:
+  anon-access:
+    name: What can the anon key reach?
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Skips rather than fails when unconfigured, so the workflow is not a
+      # permanent red X on a fork or before the secrets are set.
+      - name: Check credentials are configured
+        id: creds
+        run: |
+          if [ -n "${{ secrets.SUPABASE_URL }}" ] && [ -n "${{ secrets.SUPABASE_ANON_KEY }}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SUPABASE_URL / SUPABASE_ANON_KEY not set — DB security suite skipped."
+          fi
+
+      # The anon key is public by construction (it ships in every client bundle),
+      # so this is not a secret being exposed to CI so much as a pointer to which
+      # project to probe. The service role key is never used by this suite.
+      - name: Run anon-access suite
+        if: steps.creds.outputs.present == 'true'
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: pnpm test:db
