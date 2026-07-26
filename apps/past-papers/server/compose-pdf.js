@@ -295,14 +295,19 @@ async function renderSection(layout, cache, items, kind, loader, order) {
   });
 
   const headroom = kind === 'questions' ? FRACTION_HEADROOM : MS_HEADROOM;
-  const skipKey = kind === 'questions' ? 'formula_pages' : 'preamble_pages';
+  // Pages a multi-page question may span *over*. The mark-scheme index always
+  // calls them `preamble_pages`; the question index's name is subject-specific —
+  // 0606/0607 embed a formula sheet (`formula_pages`), 0625 has none and instead
+  // marks BLANK PAGE / "starts on the next page" / end-matter as `filler_pages`.
+  // Same role either way, so accept whichever the index carries.
+  const skipKeys = kind === 'questions' ? ['formula_pages', 'filler_pages'] : ['preamble_pages'];
 
   for (const { paperNum, stem, qNums, entry } of sections) {
     const meta = entry.meta;
     const label = `${meta.month} ${meta.year} — Paper ${meta.paper}${meta.timezone}`;
     layout.queueBanner(label, qNums);
 
-    const skippable = new Set(meta[skipKey] ?? []);
+    const skippable = new Set(skipKeys.flatMap((k) => meta[k] ?? []));
     const srcDoc = await loadSourcePdf(cache, loader, paperNum, kind, stem);
 
     for (const q of qNums) {
