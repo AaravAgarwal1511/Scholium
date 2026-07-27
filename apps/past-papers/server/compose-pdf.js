@@ -28,10 +28,60 @@ const CONTENT_TOP = PAGE_H - MARGIN;
 const CONTENT_BOTTOM = MARGIN;
 
 // Phase 3 crop knobs (see BUILD.md → Stage 3, Stage 5).
-const FRACTION_HEADROOM = 14;       // question pipeline
-const MS_HEADROOM = 2;              // mark-scheme pipeline
-const BOTTOM_FOOTER_SENTINEL = 720.0;
-const HEADER_SKIP = 45;             // continuation pages
+const MIN_CROP_HEIGHT = 20;         // floor every pipeline applies
+const INTRA_GROUP_GAP = 4;          // between a stimulus and its sub-part
+
+// Crop geometry is a property of the *extraction pipeline*, not of the app, and
+// the pipelines have diverged. 0606/0607/0625/0478 come from the original
+// _build_topicals.py, which shifts both crop edges by one headroom value, marks
+// "runs past the page bottom" with 720.0, and finds the stop by walking forward
+// to question q+1. 0455 comes from a later revision that
+//   - moved the sentinel to 760.0,
+//   - split the shift into top (clear the first line's ascenders) and bottom
+//     (only clear the next marker's baseline), with a 20pt minimum crop height,
+//   - records `next_boundary` [page, y] so the stop is read, not walked, and
+//   - carries `stem_specs`: the shared stimulus a sub-part belongs to, which must
+//     be laid down directly above it or the question is unreadable on its own.
+// Getting this wrong is silent — crops land a few points off, or a sub-part
+// prints without its source material — so it is keyed per subject explicitly.
+const DEFAULT_GEOMETRY = {
+  sentinel: 720.0,
+  questions: { top: 14, bottom: 14 },   // FRACTION_HEADROOM
+  markSchemes: { top: 2, bottom: 2 },
+  hasStems: false,
+};
+
+const SUBJECT_GEOMETRY = {
+  '0455': {
+    sentinel: 760.0,
+    questions: { top: 10, bottom: 6 },  // TOP_HEADROOM / HEADROOM
+    markSchemes: { top: 2, bottom: 2 },
+    hasStems: true,
+  },
+  '0625': {
+    sentinel: 720.0,
+    questions: { top: 8, bottom: 8 },   // MARKER_HEADROOM
+    markSchemes: { top: 2, bottom: 2 },
+    hasStems: false,
+  },
+};
+
+function geometryFor(subject) {
+  return SUBJECT_GEOMETRY[subject] ?? DEFAULT_GEOMETRY;
+}
+
+// "2", "2(a)", "10" — order numerically, then by part letter.
+const Q_SORT_RE = /^(\d+)(?:\(([a-z])\))?$/;
+function qSortKey(q) {
+  const m = Q_SORT_RE.exec(String(q).trim());
+  return m ? [parseInt(m[1], 10), m[2] ?? ''] : [9999, ''];
+}
+
+function compareQ(a, b) {
+  const [an, al] = qSortKey(a);
+  const [bn, bl] = qSortKey(b);
+  return an !== bn ? an - bn : al < bl ? -1 : al > bl ? 1 : 0;
+}
 
 // Source PDF + index cache (per request, so a single composition reuses I/O).
 function makeCache() {
@@ -49,9 +99,15 @@ async function loadIndex(cache, loader, paperNum, kind) {
 
   const idx = new Map();
   for (const [stem, entry] of Object.entries(raw)) {
+    // Keyed by String: 0455 Paper 2 numbers its records "2(a)", everything else
+    // uses integers, and questions_metadata now returns both as text.
     const byQ = new Map();
-    for (const q of entry.questions) byQ.set(q.q, q);
-    idx.set(stem, { meta: entry.meta, byQ, questions: entry.questions });
+    const posOf = new Map();
+    entry.questions.forEach((q, i) => {
+      byQ.set(String(q.q), q);
+      posOf.set(String(q.q), i);
+    });
+    idx.set(stem, { meta: entry.meta, byQ, posOf, questions: entry.questions });
   }
   cache.indexes.set(key, idx);
   return idx;
@@ -64,6 +120,36 @@ async function loadSourcePdf(cache, loader, paperNum, kind, stem) {
   const pdf = await PDFDocument.load(bytes);
   cache.pdfs.set(cacheKey, pdf);
   return pdf;
+}
+
+// Wall time is dominated by fetching one multi-megabyte source PDF per distinct
+// exam, not by the question count — and a "every chapter" selection scatters its
+// questions across most of the syllabus's exams (0606 has 82 per component, the
+// most of any subject; 80 questions there touch ~50 exams). Fetched one after
+// another that is 50-75s, past the 60s serverless limit, so the function is
+// killed and the user gets nothing back. The fetches are independent, so warm
+// them concurrently before rendering; the render loop then reads the cache.
+//
+// Failures are swallowed here on purpose — the sequential path re-requests and
+// raises the real error in context.
+const SOURCE_FETCH_CONCURRENCY = 8;
+
+async function prefetchSources(cache, loader, sections, kind) {
+  const pending = sections.filter((s) => !cache.pdfs.has(`${s.paperNum}/${kind}/${s.stem}`));
+  let next = 0;
+  const worker = async () => {
+    while (next < pending.length) {
+      const s = pending[next++];
+      try {
+        await loadSourcePdf(cache, loader, s.paperNum, kind, s.stem);
+      } catch {
+        /* retried, and reported, by the render loop */
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(SOURCE_FETCH_CONCURRENCY, pending.length) }, worker),
+  );
 }
 
 // The suffix in "P2-Q081" is a serial number (sorted-CSV index), NOT the
@@ -97,37 +183,74 @@ export const PAPER_ORDERS = ['oldest', 'newest'];
 
 // Crop spec computation — mirrors `_page_specs` in _build_topicals.py.
 // Returns [{page, yTop, yBot}] in TOP-origin coordinates (PDF points from top).
-function pageSpecs(qRecord, byQ, skippablePages, headroom) {
-  const specs = [];
-  const yStart = Math.max(0, qRecord.y_start - headroom);
-  const yEnd = qRecord.y_end - headroom;
-  specs.push({ page: qRecord.page, yTop: yStart, yBot: yEnd });
+// `yBot: null` means "to the bottom of that source page".
 
-  if (qRecord.y_end !== BOTTOM_FOOTER_SENTINEL) return specs;
+// Every subject's `_build_topicals.py` implements the SAME algorithm; only the
+// constants differ (and 0455 adds `next_boundary`). This is that algorithm.
+//
+// The sentinel means "the next marker is not on this page", so a record carrying
+// it runs to the BOTTOM of its own page and continues on the following ones. An
+// earlier version of this file instead cropped to `sentinel - headroom` (a
+// coordinate that means nothing) and started continuation pages at a 45pt header
+// skip, which silently truncated every multi-page question — ~136pt lost off the
+// first page. On 0625 Paper 2 that ate the answer options off MCQ items, and on
+// its mark schemes it dropped the answer row and left only the table header.
+function pageSpecs(qRecord, nextRecord, skippablePages, geom, kind, pageCount) {
+  const { top, bottom } = geom[kind === 'questions' ? 'questions' : 'markSchemes'];
+  const yTop = Math.max(0, qRecord.y_start - top);
 
-  const next = byQ.get(qRecord.q + 1);
-  let cur = qRecord.page + 1;
-  const guard = cur + 40;
-  while (cur < guard) {
-    if (next && cur === next.page) {
-      const nextTop = Math.max(0, next.y_start - headroom);
-      if (nextTop > HEADER_SKIP) {
-        specs.push({ page: cur, yTop: HEADER_SKIP, yBot: nextTop });
-      }
-      return specs;
+  if (qRecord.y_end !== geom.sentinel) {
+    return [
+      { page: qRecord.page, yTop, yBot: Math.max(yTop + MIN_CROP_HEIGHT, qRecord.y_end - bottom) },
+    ];
+  }
+
+  // Where the run stops. 0455 records `next_boundary` — the next marker of ANY
+  // kind — which for a question's last sub-part is the following question's
+  // *number*, above its stimulus; the next stored record would instead be that
+  // question's first sub-part, and stopping there swallows the stimulus.
+  let endPage = null;
+  let endY = null;
+  if (qRecord.next_boundary) {
+    endPage = Number(qRecord.next_boundary[0]);
+    endY = Number(qRecord.next_boundary[1]);
+  } else if (nextRecord) {
+    endPage = nextRecord.page;
+    endY = Number(nextRecord.y_start);
+  }
+
+  const specs = [{ page: qRecord.page, yTop, yBot: null }];
+  if (endPage === null) {
+    for (let p = qRecord.page + 1; p <= pageCount; p++) {
+      if (!skippablePages.has(p)) specs.push({ page: p, yTop: 0, yBot: null });
     }
-    if (skippablePages.has(cur)) {
-      cur += 1;
-      continue;
-    }
-    if (!next) {
-      specs.push({ page: cur, yTop: HEADER_SKIP, yBot: BOTTOM_FOOTER_SENTINEL });
-      return specs;
-    }
-    specs.push({ page: cur, yTop: HEADER_SKIP, yBot: BOTTOM_FOOTER_SENTINEL });
-    cur += 1;
+    return specs;
+  }
+  for (let p = qRecord.page + 1; p < endPage; p++) {
+    if (!skippablePages.has(p)) specs.push({ page: p, yTop: 0, yBot: null });
+  }
+  if (endPage > qRecord.page && !skippablePages.has(endPage)) {
+    specs.push({ page: endPage, yTop: 0, yBot: Math.max(MIN_CROP_HEIGHT, endY - bottom) });
   }
   return specs;
+}
+
+// The stimulus shares a crop convention with its parts: the same ascender
+// clearance at the top, and the same shift at the bottom — without it the crop
+// keeps the top slice of "(a) Define …" as a half-height ghost under every stem.
+function stemSpecs(qRecord, geom, pageCount) {
+  const { top, bottom } = geom.questions;
+  const out = [];
+  for (const spec of qRecord.stem_specs ?? []) {
+    const page = Number(spec[0]);
+    if (!(page >= 1 && page <= pageCount)) continue;
+    let yTop = Number(spec[1]);
+    let yBot = spec[2] === null || spec[2] === undefined ? null : Number(spec[2]);
+    if (yTop > 0) yTop = Math.max(0, yTop - top);
+    if (yBot !== null) yBot = Math.max(yTop + 10, yBot - bottom);
+    out.push({ page, yTop, yBot });
+  }
+  return out;
 }
 
 // Vertical-flow layout on A4 — mirrors PageLayout in _build_topicals.py.
@@ -210,27 +333,45 @@ class PageLayout {
     this.pendingBanner = null;
   }
 
-  async addCrop(srcDoc, pageIndex, yTopFromTop, yBotFromTop) {
+  // `yBotFromTop === null` means "to the bottom of the source page".
+  //
+  // A numeric bound is passed through UNCLAMPED, deliberately. 0478's mark
+  // schemes are 595pt landscape pages, shorter than the 720 sentinel, so the
+  // sentinel puts the crop box below the media box — and that is what the
+  // existing output was built from. Clamping it to the page height is arguably
+  // more correct but silently reflows every affected 0478 crop, so the bound
+  // stays as the index recorded it.
+  _measure(srcDoc, pageIndex, yTopFromTop, yBotFromTop) {
     const srcPage = srcDoc.getPage(pageIndex);
     const srcW = srcPage.getWidth();
     const srcH = srcPage.getHeight();
-
-    // Convert top-origin Y → pdf-lib bottom-origin Y.
     const pdfTop = srcH - yTopFromTop;
-    const pdfBot = srcH - yBotFromTop;
+    const pdfBot = srcH - (yBotFromTop === null ? srcH : yBotFromTop);
     const cropH = pdfTop - pdfBot;
-    if (cropH <= 0) return;
-
-    const embedded = await this.out.embedPage(srcPage, {
-      left: 0,
-      bottom: pdfBot,
-      right: srcW,
-      top: pdfTop,
-    });
-
+    if (cropH <= 0) return null;
     const scale = Math.min(1.0, CONTENT_W / srcW);
-    const drawW = srcW * scale;
-    const drawH = cropH * scale;
+    return { srcPage, srcW, pdfTop, pdfBot, cropH, scale };
+  }
+
+  async _draw(m, scale) {
+    const embedded = await this.out.embedPage(m.srcPage, {
+      left: 0,
+      bottom: m.pdfBot,
+      right: m.srcW,
+      top: m.pdfTop,
+    });
+    const drawW = m.srcW * scale;
+    const drawH = m.cropH * scale;
+    const x = MARGIN + (CONTENT_W - drawW) / 2;
+    const y = this.cursor - drawH;
+    this.page.drawPage(embedded, { x, y, width: drawW, height: drawH });
+    return y;
+  }
+
+  async addCrop(srcDoc, pageIndex, yTopFromTop, yBotFromTop) {
+    const m = this._measure(srcDoc, pageIndex, yTopFromTop, yBotFromTop);
+    if (!m) return;
+    const drawH = m.cropH * m.scale;
 
     if (this.page === null || this.cursor - drawH < CONTENT_BOTTOM) {
       this._newPage();
@@ -240,14 +381,56 @@ class PageLayout {
       this._newPage();
     }
 
-    const x = MARGIN + (CONTENT_W - drawW) / 2;
-    const y = this.cursor - drawH;
-    this.page.drawPage(embedded, { x, y, width: drawW, height: drawH });
+    const y = await this._draw(m, m.scale);
     this.cursor = y - 8;
+  }
+
+  // Place several crops as one unbreakable block, so a 0455 stimulus is never
+  // split from the sub-part it introduces. Measured first: if the block doesn't
+  // fit in what's left of the page but would fit on a fresh one, the page break
+  // happens before anything is drawn; a block taller than a whole page is
+  // scaled down rather than split.
+  async addGroup(crops) {
+    const measured = [];
+    for (const c of crops) {
+      const m = this._measure(c.doc, c.pageIndex, c.yTop, c.yBot);
+      if (m) measured.push({ ...m, crop: c });
+    }
+    if (measured.length === 0) return;
+    if (measured.length === 1) {
+      const { crop } = measured[0];
+      return this.addCrop(crop.doc, crop.pageIndex, crop.yTop, crop.yBot);
+    }
+
+    const gaps = INTRA_GROUP_GAP * (measured.length - 1);
+    const scales = measured.map((m) => m.scale);
+    let blockH = measured.reduce((s, m, i) => s + m.cropH * scales[i], 0) + gaps;
+
+    const freshAvail = CONTENT_TOP - CONTENT_BOTTOM;
+    if (blockH > freshAvail) {
+      const shrink = (freshAvail - gaps) / Math.max(1e-6, blockH - gaps);
+      for (let i = 0; i < scales.length; i++) scales[i] *= shrink;
+      blockH = measured.reduce((s, m, i) => s + m.cropH * scales[i], 0) + gaps;
+    }
+
+    if (this.page === null || this.cursor - blockH < CONTENT_BOTTOM) {
+      this._newPage();
+    }
+    this._flushBanner();
+    if (this.cursor - blockH < CONTENT_BOTTOM) {
+      this._newPage();
+    }
+
+    for (let i = 0; i < measured.length; i++) {
+      if (i) this.cursor -= INTRA_GROUP_GAP;
+      const y = await this._draw(measured[i], scales[i]);
+      this.cursor = y;
+    }
+    this.cursor -= 8;
   }
 }
 
-async function renderSection(layout, cache, items, kind, loader, order) {
+async function renderSection(layout, cache, items, kind, loader, order, geom) {
   // Group by (paperNum, stem).
   const grouped = new Map();
   for (const it of items) {
@@ -278,7 +461,7 @@ async function renderSection(layout, cache, items, kind, loader, order) {
     sections.push({
       paperNum,
       stem,
-      qNums: qNums.sort((a, b) => a - b),
+      qNums: qNums.sort(compareQ),
       entry,
     });
   }
@@ -294,13 +477,15 @@ async function renderSection(layout, cache, items, kind, loader, order) {
     return 0;
   });
 
-  const headroom = kind === 'questions' ? FRACTION_HEADROOM : MS_HEADROOM;
   // Pages a multi-page question may span *over*. The mark-scheme index always
   // calls them `preamble_pages`; the question index's name is subject-specific —
   // 0606/0607 embed a formula sheet (`formula_pages`), 0625 has none and instead
   // marks BLANK PAGE / "starts on the next page" / end-matter as `filler_pages`.
   // Same role either way, so accept whichever the index carries.
   const skipKeys = kind === 'questions' ? ['formula_pages', 'filler_pages'] : ['preamble_pages'];
+  const withStems = geom.hasStems && kind === 'questions';
+
+  await prefetchSources(cache, loader, sections, kind);
 
   for (const { paperNum, stem, qNums, entry } of sections) {
     const meta = entry.meta;
@@ -309,18 +494,35 @@ async function renderSection(layout, cache, items, kind, loader, order) {
 
     const skippable = new Set(skipKeys.flatMap((k) => meta[k] ?? []));
     const srcDoc = await loadSourcePdf(cache, loader, paperNum, kind, stem);
+    const pageCount = srcDoc.getPageCount();
 
     for (const q of qNums) {
-      const record = entry.byQ.get(q);
+      const key = String(q);
+      const record = entry.byQ.get(key);
       if (!record) {
         console.warn(`  ⚠️  Missing ${kind} record for ${stem} Q${q}`);
         continue;
       }
-      const specs = pageSpecs(record, entry.byQ, skippable, headroom);
-      for (const spec of specs) {
-        const pageIdx = spec.page - 1;
-        if (pageIdx < 0 || pageIdx >= srcDoc.getPageCount()) continue;
-        await layout.addCrop(srcDoc, pageIdx, spec.yTop, spec.yBot);
+
+      // The stop is the next record in DOCUMENT order, not question q+1 — the
+      // numbering can skip, and every _build_topicals.py uses questions[i+1].
+      const pos = entry.posOf.get(key);
+      const nextRecord = pos === undefined ? null : entry.questions[pos + 1] ?? null;
+      const specs = pageSpecs(record, nextRecord, skippable, geom, kind, pageCount);
+
+      // The stimulus and its sub-part go down as one block so a page break can
+      // never separate them; everything else is placed crop by crop.
+      const crops = [
+        ...(withStems ? stemSpecs(record, geom, pageCount) : []),
+        ...specs,
+      ]
+        .filter((s) => s.page - 1 >= 0 && s.page - 1 < pageCount)
+        .map((s) => ({ doc: srcDoc, pageIndex: s.page - 1, yTop: s.yTop, yBot: s.yBot ?? null }));
+
+      if (withStems) {
+        await layout.addGroup(crops);
+      } else {
+        for (const c of crops) await layout.addCrop(c.doc, c.pageIndex, c.yTop, c.yBot);
       }
     }
   }
@@ -380,6 +582,7 @@ export async function composePdf(questionIds, subject, loader, options = {}) {
   if (items.length === 0) throw new Error('No valid items to compose');
 
   const cache = makeCache();
+  const geom = geometryFor(subject);
   const outDoc = await PDFDocument.create();
   const font = await outDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await outDoc.embedFont(StandardFonts.HelveticaBold);
@@ -388,7 +591,7 @@ export async function composePdf(questionIds, subject, loader, options = {}) {
   // Section 1 — Questions
   if (!markSchemeOnly) {
     layout.sectionHeader('Questions');
-    await renderSection(layout, cache, items, 'questions', loader, order);
+    await renderSection(layout, cache, items, 'questions', loader, order, geom);
   }
 
   // Section 2 — Mark Scheme (only questions the mark-scheme index actually covers)
@@ -402,11 +605,11 @@ export async function composePdf(questionIds, subject, loader, options = {}) {
     }
     const msItems = items.filter((it) => {
       const entry = msIdxByPaper.get(it.paperNum).get(makeStem(it.paper, it.paperNum));
-      return entry ? entry.byQ.has(it.qNum) : false;
+      return entry ? entry.byQ.has(String(it.qNum)) : false;
     });
     if (msItems.length > 0) {
       layout.sectionHeader('Mark Scheme');
-      await renderSection(layout, cache, msItems, 'mark_schemes', loader, order);
+      await renderSection(layout, cache, msItems, 'mark_schemes', loader, order, geom);
       msCount = msItems.length;
     } else if (markSchemeOnly) {
       throw new Error('No mark schemes are indexed for the selected questions');

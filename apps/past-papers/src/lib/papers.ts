@@ -17,6 +17,7 @@ function r2Url(subject: string, component: string, fileName: string): string {
 // canonical identifier used in URLs, the `paper_files` index, and R2 paths —
 // this map only changes what the user sees. Add new subjects here.
 const SUBJECT_DISPLAY_NAMES: Record<string, string> = {
+  "0455": "Economics",
   "0478": "Computer Science",
   "0606": "Additional Mathematics",
   "0607": "International Mathematics",

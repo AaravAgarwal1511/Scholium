@@ -20,6 +20,48 @@ import csv, json, os, sys, urllib.request, urllib.error
 # Chapter name -> number, keyed by subject. Numbers match the R2 folder
 # numbering so /generate chapters line up with the browse view.
 CHAPTER_NUM = {
+    # Both components examine all 39 chapters.
+    "0455": {
+        "The Nature of the Economic Problem": 1,
+        "The Factors of Production": 2,
+        "Opportunity Cost": 3,
+        "Production Possibility Curve Diagrams": 4,
+        "Microeconomics and Macroeconomics": 5,
+        "The Role of Markets in Allocating Resources": 6,
+        "Demand": 7,
+        "Supply": 8,
+        "Price Determination": 9,
+        "Price Changes": 10,
+        "Price Elasticity of Demand": 11,
+        "Price Elasticity of Supply": 12,
+        "Market Economic System": 13,
+        "Market Failure": 14,
+        "Mixed Economic System": 15,
+        "Money and Banking": 16,
+        "Households": 17,
+        "Workers": 18,
+        "Trade Unions": 19,
+        "Firms": 20,
+        "Firms and Production": 21,
+        "Firms' Costs, Revenue and Objectives": 22,
+        "Market Structure": 23,
+        "The Role of Government": 24,
+        "The Macroeconomic Aims of Government": 25,
+        "Fiscal Policy": 26,
+        "Monetary Policy": 27,
+        "Supply-Side Policy": 28,
+        "Economic Growth": 29,
+        "Employment and Unemployment": 30,
+        "Inflation and Deflation": 31,
+        "Living Standards": 32,
+        "Poverty": 33,
+        "Population": 34,
+        "Differences in Economic Development Between Countries": 35,
+        "International Specialisation": 36,
+        "Globalisation, Free Trade and Protection": 37,
+        "Foreign Exchange Rates": 38,
+        "Current Account of Balance of Payments": 39,
+    },
     # One syllabus-wide numbering, split across the two components: Paper 1 carries
     # chapters 1-6, Paper 2 carries 7-9, and Boolean Logic (10) is examined on both.
     "0478": {
@@ -131,7 +173,10 @@ def main():
                 "subject": subject,
                 "id": r["ID"].strip(),
                 "paper": r["Paper (Month-Year-TZ)"].strip(),
-                "question_number": int(r["Question Number"]),
+                # Text, not int: structured papers (0455 Paper 2) label their
+                # unit of extraction "2(a)". Kept verbatim so it matches the key
+                # in _questions.json, which is what the composer looks up.
+                "question_number": r["Question Number"].strip(),
                 "chapter_name": ch,
                 "chapter_num": chmap[ch],
                 "sub_topic": r["Sub-topic"].strip(),
