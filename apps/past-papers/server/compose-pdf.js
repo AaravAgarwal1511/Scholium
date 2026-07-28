@@ -88,7 +88,7 @@ const SUBJECT_GEOMETRY = {
   },
 };
 
-function geometryFor(subject) {
+export function geometryFor(subject) {
   return SUBJECT_GEOMETRY[subject] ?? DEFAULT_GEOMETRY;
 }
 
@@ -99,7 +99,7 @@ function qSortKey(q) {
   return m ? [parseInt(m[1], 10), m[2] ?? ''] : [9999, ''];
 }
 
-function compareQ(a, b) {
+export function compareQ(a, b) {
   const [an, al] = qSortKey(a);
   const [bn, bl] = qSortKey(b);
   return an !== bn ? an - bn : al < bl ? -1 : al > bl ? 1 : 0;
@@ -202,14 +202,14 @@ async function prefetchSources(cache, loader, sections, kind) {
 // The suffix in "P2-Q081" is a serial number (sorted-CSV index), NOT the
 // question number within the paper. The in-paper question number lives in
 // questions_metadata.question_number.
-function parsePaperNum(id) {
+export function parsePaperNum(id) {
   const m = id.match(/^P(\d+)-Q\d+$/);
   if (!m) throw new Error(`Invalid question id: ${id}`);
   return parseInt(m[1], 10);
 }
 
 // CSV "June-2014-1" + paperNum 2 → stem "June2014-21".
-function makeStem(paperField, paperNum) {
+export function makeStem(paperField, paperNum) {
   const parts = paperField.split('-');
   if (parts.length !== 3) {
     throw new Error(`Unexpected paper format: ${paperField}`);
@@ -219,7 +219,7 @@ function makeStem(paperField, paperNum) {
 }
 
 const MONTH_ORDER = { March: 0, June: 1, November: 2 };
-function paperSortKey(meta) {
+export function paperSortKey(meta) {
   return [meta.year, MONTH_ORDER[meta.month] ?? 99, meta.timezone];
 }
 
@@ -242,7 +242,7 @@ export const PAPER_ORDERS = ['oldest', 'newest'];
 // skip, which silently truncated every multi-page question — ~136pt lost off the
 // first page. On 0625 Paper 2 that ate the answer options off MCQ items, and on
 // its mark schemes it dropped the answer row and left only the table header.
-function pageSpecs(qRecord, nextRecord, skippablePages, geom, kind, pageCount) {
+export function pageSpecs(qRecord, nextRecord, skippablePages, geom, kind, pageCount) {
   const { top, bottom } = geom[kind === 'questions' ? 'questions' : 'markSchemes'];
   const yTop = Math.max(0, qRecord.y_start - top);
 
