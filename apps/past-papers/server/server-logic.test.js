@@ -164,7 +164,10 @@ describe("cache keys", () => {
     const c = generatedCacheKey("0607", new Uint8Array([1, 2, 4]));
     expect(a).toBe(b);
     expect(a).not.toBe(c);
-    expect(a).toMatch(/^_cache\/0607\/generated-[0-9a-f]{32}-v1\.pdf$/);
+    // The version segment is deliberately matched loosely. CACHE_VERSION is meant
+    // to be bumped whenever composition output changes — pinning the literal here
+    // turns every correct bump into a red build, which is exactly what it did.
+    expect(a).toMatch(/^_cache\/0607\/generated-[0-9a-f]{32}-v\d+\.pdf$/);
   });
 
   it("keeps generated papers of different subjects apart", () => {

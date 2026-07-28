@@ -17,7 +17,18 @@ export const CACHE_PREFIX = '_cache';
 
 // Bump when the composition output changes in a way that invalidates old PDFs
 // (layout, crop geometry, banner text) — old keys are simply orphaned.
-const CACHE_VERSION = 'v1';
+//
+// v2 (2026-07-27): multi-page crops were being cut off at `sentinel - headroom`
+// instead of running to the bottom of the page, so every v1 chapter PDF holding
+// a question that spans a page break is truncated — visibly so on 0625 Paper 2,
+// where it removed MCQ answer options and reduced some mark-scheme rows to the
+// bare table header. Every v1 object is stale and must not be served.
+//
+// v3 (2026-07-27): blank pages. Run-on crops swept in BLANK PAGE separators and
+// header-only slivers, and the layout could strand a section banner — or nothing
+// at all — on a page of its own. v2 was never deployed, but objects were written
+// under it while testing, so it is retired too rather than served stale.
+const CACHE_VERSION = 'v3';
 
 const R2_PUBLIC_URL = (
   process.env.VITE_R2_PUBLIC_URL ||

@@ -475,6 +475,9 @@ importers:
       pdf-lib:
         specifier: ^1.17.1
         version: 1.17.1
+      pdfjs-dist:
+        specifier: ^5.7.284
+        version: 5.7.284
       pdfkit:
         specifier: ^0.13.0
         version: 0.13.0

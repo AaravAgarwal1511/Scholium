@@ -1,6 +1,7 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, PDFArray, StandardFonts, decodePDFRawStream, rgb } from 'pdf-lib';
 import { createClient } from '@supabase/supabase-js';
 import { fetchRowsByIds } from './supabase-rows.js';
+import { createCharIndex, regionHasContent, tightenBottom } from './page-chars.js';
 
 // Lazily create the Supabase client so merely importing this module never throws
 // (env is present at runtime in both the dev server and the serverless function).
@@ -28,17 +29,110 @@ const CONTENT_TOP = PAGE_H - MARGIN;
 const CONTENT_BOTTOM = MARGIN;
 
 // Phase 3 crop knobs (see BUILD.md → Stage 3, Stage 5).
-const FRACTION_HEADROOM = 14;       // question pipeline
-const MS_HEADROOM = 2;              // mark-scheme pipeline
-export const BOTTOM_FOOTER_SENTINEL = 720.0;
-export const HEADER_SKIP = 45;             // continuation pages
+const MIN_CROP_HEIGHT = 20;         // floor every pipeline applies
+const INTRA_GROUP_GAP = 4;          // between a stimulus and its sub-part
+const BANNER_BLOCK_H = 36;          // inline paper banner (label + q list + rule)
+const HEADER_ZONE = 45;             // page number / paper code / © line live above this
+const FOOTER_ZONE = 50;             // © UCLES / [Turn over] band at the foot
+const MIN_CONTENT_CHARS = 8;        // MIN_CHARS_FOR_CONTENT
+const TIGHTEN_PAD = 5;              // breathing room under the last trimmed line
+
+// `has_content` in _build_topicals.py drops crops holding nothing but page
+// furniture. It counts extracted characters, which needs a text layer we can't
+// read with pdf-lib — but the thing it is actually catching here is the
+// "BLANK PAGE" separator, and those are trivially separable by how much is drawn
+// on the page. Measured across 544 source pages of 0455/0606/0607/0625/0478:
+//
+//   every page from 159 to 349 bytes of content stream is a literal BLANK PAGE
+//   the smallest page carrying real content is 495 bytes
+//
+// 400 sits in that gap. Erring high would drop real content, so if this ever
+// needs adjusting, move it DOWN — a kept blank page is cosmetic, a dropped
+// question is not. Note this measures drawn content, not text, so a full-page
+// figure (large stream, no text) is correctly kept — which a text-based check
+// would have wrongly discarded.
+const BLANK_PAGE_MAX_STREAM = 400;
+
+// Crop geometry is a property of the *extraction pipeline*, not of the app, and
+// the pipelines have diverged. 0606/0607/0625/0478 come from the original
+// _build_topicals.py, which shifts both crop edges by one headroom value, marks
+// "runs past the page bottom" with 720.0, and finds the stop by walking forward
+// to question q+1. 0455 comes from a later revision that
+//   - moved the sentinel to 760.0,
+//   - split the shift into top (clear the first line's ascenders) and bottom
+//     (only clear the next marker's baseline), with a 20pt minimum crop height,
+//   - records `next_boundary` [page, y] so the stop is read, not walked, and
+//   - carries `stem_specs`: the shared stimulus a sub-part belongs to, which must
+//     be laid down directly above it or the question is unreadable on its own.
+// Getting this wrong is silent — crops land a few points off, or a sub-part
+// prints without its source material — so it is keyed per subject explicitly.
+const DEFAULT_GEOMETRY = {
+  sentinel: 720.0,
+  questions: { top: 14, bottom: 14 },   // FRACTION_HEADROOM
+  markSchemes: { top: 2, bottom: 2 },
+  hasStems: false,
+};
+
+const SUBJECT_GEOMETRY = {
+  '0455': {
+    sentinel: 760.0,
+    questions: { top: 10, bottom: 6 },  // TOP_HEADROOM / HEADROOM
+    markSchemes: { top: 2, bottom: 2 },
+    hasStems: true,
+  },
+  '0625': {
+    sentinel: 720.0,
+    questions: { top: 8, bottom: 8 },   // MARKER_HEADROOM
+    markSchemes: { top: 2, bottom: 2 },
+    hasStems: false,
+  },
+};
+
+export function geometryFor(subject) {
+  return SUBJECT_GEOMETRY[subject] ?? DEFAULT_GEOMETRY;
+}
+
+// "2", "2(a)", "10" — order numerically, then by part letter.
+const Q_SORT_RE = /^(\d+)(?:\(([a-z])\))?$/;
+function qSortKey(q) {
+  const m = Q_SORT_RE.exec(String(q).trim());
+  return m ? [parseInt(m[1], 10), m[2] ?? ''] : [9999, ''];
+}
+
+export function compareQ(a, b) {
+  const [an, al] = qSortKey(a);
+  const [bn, bl] = qSortKey(b);
+  return an !== bn ? an - bn : al < bl ? -1 : al > bl ? 1 : 0;
+}
 
 // Source PDF + index cache (per request, so a single composition reuses I/O).
 function makeCache() {
   return {
     pdfs: new Map(),     // `${paperNum}/${kind}/${stem}` → PDFDocument
     indexes: new Map(),  // `${paperNum}/${kind}` → Map<stem, {meta, byQ, questions}>
+    blank: new Map(),    // PDFDocument → Map<pageIndex, boolean>
+    bytes: new Map(),    // PDFDocument → { key, bytes }  (for the text layer)
+    chars: createCharIndex(),
   };
+}
+
+// How much is drawn on a source page — see BLANK_PAGE_MAX_STREAM. Memoized:
+// one spanning question can revisit the same page for every sub-part.
+function isBlankPage(cache, srcDoc, pageIndex) {
+  let perDoc = cache.blank.get(srcDoc);
+  if (!perDoc) cache.blank.set(srcDoc, (perDoc = new Map()));
+  if (perDoc.has(pageIndex)) return perDoc.get(pageIndex);
+
+  let blank = false;
+  try {
+    let contents = srcDoc.getPage(pageIndex).node.Contents();
+    if (contents instanceof PDFArray) contents = contents.lookup(0);
+    blank = decodePDFRawStream(contents).decode().length <= BLANK_PAGE_MAX_STREAM;
+  } catch {
+    blank = false; // unreadable stream → keep the page, never drop content on a guess
+  }
+  perDoc.set(pageIndex, blank);
+  return blank;
 }
 
 async function loadIndex(cache, loader, paperNum, kind) {
@@ -49,9 +143,15 @@ async function loadIndex(cache, loader, paperNum, kind) {
 
   const idx = new Map();
   for (const [stem, entry] of Object.entries(raw)) {
+    // Keyed by String: 0455 Paper 2 numbers its records "2(a)", everything else
+    // uses integers, and questions_metadata now returns both as text.
     const byQ = new Map();
-    for (const q of entry.questions) byQ.set(q.q, q);
-    idx.set(stem, { meta: entry.meta, byQ, questions: entry.questions });
+    const posOf = new Map();
+    entry.questions.forEach((q, i) => {
+      byQ.set(String(q.q), q);
+      posOf.set(String(q.q), i);
+    });
+    idx.set(stem, { meta: entry.meta, byQ, posOf, questions: entry.questions });
   }
   cache.indexes.set(key, idx);
   return idx;
@@ -63,7 +163,40 @@ async function loadSourcePdf(cache, loader, paperNum, kind, stem) {
   const bytes = await loader.loadPdfBytes(paperNum, kind, stem);
   const pdf = await PDFDocument.load(bytes);
   cache.pdfs.set(cacheKey, pdf);
+  // Kept for the content test, which needs a text layer pdf-lib cannot give it.
+  // `PDFDocument.load` copies, so these bytes stay intact.
+  cache.bytes.set(pdf, { key: cacheKey, bytes });
   return pdf;
+}
+
+// Wall time is dominated by fetching one multi-megabyte source PDF per distinct
+// exam, not by the question count — and a "every chapter" selection scatters its
+// questions across most of the syllabus's exams (0606 has 82 per component, the
+// most of any subject; 80 questions there touch ~50 exams). Fetched one after
+// another that is 50-75s, past the 60s serverless limit, so the function is
+// killed and the user gets nothing back. The fetches are independent, so warm
+// them concurrently before rendering; the render loop then reads the cache.
+//
+// Failures are swallowed here on purpose — the sequential path re-requests and
+// raises the real error in context.
+const SOURCE_FETCH_CONCURRENCY = 8;
+
+async function prefetchSources(cache, loader, sections, kind) {
+  const pending = sections.filter((s) => !cache.pdfs.has(`${s.paperNum}/${kind}/${s.stem}`));
+  let next = 0;
+  const worker = async () => {
+    while (next < pending.length) {
+      const s = pending[next++];
+      try {
+        await loadSourcePdf(cache, loader, s.paperNum, kind, s.stem);
+      } catch {
+        /* retried, and reported, by the render loop */
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(SOURCE_FETCH_CONCURRENCY, pending.length) }, worker),
+  );
 }
 
 // The suffix in "P2-Q081" is a serial number (sorted-CSV index), NOT the
@@ -97,37 +230,145 @@ export const PAPER_ORDERS = ['oldest', 'newest'];
 
 // Crop spec computation — mirrors `_page_specs` in _build_topicals.py.
 // Returns [{page, yTop, yBot}] in TOP-origin coordinates (PDF points from top).
-export function pageSpecs(qRecord, byQ, skippablePages, headroom) {
-  const specs = [];
-  const yStart = Math.max(0, qRecord.y_start - headroom);
-  const yEnd = qRecord.y_end - headroom;
-  specs.push({ page: qRecord.page, yTop: yStart, yBot: yEnd });
+// `yBot: null` means "to the bottom of that source page".
 
-  if (qRecord.y_end !== BOTTOM_FOOTER_SENTINEL) return specs;
+// Every subject's `_build_topicals.py` implements the SAME algorithm; only the
+// constants differ (and 0455 adds `next_boundary`). This is that algorithm.
+//
+// The sentinel means "the next marker is not on this page", so a record carrying
+// it runs to the BOTTOM of its own page and continues on the following ones. An
+// earlier version of this file instead cropped to `sentinel - headroom` (a
+// coordinate that means nothing) and started continuation pages at a 45pt header
+// skip, which silently truncated every multi-page question — ~136pt lost off the
+// first page. On 0625 Paper 2 that ate the answer options off MCQ items, and on
+// its mark schemes it dropped the answer row and left only the table header.
+export function pageSpecs(qRecord, nextRecord, skippablePages, geom, kind, pageCount) {
+  const { top, bottom } = geom[kind === 'questions' ? 'questions' : 'markSchemes'];
+  const yTop = Math.max(0, qRecord.y_start - top);
 
-  const next = byQ.get(qRecord.q + 1);
-  let cur = qRecord.page + 1;
-  const guard = cur + 40;
-  while (cur < guard) {
-    if (next && cur === next.page) {
-      const nextTop = Math.max(0, next.y_start - headroom);
-      if (nextTop > HEADER_SKIP) {
-        specs.push({ page: cur, yTop: HEADER_SKIP, yBot: nextTop });
-      }
-      return specs;
+  if (qRecord.y_end !== geom.sentinel) {
+    return [
+      { page: qRecord.page, yTop, yBot: Math.max(yTop + MIN_CROP_HEIGHT, qRecord.y_end - bottom) },
+    ];
+  }
+
+  // Where the run stops. 0455 records `next_boundary` — the next marker of ANY
+  // kind — which for a question's last sub-part is the following question's
+  // *number*, above its stimulus; the next stored record would instead be that
+  // question's first sub-part, and stopping there swallows the stimulus.
+  let endPage = null;
+  let endY = null;
+  if (qRecord.next_boundary) {
+    endPage = Number(qRecord.next_boundary[0]);
+    endY = Number(qRecord.next_boundary[1]);
+  } else if (nextRecord) {
+    endPage = nextRecord.page;
+    endY = Number(nextRecord.y_start);
+  }
+
+  // Only the run-on pages are marked `continuation`. The record's own page always
+  // holds the question itself and is never eligible to be dropped as empty.
+  const specs = [{ page: qRecord.page, yTop, yBot: null }];
+  if (endPage === null) {
+    for (let p = qRecord.page + 1; p <= pageCount; p++) {
+      if (!skippablePages.has(p)) specs.push({ page: p, yTop: 0, yBot: null, continuation: true });
     }
-    if (skippablePages.has(cur)) {
-      cur += 1;
-      continue;
-    }
-    if (!next) {
-      specs.push({ page: cur, yTop: HEADER_SKIP, yBot: BOTTOM_FOOTER_SENTINEL });
-      return specs;
-    }
-    specs.push({ page: cur, yTop: HEADER_SKIP, yBot: BOTTOM_FOOTER_SENTINEL });
-    cur += 1;
+    return specs;
+  }
+  for (let p = qRecord.page + 1; p < endPage; p++) {
+    if (!skippablePages.has(p)) specs.push({ page: p, yTop: 0, yBot: null, continuation: true });
+  }
+  if (endPage > qRecord.page && !skippablePages.has(endPage)) {
+    specs.push({
+      page: endPage,
+      yTop: 0,
+      yBot: Math.max(MIN_CROP_HEIGHT, endY - bottom),
+      continuation: true,
+    });
   }
   return specs;
+}
+
+// A run-on crop that carries no question content — a BLANK PAGE separator swept
+// into the span, or a sliver below the next page's header holding only the page
+// number. This is `has_content` from _build_topicals.py.
+//
+// It is applied ONLY to `continuation` crops, never to the page a record starts
+// on, and that restriction is load-bearing: a multiple-choice mark-scheme row is
+// the string "1 A 1", three characters, which any sensible character threshold
+// would discard. The reference works around that by dropping `min_chars` to 2
+// for those subjects; scoping to continuations avoids the per-subject tuning
+// altogether, because every such row sits on its own record's page.
+//
+// The cheap page-level check runs first so obvious BLANK PAGEs never pay for
+// text extraction.
+// An open-ended crop (`yBot === null`) means "to the bottom of the page", which
+// drags in the blank remainder and the © UCLES footer. Trim it to the last line
+// of real content instead — the reference's `tighten_bottom`.
+//
+// This is what stops a near-empty page from taking a whole output page: a
+// question that is the LAST in its paper has no next marker, so the spec sweeps
+// every remaining page — the BLANK PAGE separators and the closing
+// acknowledgements block — and each of those holds enough characters to pass the
+// content test. Trimmed, they collapse to a thin strip instead.
+//
+// Questions only. The reference disables it for mark schemes because their rows
+// are bounded by drawn table rules rather than by characters, so trimming to the
+// last glyph would cut through the ruling.
+async function tightenOpenEnd(cache, srcDoc, spec, kind) {
+  if (spec.yBot !== null || kind !== 'questions') return spec;
+
+  const source = cache.bytes.get(srcDoc);
+  if (!source) return spec;
+  try {
+    const page = await cache.chars.pageChars(source.key, source.bytes, spec.page);
+    const yBot = tightenBottom(page, spec.yTop, spec.yBot, {
+      footerSkip: FOOTER_ZONE,
+      pad: TIGHTEN_PAD,
+    });
+    if (yBot === null || !(yBot > spec.yTop)) return spec;
+    return { ...spec, yBot };
+  } catch {
+    return spec; // untrimmed is merely ugly; guessing could clip content
+  }
+}
+
+async function isEmptyContinuation(cache, srcDoc, spec) {
+  if (!spec.continuation) return false;
+  if (isBlankPage(cache, srcDoc, spec.page - 1)) return true;
+
+  const source = cache.bytes.get(srcDoc);
+  if (!source) return false; // no bytes retained → keep the crop
+  try {
+    const page = await cache.chars.pageChars(source.key, source.bytes, spec.page);
+    return !regionHasContent(page, spec.yTop, spec.yBot, {
+      headerSkip: HEADER_ZONE,
+      footerSkip: FOOTER_ZONE,
+      minChars: MIN_CONTENT_CHARS,
+    });
+  } catch (err) {
+    // Never drop content because the text layer could not be read.
+    console.warn(`  ⚠️  Content check failed for p${spec.page}: ${err.message}`);
+    return false;
+  }
+}
+
+// The stimulus shares a crop convention with its parts: the same ascender
+// clearance at the top, and the same shift at the bottom — without it the crop
+// keeps the top slice of "(a) Define …" as a half-height ghost under every stem.
+function stemSpecs(qRecord, geom, pageCount) {
+  const { top, bottom } = geom.questions;
+  const out = [];
+  for (const spec of qRecord.stem_specs ?? []) {
+    const page = Number(spec[0]);
+    if (!(page >= 1 && page <= pageCount)) continue;
+    let yTop = Number(spec[1]);
+    let yBot = spec[2] === null || spec[2] === undefined ? null : Number(spec[2]);
+    if (yTop > 0) yTop = Math.max(0, yTop - top);
+    if (yBot !== null) yBot = Math.max(yTop + 10, yBot - bottom);
+    out.push({ page, yTop, yBot });
+  }
+  return out;
 }
 
 // Vertical-flow layout on A4 — mirrors PageLayout in _build_topicals.py.
@@ -156,7 +397,9 @@ class PageLayout {
     const { label, qList } = this.pendingBanner;
     this.pendingBanner = null;
 
-    const blockH = 36;
+    // `_place` has already guaranteed room for the banner plus its block, so
+    // this is only a guard for a banner flushed outside that path.
+    const blockH = BANNER_BLOCK_H;
     if (this.page === null || this.cursor - blockH < CONTENT_BOTTOM) {
       this._newPage();
     }
@@ -210,44 +453,97 @@ class PageLayout {
     this.pendingBanner = null;
   }
 
-  async addCrop(srcDoc, pageIndex, yTopFromTop, yBotFromTop) {
+  // `yBotFromTop === null` means "to the bottom of the source page".
+  //
+  // A numeric bound is passed through UNCLAMPED, deliberately. 0478's mark
+  // schemes are 595pt landscape pages, shorter than the 720 sentinel, so the
+  // sentinel puts the crop box below the media box — and that is what the
+  // existing output was built from. Clamping it to the page height is arguably
+  // more correct but silently reflows every affected 0478 crop, so the bound
+  // stays as the index recorded it.
+  _measure(srcDoc, pageIndex, yTopFromTop, yBotFromTop) {
     const srcPage = srcDoc.getPage(pageIndex);
     const srcW = srcPage.getWidth();
     const srcH = srcPage.getHeight();
-
-    // Convert top-origin Y → pdf-lib bottom-origin Y.
     const pdfTop = srcH - yTopFromTop;
-    const pdfBot = srcH - yBotFromTop;
+    const pdfBot = srcH - (yBotFromTop === null ? srcH : yBotFromTop);
     const cropH = pdfTop - pdfBot;
-    if (cropH <= 0) return;
-
-    const embedded = await this.out.embedPage(srcPage, {
-      left: 0,
-      bottom: pdfBot,
-      right: srcW,
-      top: pdfTop,
-    });
-
+    if (cropH <= 0) return null;
     const scale = Math.min(1.0, CONTENT_W / srcW);
-    const drawW = srcW * scale;
-    const drawH = cropH * scale;
+    return { srcPage, srcW, pdfTop, pdfBot, cropH, scale };
+  }
 
-    if (this.page === null || this.cursor - drawH < CONTENT_BOTTOM) {
-      this._newPage();
-    }
-    this._flushBanner();
-    if (this.cursor - drawH < CONTENT_BOTTOM) {
-      this._newPage();
-    }
-
+  async _draw(m, scale) {
+    const embedded = await this.out.embedPage(m.srcPage, {
+      left: 0,
+      bottom: m.pdfBot,
+      right: m.srcW,
+      top: m.pdfTop,
+    });
+    const drawW = m.srcW * scale;
+    const drawH = m.cropH * scale;
     const x = MARGIN + (CONTENT_W - drawW) / 2;
     const y = this.cursor - drawH;
     this.page.drawPage(embedded, { x, y, width: drawW, height: drawH });
-    this.cursor = y - 8;
+    return y;
+  }
+
+  // Place crops as one unbreakable block, so a 0455 stimulus is never split from
+  // the sub-part it introduces.
+  //
+  // A pending banner is costed into the fit BEFORE anything is drawn, and the
+  // block is scaled to fit a fresh page rather than split. Both matter: the old
+  // code reserved room for the crop alone, drew the banner, then re-checked — so
+  // a crop that no longer fit pushed itself to a new page and left the banner
+  // stranded on an otherwise blank one. A crop too tall for any page did it
+  // twice and left a page with nothing on it at all. Those were the blank pages
+  // in 0455 Paper 2; deciding everything up front means a page is only ever
+  // started when something is about to be drawn on it.
+  async _place(measured) {
+    if (measured.length === 0) return;
+
+    const bannerH = this.pendingBanner ? BANNER_BLOCK_H : 0;
+    const gaps = INTRA_GROUP_GAP * (measured.length - 1);
+    const scales = measured.map((m) => m.scale);
+    const heightOf = () => measured.reduce((sum, m, i) => sum + m.cropH * scales[i], 0) + gaps;
+
+    let blockH = heightOf();
+    const freshAvail = CONTENT_TOP - CONTENT_BOTTOM - bannerH;
+    if (blockH > freshAvail) {
+      const shrink = (freshAvail - gaps) / Math.max(1e-6, blockH - gaps);
+      for (let i = 0; i < scales.length; i++) scales[i] *= shrink;
+      blockH = heightOf();
+    }
+
+    if (this.page === null || this.cursor - (bannerH + blockH) < CONTENT_BOTTOM) {
+      this._newPage();
+    }
+    this._flushBanner();
+
+    for (let i = 0; i < measured.length; i++) {
+      if (i) this.cursor -= INTRA_GROUP_GAP;
+      const y = await this._draw(measured[i], scales[i]);
+      this.cursor = y;
+    }
+    this.cursor -= 8;
+  }
+
+  async addCrop(srcDoc, pageIndex, yTopFromTop, yBotFromTop) {
+    const m = this._measure(srcDoc, pageIndex, yTopFromTop, yBotFromTop);
+    return this._place(m ? [m] : []);
+  }
+
+  async addGroup(crops) {
+    const measured = [];
+    for (const c of crops) {
+      const m = this._measure(c.doc, c.pageIndex, c.yTop, c.yBot);
+      if (m) measured.push(m);
+    }
+    return this._place(measured);
   }
 }
 
-async function renderSection(layout, cache, items, kind, loader, order) {
+async function renderSection(layout, cache, items, kind, loader, order, geom) {
   // Group by (paperNum, stem).
   const grouped = new Map();
   for (const it of items) {
@@ -278,7 +574,7 @@ async function renderSection(layout, cache, items, kind, loader, order) {
     sections.push({
       paperNum,
       stem,
-      qNums: qNums.sort((a, b) => a - b),
+      qNums: qNums.sort(compareQ),
       entry,
     });
   }
@@ -294,13 +590,15 @@ async function renderSection(layout, cache, items, kind, loader, order) {
     return 0;
   });
 
-  const headroom = kind === 'questions' ? FRACTION_HEADROOM : MS_HEADROOM;
   // Pages a multi-page question may span *over*. The mark-scheme index always
   // calls them `preamble_pages`; the question index's name is subject-specific —
   // 0606/0607 embed a formula sheet (`formula_pages`), 0625 has none and instead
   // marks BLANK PAGE / "starts on the next page" / end-matter as `filler_pages`.
   // Same role either way, so accept whichever the index carries.
   const skipKeys = kind === 'questions' ? ['formula_pages', 'filler_pages'] : ['preamble_pages'];
+  const withStems = geom.hasStems && kind === 'questions';
+
+  await prefetchSources(cache, loader, sections, kind);
 
   for (const { paperNum, stem, qNums, entry } of sections) {
     const meta = entry.meta;
@@ -309,18 +607,43 @@ async function renderSection(layout, cache, items, kind, loader, order) {
 
     const skippable = new Set(skipKeys.flatMap((k) => meta[k] ?? []));
     const srcDoc = await loadSourcePdf(cache, loader, paperNum, kind, stem);
+    const pageCount = srcDoc.getPageCount();
 
     for (const q of qNums) {
-      const record = entry.byQ.get(q);
+      const key = String(q);
+      const record = entry.byQ.get(key);
       if (!record) {
         console.warn(`  ⚠️  Missing ${kind} record for ${stem} Q${q}`);
         continue;
       }
-      const specs = pageSpecs(record, entry.byQ, skippable, headroom);
-      for (const spec of specs) {
-        const pageIdx = spec.page - 1;
-        if (pageIdx < 0 || pageIdx >= srcDoc.getPageCount()) continue;
-        await layout.addCrop(srcDoc, pageIdx, spec.yTop, spec.yBot);
+
+      // The stop is the next record in DOCUMENT order, not question q+1 — the
+      // numbering can skip, and every _build_topicals.py uses questions[i+1].
+      const pos = entry.posOf.get(key);
+      const nextRecord = pos === undefined ? null : entry.questions[pos + 1] ?? null;
+      const specs = pageSpecs(record, nextRecord, skippable, geom, kind, pageCount);
+
+      // The stimulus and its sub-part go down as one block so a page break can
+      // never separate them; everything else is placed crop by crop.
+      const onPage = [
+        ...(withStems ? stemSpecs(record, geom, pageCount) : []),
+        ...specs,
+      ].filter((s) => s.page - 1 >= 0 && s.page - 1 < pageCount);
+
+      const keep = await Promise.all(
+        onPage.map(async (s) => !(await isEmptyContinuation(cache, srcDoc, s))),
+      );
+      const trimmed = await Promise.all(
+        onPage.map((s) => tightenOpenEnd(cache, srcDoc, s, kind)),
+      );
+      const crops = trimmed
+        .filter((_, i) => keep[i])
+        .map((s) => ({ doc: srcDoc, pageIndex: s.page - 1, yTop: s.yTop, yBot: s.yBot ?? null }));
+
+      if (withStems) {
+        await layout.addGroup(crops);
+      } else {
+        for (const c of crops) await layout.addCrop(c.doc, c.pageIndex, c.yTop, c.yBot);
       }
     }
   }
@@ -380,6 +703,7 @@ export async function composePdf(questionIds, subject, loader, options = {}) {
   if (items.length === 0) throw new Error('No valid items to compose');
 
   const cache = makeCache();
+  const geom = geometryFor(subject);
   const outDoc = await PDFDocument.create();
   const font = await outDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await outDoc.embedFont(StandardFonts.HelveticaBold);
@@ -388,7 +712,7 @@ export async function composePdf(questionIds, subject, loader, options = {}) {
   // Section 1 — Questions
   if (!markSchemeOnly) {
     layout.sectionHeader('Questions');
-    await renderSection(layout, cache, items, 'questions', loader, order);
+    await renderSection(layout, cache, items, 'questions', loader, order, geom);
   }
 
   // Section 2 — Mark Scheme (only questions the mark-scheme index actually covers)
@@ -402,11 +726,11 @@ export async function composePdf(questionIds, subject, loader, options = {}) {
     }
     const msItems = items.filter((it) => {
       const entry = msIdxByPaper.get(it.paperNum).get(makeStem(it.paper, it.paperNum));
-      return entry ? entry.byQ.has(it.qNum) : false;
+      return entry ? entry.byQ.has(String(it.qNum)) : false;
     });
     if (msItems.length > 0) {
       layout.sectionHeader('Mark Scheme');
-      await renderSection(layout, cache, msItems, 'mark_schemes', loader, order);
+      await renderSection(layout, cache, msItems, 'mark_schemes', loader, order, geom);
       msCount = msItems.length;
     } else if (markSchemeOnly) {
       throw new Error('No mark schemes are indexed for the selected questions');
