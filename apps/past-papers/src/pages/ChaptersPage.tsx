@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Navigate, useParams } from "react-router-dom";
 import { AlertCircle, Download, FileText, Loader2, ScrollText } from "lucide-react";
 import Layout from "@/components/Layout";
 import Crumbs from "@/components/Crumbs";
@@ -7,6 +7,7 @@ import { ErrorState, EmptyState } from "@/components/StateViews";
 import { useAsync } from "@/hooks/useAsync";
 import {
   getChapterYears,
+  isSubjectDisabled,
   listChapters,
   paperNumOf,
   requestChapterPaper,
@@ -297,17 +298,19 @@ export default function ChaptersPage() {
   const subjectName = decodeURIComponent(subject);
   const componentName = decodeURIComponent(component);
   const paperNum = paperNumOf(componentName);
+  // See ComponentsPage — a hidden subject's URL stays routable.
+  const disabled = isSubjectDisabled(subjectName);
 
   const { data, loading, error } = useAsync(
-    () => listChapters(subjectName, componentName),
-    [subjectName, componentName]
+    () => (disabled ? Promise.resolve([]) : listChapters(subjectName, componentName)),
+    [subjectName, componentName, disabled]
   );
 
   // Which years each chapter can offer. If this fails the cards fall back to the
   // prebuilt links, so its error is deliberately not surfaced.
   const { data: yearIndex } = useAsync(
-    () => getChapterYears(subjectName, paperNum),
-    [subjectName, paperNum]
+    () => (disabled ? Promise.resolve(new Map()) : getChapterYears(subjectName, paperNum)),
+    [subjectName, paperNum, disabled]
   );
 
   // Every year the component has, across all its chapters.
@@ -341,6 +344,9 @@ export default function ChaptersPage() {
     setPickedFrom(next);
     if (next > yearTo) setPickedTo(next);
   };
+
+  // After the hooks, so the early return can't change hook order between renders.
+  if (disabled) return <Navigate to="/" replace />;
 
   return (
     <Layout subtitle="Each chapter has a paper compilation and its mark scheme.">

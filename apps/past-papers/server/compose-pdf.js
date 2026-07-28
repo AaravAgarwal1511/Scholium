@@ -1,6 +1,7 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, PDFArray, StandardFonts, decodePDFRawStream, rgb } from 'pdf-lib';
 import { createClient } from '@supabase/supabase-js';
 import { fetchRowsByIds } from './supabase-rows.js';
+import { createCharIndex, regionHasContent, tightenBottom } from './page-chars.js';
 
 // Lazily create the Supabase client so merely importing this module never throws
 // (env is present at runtime in both the dev server and the serverless function).
@@ -30,6 +31,27 @@ const CONTENT_BOTTOM = MARGIN;
 // Phase 3 crop knobs (see BUILD.md → Stage 3, Stage 5).
 const MIN_CROP_HEIGHT = 20;         // floor every pipeline applies
 const INTRA_GROUP_GAP = 4;          // between a stimulus and its sub-part
+const BANNER_BLOCK_H = 36;          // inline paper banner (label + q list + rule)
+const HEADER_ZONE = 45;             // page number / paper code / © line live above this
+const FOOTER_ZONE = 50;             // © UCLES / [Turn over] band at the foot
+const MIN_CONTENT_CHARS = 8;        // MIN_CHARS_FOR_CONTENT
+const TIGHTEN_PAD = 5;              // breathing room under the last trimmed line
+
+// `has_content` in _build_topicals.py drops crops holding nothing but page
+// furniture. It counts extracted characters, which needs a text layer we can't
+// read with pdf-lib — but the thing it is actually catching here is the
+// "BLANK PAGE" separator, and those are trivially separable by how much is drawn
+// on the page. Measured across 544 source pages of 0455/0606/0607/0625/0478:
+//
+//   every page from 159 to 349 bytes of content stream is a literal BLANK PAGE
+//   the smallest page carrying real content is 495 bytes
+//
+// 400 sits in that gap. Erring high would drop real content, so if this ever
+// needs adjusting, move it DOWN — a kept blank page is cosmetic, a dropped
+// question is not. Note this measures drawn content, not text, so a full-page
+// figure (large stream, no text) is correctly kept — which a text-based check
+// would have wrongly discarded.
+const BLANK_PAGE_MAX_STREAM = 400;
 
 // Crop geometry is a property of the *extraction pipeline*, not of the app, and
 // the pipelines have diverged. 0606/0607/0625/0478 come from the original
@@ -88,7 +110,29 @@ function makeCache() {
   return {
     pdfs: new Map(),     // `${paperNum}/${kind}/${stem}` → PDFDocument
     indexes: new Map(),  // `${paperNum}/${kind}` → Map<stem, {meta, byQ, questions}>
+    blank: new Map(),    // PDFDocument → Map<pageIndex, boolean>
+    bytes: new Map(),    // PDFDocument → { key, bytes }  (for the text layer)
+    chars: createCharIndex(),
   };
+}
+
+// How much is drawn on a source page — see BLANK_PAGE_MAX_STREAM. Memoized:
+// one spanning question can revisit the same page for every sub-part.
+function isBlankPage(cache, srcDoc, pageIndex) {
+  let perDoc = cache.blank.get(srcDoc);
+  if (!perDoc) cache.blank.set(srcDoc, (perDoc = new Map()));
+  if (perDoc.has(pageIndex)) return perDoc.get(pageIndex);
+
+  let blank = false;
+  try {
+    let contents = srcDoc.getPage(pageIndex).node.Contents();
+    if (contents instanceof PDFArray) contents = contents.lookup(0);
+    blank = decodePDFRawStream(contents).decode().length <= BLANK_PAGE_MAX_STREAM;
+  } catch {
+    blank = false; // unreadable stream → keep the page, never drop content on a guess
+  }
+  perDoc.set(pageIndex, blank);
+  return blank;
 }
 
 async function loadIndex(cache, loader, paperNum, kind) {
@@ -119,6 +163,9 @@ async function loadSourcePdf(cache, loader, paperNum, kind, stem) {
   const bytes = await loader.loadPdfBytes(paperNum, kind, stem);
   const pdf = await PDFDocument.load(bytes);
   cache.pdfs.set(cacheKey, pdf);
+  // Kept for the content test, which needs a text layer pdf-lib cannot give it.
+  // `PDFDocument.load` copies, so these bytes stay intact.
+  cache.bytes.set(pdf, { key: cacheKey, bytes });
   return pdf;
 }
 
@@ -219,20 +266,91 @@ function pageSpecs(qRecord, nextRecord, skippablePages, geom, kind, pageCount) {
     endY = Number(nextRecord.y_start);
   }
 
+  // Only the run-on pages are marked `continuation`. The record's own page always
+  // holds the question itself and is never eligible to be dropped as empty.
   const specs = [{ page: qRecord.page, yTop, yBot: null }];
   if (endPage === null) {
     for (let p = qRecord.page + 1; p <= pageCount; p++) {
-      if (!skippablePages.has(p)) specs.push({ page: p, yTop: 0, yBot: null });
+      if (!skippablePages.has(p)) specs.push({ page: p, yTop: 0, yBot: null, continuation: true });
     }
     return specs;
   }
   for (let p = qRecord.page + 1; p < endPage; p++) {
-    if (!skippablePages.has(p)) specs.push({ page: p, yTop: 0, yBot: null });
+    if (!skippablePages.has(p)) specs.push({ page: p, yTop: 0, yBot: null, continuation: true });
   }
   if (endPage > qRecord.page && !skippablePages.has(endPage)) {
-    specs.push({ page: endPage, yTop: 0, yBot: Math.max(MIN_CROP_HEIGHT, endY - bottom) });
+    specs.push({
+      page: endPage,
+      yTop: 0,
+      yBot: Math.max(MIN_CROP_HEIGHT, endY - bottom),
+      continuation: true,
+    });
   }
   return specs;
+}
+
+// A run-on crop that carries no question content — a BLANK PAGE separator swept
+// into the span, or a sliver below the next page's header holding only the page
+// number. This is `has_content` from _build_topicals.py.
+//
+// It is applied ONLY to `continuation` crops, never to the page a record starts
+// on, and that restriction is load-bearing: a multiple-choice mark-scheme row is
+// the string "1 A 1", three characters, which any sensible character threshold
+// would discard. The reference works around that by dropping `min_chars` to 2
+// for those subjects; scoping to continuations avoids the per-subject tuning
+// altogether, because every such row sits on its own record's page.
+//
+// The cheap page-level check runs first so obvious BLANK PAGEs never pay for
+// text extraction.
+// An open-ended crop (`yBot === null`) means "to the bottom of the page", which
+// drags in the blank remainder and the © UCLES footer. Trim it to the last line
+// of real content instead — the reference's `tighten_bottom`.
+//
+// This is what stops a near-empty page from taking a whole output page: a
+// question that is the LAST in its paper has no next marker, so the spec sweeps
+// every remaining page — the BLANK PAGE separators and the closing
+// acknowledgements block — and each of those holds enough characters to pass the
+// content test. Trimmed, they collapse to a thin strip instead.
+//
+// Questions only. The reference disables it for mark schemes because their rows
+// are bounded by drawn table rules rather than by characters, so trimming to the
+// last glyph would cut through the ruling.
+async function tightenOpenEnd(cache, srcDoc, spec, kind) {
+  if (spec.yBot !== null || kind !== 'questions') return spec;
+
+  const source = cache.bytes.get(srcDoc);
+  if (!source) return spec;
+  try {
+    const page = await cache.chars.pageChars(source.key, source.bytes, spec.page);
+    const yBot = tightenBottom(page, spec.yTop, spec.yBot, {
+      footerSkip: FOOTER_ZONE,
+      pad: TIGHTEN_PAD,
+    });
+    if (yBot === null || !(yBot > spec.yTop)) return spec;
+    return { ...spec, yBot };
+  } catch {
+    return spec; // untrimmed is merely ugly; guessing could clip content
+  }
+}
+
+async function isEmptyContinuation(cache, srcDoc, spec) {
+  if (!spec.continuation) return false;
+  if (isBlankPage(cache, srcDoc, spec.page - 1)) return true;
+
+  const source = cache.bytes.get(srcDoc);
+  if (!source) return false; // no bytes retained → keep the crop
+  try {
+    const page = await cache.chars.pageChars(source.key, source.bytes, spec.page);
+    return !regionHasContent(page, spec.yTop, spec.yBot, {
+      headerSkip: HEADER_ZONE,
+      footerSkip: FOOTER_ZONE,
+      minChars: MIN_CONTENT_CHARS,
+    });
+  } catch (err) {
+    // Never drop content because the text layer could not be read.
+    console.warn(`  ⚠️  Content check failed for p${spec.page}: ${err.message}`);
+    return false;
+  }
 }
 
 // The stimulus shares a crop convention with its parts: the same ascender
@@ -279,7 +397,9 @@ class PageLayout {
     const { label, qList } = this.pendingBanner;
     this.pendingBanner = null;
 
-    const blockH = 36;
+    // `_place` has already guaranteed room for the banner plus its block, so
+    // this is only a guard for a banner flushed outside that path.
+    const blockH = BANNER_BLOCK_H;
     if (this.page === null || this.cursor - blockH < CONTENT_BOTTOM) {
       this._newPage();
     }
@@ -368,58 +488,37 @@ class PageLayout {
     return y;
   }
 
-  async addCrop(srcDoc, pageIndex, yTopFromTop, yBotFromTop) {
-    const m = this._measure(srcDoc, pageIndex, yTopFromTop, yBotFromTop);
-    if (!m) return;
-    const drawH = m.cropH * m.scale;
-
-    if (this.page === null || this.cursor - drawH < CONTENT_BOTTOM) {
-      this._newPage();
-    }
-    this._flushBanner();
-    if (this.cursor - drawH < CONTENT_BOTTOM) {
-      this._newPage();
-    }
-
-    const y = await this._draw(m, m.scale);
-    this.cursor = y - 8;
-  }
-
-  // Place several crops as one unbreakable block, so a 0455 stimulus is never
-  // split from the sub-part it introduces. Measured first: if the block doesn't
-  // fit in what's left of the page but would fit on a fresh one, the page break
-  // happens before anything is drawn; a block taller than a whole page is
-  // scaled down rather than split.
-  async addGroup(crops) {
-    const measured = [];
-    for (const c of crops) {
-      const m = this._measure(c.doc, c.pageIndex, c.yTop, c.yBot);
-      if (m) measured.push({ ...m, crop: c });
-    }
+  // Place crops as one unbreakable block, so a 0455 stimulus is never split from
+  // the sub-part it introduces.
+  //
+  // A pending banner is costed into the fit BEFORE anything is drawn, and the
+  // block is scaled to fit a fresh page rather than split. Both matter: the old
+  // code reserved room for the crop alone, drew the banner, then re-checked — so
+  // a crop that no longer fit pushed itself to a new page and left the banner
+  // stranded on an otherwise blank one. A crop too tall for any page did it
+  // twice and left a page with nothing on it at all. Those were the blank pages
+  // in 0455 Paper 2; deciding everything up front means a page is only ever
+  // started when something is about to be drawn on it.
+  async _place(measured) {
     if (measured.length === 0) return;
-    if (measured.length === 1) {
-      const { crop } = measured[0];
-      return this.addCrop(crop.doc, crop.pageIndex, crop.yTop, crop.yBot);
-    }
 
+    const bannerH = this.pendingBanner ? BANNER_BLOCK_H : 0;
     const gaps = INTRA_GROUP_GAP * (measured.length - 1);
     const scales = measured.map((m) => m.scale);
-    let blockH = measured.reduce((s, m, i) => s + m.cropH * scales[i], 0) + gaps;
+    const heightOf = () => measured.reduce((sum, m, i) => sum + m.cropH * scales[i], 0) + gaps;
 
-    const freshAvail = CONTENT_TOP - CONTENT_BOTTOM;
+    let blockH = heightOf();
+    const freshAvail = CONTENT_TOP - CONTENT_BOTTOM - bannerH;
     if (blockH > freshAvail) {
       const shrink = (freshAvail - gaps) / Math.max(1e-6, blockH - gaps);
       for (let i = 0; i < scales.length; i++) scales[i] *= shrink;
-      blockH = measured.reduce((s, m, i) => s + m.cropH * scales[i], 0) + gaps;
+      blockH = heightOf();
     }
 
-    if (this.page === null || this.cursor - blockH < CONTENT_BOTTOM) {
+    if (this.page === null || this.cursor - (bannerH + blockH) < CONTENT_BOTTOM) {
       this._newPage();
     }
     this._flushBanner();
-    if (this.cursor - blockH < CONTENT_BOTTOM) {
-      this._newPage();
-    }
 
     for (let i = 0; i < measured.length; i++) {
       if (i) this.cursor -= INTRA_GROUP_GAP;
@@ -427,6 +526,20 @@ class PageLayout {
       this.cursor = y;
     }
     this.cursor -= 8;
+  }
+
+  async addCrop(srcDoc, pageIndex, yTopFromTop, yBotFromTop) {
+    const m = this._measure(srcDoc, pageIndex, yTopFromTop, yBotFromTop);
+    return this._place(m ? [m] : []);
+  }
+
+  async addGroup(crops) {
+    const measured = [];
+    for (const c of crops) {
+      const m = this._measure(c.doc, c.pageIndex, c.yTop, c.yBot);
+      if (m) measured.push(m);
+    }
+    return this._place(measured);
   }
 }
 
@@ -512,11 +625,19 @@ async function renderSection(layout, cache, items, kind, loader, order, geom) {
 
       // The stimulus and its sub-part go down as one block so a page break can
       // never separate them; everything else is placed crop by crop.
-      const crops = [
+      const onPage = [
         ...(withStems ? stemSpecs(record, geom, pageCount) : []),
         ...specs,
-      ]
-        .filter((s) => s.page - 1 >= 0 && s.page - 1 < pageCount)
+      ].filter((s) => s.page - 1 >= 0 && s.page - 1 < pageCount);
+
+      const keep = await Promise.all(
+        onPage.map(async (s) => !(await isEmptyContinuation(cache, srcDoc, s))),
+      );
+      const trimmed = await Promise.all(
+        onPage.map((s) => tightenOpenEnd(cache, srcDoc, s, kind)),
+      );
+      const crops = trimmed
+        .filter((_, i) => keep[i])
         .map((s) => ({ doc: srcDoc, pageIndex: s.page - 1, yTop: s.yTop, yBot: s.yBot ?? null }));
 
       if (withStems) {

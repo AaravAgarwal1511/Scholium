@@ -23,7 +23,12 @@ export const CACHE_PREFIX = '_cache';
 // a question that spans a page break is truncated — visibly so on 0625 Paper 2,
 // where it removed MCQ answer options and reduced some mark-scheme rows to the
 // bare table header. Every v1 object is stale and must not be served.
-const CACHE_VERSION = 'v2';
+//
+// v3 (2026-07-27): blank pages. Run-on crops swept in BLANK PAGE separators and
+// header-only slivers, and the layout could strand a section banner — or nothing
+// at all — on a page of its own. v2 was never deployed, but objects were written
+// under it while testing, so it is retired too rather than served stale.
+const CACHE_VERSION = 'v3';
 
 const R2_PUBLIC_URL = (
   process.env.VITE_R2_PUBLIC_URL ||

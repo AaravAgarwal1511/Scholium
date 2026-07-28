@@ -28,6 +28,20 @@ export function subjectDisplayName(code: string): string {
   return SUBJECT_DISPLAY_NAMES[code] ?? code;
 }
 
+// Subjects hidden from the app without removing anything. Their PDFs stay in R2,
+// their rows stay in `paper_files` and `questions_metadata`, and `pnpm
+// index:papers` keeps mirroring them — so re-enabling is deleting a line here,
+// not a re-upload. Hiding rather than deleting also means the index stays a true
+// mirror of the bucket, which is what `index:papers` asserts.
+//
+// Note this hides the subject; it does not make the files unreachable. The R2
+// bucket is public, so anyone holding a direct PDF URL can still fetch it.
+const DISABLED_SUBJECTS = new Set<string>(["0455"]);
+
+export function isSubjectDisabled(code: string): boolean {
+  return DISABLED_SUBJECTS.has(code);
+}
+
 // Distinct subject/component values from the index table (PostgREST has no
 // DISTINCT, so we dedupe client-side — the set is small).
 async function distinctColumn(
@@ -106,8 +120,8 @@ async function listFolders(prefix: string): Promise<string[]> {
 }
 
 export async function listSubjects(): Promise<string[]> {
-  if (USE_R2) return distinctColumn("subject");
-  return listFolders("");
+  const subjects = USE_R2 ? await distinctColumn("subject") : await listFolders("");
+  return subjects.filter((code) => !isSubjectDisabled(code));
 }
 
 export async function listComponents(subject: string): Promise<string[]> {
