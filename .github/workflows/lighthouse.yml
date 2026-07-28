@@ -1,0 +1,57 @@
+name: Lighthouse
+
+# Performance / a11y / best-practices / SEO budgets, run against production builds
+# served by `vite preview` (dev-server scores are meaningless). Budgets live in
+# each app's lighthouserc.cjs, calibrated from measured medians and held below
+# them to catch a real regression without flaking. Both apps build in --mode test
+# (committed .env.test), so no secrets are needed.
+#
+# - scholium-home: the public marketing site (/, /about, /memory-science).
+# - recall-app: a gated app's PUBLIC pages (/signin, /demo) — /signin renders the
+#   shared AuthCard before any auth, so Lighthouse can reach it without a session.
+#
+# Own workflow rather than a job in ci.yml: it needs Chrome and runs Lighthouse
+# many times, so it is heavier and only worth running when an app or its budgets
+# change.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/scholium-home/**'
+      - 'apps/recall-app/**'
+      - '.github/workflows/lighthouse.yml'
+  pull_request:
+    paths:
+      - 'apps/scholium-home/**'
+      - 'apps/recall-app/**'
+      - '.github/workflows/lighthouse.yml'
+  workflow_dispatch:
+
+jobs:
+  lighthouse:
+    name: ${{ matrix.app }} budgets
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [scholium-home, recall-app]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # ubuntu-latest ships Chrome; LHCI's chrome-launcher finds it.
+      - name: Run Lighthouse budgets
+        run: pnpm --filter ${{ matrix.app }} lighthouse
+
+      - name: Upload Lighthouse reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports-${{ matrix.app }}
+          path: apps/${{ matrix.app }}/.lighthouseci/
+          retention-days: 7

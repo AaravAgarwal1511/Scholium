@@ -1,0 +1,60 @@
+name: Schema drift
+
+# Contract check: does the live database schema still match the committed
+# snapshot (database/schema-types.snapshot.ts)? A migration that changes the
+# schema without refreshing the snapshot is drift — the class of bug that left
+# scholium_apps out of the generated types and produced the typecheck baseline.
+#
+# Own workflow (not ci.yml): it needs the Supabase CLI linked to the project,
+# which fork PRs cannot do. Runs daily and on demand. Skips cleanly if the
+# credentials are not configured, so it is never a permanent red X.
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'database/**'
+      - 'scripts/check-schema-drift.sh'
+      - '.github/workflows/schema-drift.yml'
+
+jobs:
+  drift:
+    name: Live schema vs snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # The `secrets` context is NOT allowed in an `if:` condition (it makes the
+      # whole workflow invalid). So detect the secrets in a run step and gate the
+      # later steps on its output, exactly as db-security.yml does.
+      - name: Check credentials are configured
+        id: creds
+        run: |
+          if [ -n "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ] && [ -n "${{ secrets.SUPABASE_PROJECT_REF }}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SUPABASE_ACCESS_TOKEN / SUPABASE_PROJECT_REF not set — schema-drift check skipped."
+          fi
+
+      - name: Link Supabase project
+        if: steps.creds.outputs.present == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: pnpm exec supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+
+      # The script itself also skips (exit 0) when it cannot generate types, so an
+      # unconfigured repo never fails here either.
+      - name: Check schema drift
+        if: steps.creds.outputs.present == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: pnpm schema:drift

@@ -9,6 +9,14 @@ import { toast } from "sonner";
 import { useSounds } from "@/hooks/use-sounds";
 import { useSpeak } from "@/hooks/use-speak";
 import { normalizeAnswer } from "@/lib/answer";
+import {
+  advance,
+  applyMarkCorrect,
+  applyResult,
+  isAnswerCorrect,
+  scorePercentage,
+  shouldRequeue,
+} from "@/lib/quizMachine";
 import { AccentButtons } from "@/components/AccentButtons";
 
 export interface QuizItem {
@@ -79,17 +87,17 @@ export const QuizSession = ({
   const nextQuestion = useCallback(() => {
     // Re-queue only a genuinely missed card — one the learner did not mark as a
     // synonym (markAsCorrect flips isCorrect back to true).
-    const requeue = requeueIncorrect && showResult && !isCorrect;
+    const requeue = shouldRequeue(requeueIncorrect, showResult, isCorrect);
     if (requeue) setQueue((q) => [...q, currentQuestion]);
-    const lastIndex = queue.length - 1 + (requeue ? 1 : 0);
-    if (currentIndex < lastIndex) {
-      setCurrentIndex((i) => i + 1);
+    const next = advance(currentIndex, queue.length, requeue);
+    if (next.completed) {
+      setCompleted(true);
+    } else {
+      setCurrentIndex(next.index);
       setUserAnswer("");
       setShowResult(false);
       setRetypeMode(false);
       setRetypeAnswer("");
-    } else {
-      setCompleted(true);
     }
   }, [currentIndex, queue.length, requeueIncorrect, showResult, isCorrect, currentQuestion]);
 
@@ -99,13 +107,10 @@ export const QuizSession = ({
   }, [completed]);
 
   const checkAnswer = useCallback(() => {
-    const correct = normalizeAnswer(userAnswer) === normalizeAnswer(currentQuestion.answer);
+    const correct = isAnswerCorrect(userAnswer, currentQuestion.answer);
     setIsCorrect(correct);
     setShowResult(true);
-    setScore((prev) => ({
-      correct: prev.correct + (correct ? 1 : 0),
-      total: prev.total + 1,
-    }));
+    setScore((prev) => applyResult(prev, correct));
     if (correct) {
       playCorrect();
       onCorrectAnswer?.(currentQuestion);
@@ -116,7 +121,7 @@ export const QuizSession = ({
 
   const markAsCorrect = () => {
     setIsCorrect(true);
-    setScore((prev) => ({ correct: prev.correct + 1, total: prev.total }));
+    setScore((prev) => applyMarkCorrect(prev));
     playCorrect();
     onCorrectAnswer?.(currentQuestion);
     toast.success("Marked as correct");
@@ -146,7 +151,7 @@ export const QuizSession = ({
   }, [handleKeyPress]);
 
   if (completed) {
-    const percentage = Math.round((score.correct / score.total) * 100);
+    const percentage = scorePercentage(score);
     return (
       <div className="min-h-screen bg-background">
         <header className="border-b border-border bg-card/50 backdrop-blur-sm">
