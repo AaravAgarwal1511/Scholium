@@ -329,6 +329,7 @@ const Index = () => {
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label={`Delete folder ${folder.name}`}
                             className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -423,6 +424,7 @@ const Index = () => {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label={`Delete set ${set.name}`}
                           className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
                         >
                           <Trash2 className="h-4 w-4" />

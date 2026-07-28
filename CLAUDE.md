@@ -26,8 +26,17 @@ pnpm check-types  # Typecheck all packages (see "Type checking" below)
 pnpm boundaries   # Verify no undeclared cross-package imports
 pnpm preview      # Preview all built apps
 pnpm test         # Vitest — browser tests (language-hub, recall-app, poetry-notes, @repo/ui) + node tests (mock-space)
-pnpm test:e2e     # Playwright (language-hub, recall-app, poetry-notes)
+pnpm test:e2e     # Playwright real journeys — all 6 apps. mock-space rides signed-out /demo;
+                  #   the four gated apps seed a fake session + stub Supabase at the network layer
+pnpm test:db      # Security suite against the DEPLOYED Supabase project (see below)
+pnpm lint:db      # Lint database/ — turbo cannot, it is not a workspace package
+pnpm check-types:db  # Typecheck database/tests against its own tsconfig
 ```
+
+`lint`, `check-types` and `test` all run through Turbo, which only sees workspace packages. `database/`
+is not one, so it has the two `:db` scripts above; both run in CI's `static` and `types` jobs. Their
+tooling (eslint, typescript, and the root `eslint.config.mjs`) lives in the **root** package.json, and
+the root config ignores `apps`/`packages`/`admin` so it can never shadow a package's own.
 
 Pass `--filter` to scope any of these to one package, e.g. `pnpm dev --filter=past-papers`.
 Running bare `pnpm dev` starts every app at once.
@@ -65,7 +74,192 @@ Baselines, so you can tell a regression from the status quo:
 
 Turbo aborts sibling tasks as soon as one fails, so a single failing `pnpm lint` run cannot show
 you every problem at once. To confirm a baseline, run `npx eslint .` inside each package.
-- `pnpm test` — **2 failures** in recall-app. Run it with `--concurrency=1`: four packages each start a Chromium browser server, and in parallel they contend and flake.
+- `pnpm test` — **0 failures**, ~357 tests across all 10 packages (every package has real tests; no
+  `--passWithNoTests` remains). Run it with `--concurrency=1`: four packages each start a Chromium
+  browser server, and in parallel they contend and flake.
+
+The `check-types` baseline is enforced by `scripts/check-types-ratchet.sh`, which fails CI only when
+the count *rises*. Lower its `BASELINE` whenever you pay some of the debt down.
+
+### Test layout
+
+Each app runs its tests through vitest projects rather than a bare `include`:
+
+| Project | Where | Environment |
+|---|---|---|
+| `unit` | `src/**/*.test.{ts,tsx}` in every app + `@repo/ui` | jsdom |
+| `server` | `server/**` and `api/**` in past-papers | node |
+| `storybook` | `*.stories.tsx` in language-hub, recall-app, poetry-notes, `@repo/ui` | chromium via Playwright |
+
+**A `projects` array replaces the root-level `include`.** Before this existed, the four Storybook
+packages defined only a `storybook` project, so any `src/**/*.test.ts` was collected by nothing and
+passed silently. If you add a test file and vitest reports "No test files found", check that the
+package declares a project whose `include` covers it.
+
+`mock-space`, `@repo/analytics`, `@repo/hooks` and `@repo/session` have no browser tests and so use a
+single top-level config instead of projects.
+
+### Auth-seeded e2e (all four gated apps)
+
+recall-app, language-hub, poetry-notes and past-papers each drive the real app with **no account and
+no backend** — the session is seeded into localStorage and every Supabase request is stubbed at the
+network layer. Each app carries its own copy of `e2e/support/auth.ts` (the fixture is app-agnostic;
+the per-app stubs live in the specs). This is the complement to `pnpm test:db`: that proves the real
+RLS, this proves the UI journeys. The CI `e2e` job is a matrix over all five test-bearing apps; every
+one runs its dev server with `pnpm exec vite --mode test` so the committed `.env.test` supplies a
+dummy URL and no secrets are needed.
+
+Per-app surfaces the specs stub, so you know what to copy:
+- **recall-app / language-hub** — REST tables. Watch the single-vs-list split (`recall_chapters` and
+  `vocabulary_sets` are read both ways); branch on the `accept: vnd.pgrst.object` header.
+- **poetry-notes** — Storage bucket, not tables. `stubStorage()` (added to its `auth.ts` copy) fakes
+  `<uid>/_index.json` and `<uid>/<projectId>.json` downloads.
+- **past-papers** — browsing is NOT auth-gated; with `VITE_R2_PUBLIC_URL` unset (the .env.test
+  default) papers.ts lists from Storage, so the spec stubs the `object/list` endpoint and branches on
+  the `prefix` in the POST body to fake the subject/component/chapter tree.
+
+The five seeding gotchas — storage-key hostname derivation, loadEnv in the config, route registration
+order, single-vs-list on the `accept` header, and (meta) that a `rest/v1` glob inside a block comment
+closes it early — are documented in each `auth.ts` header. Read it before extending.
+
+### Accessibility gates (`e2e/a11y-scan.spec.ts` per app)
+
+Every app has an axe scan (`@axe-core/playwright`) on its primary page(s), reusing the same seeding
+fixture. The gate is **zero serious/critical WCAG 2.1 A/AA violations**, with `color-contrast`
+disabled — that rule is design-token-dependent (brand-tint badges, hover states) and belongs to a
+separate design pass; the gate targets unambiguous semantic defects (missing accessible names,
+invalid ARIA, roles). All six apps currently pass, so the bar is zero, not a baseline. Standing up
+these gates surfaced and fixed real bugs: the shared `ScholiumNavbar` search input carried
+`aria-expanded`/`aria-autocomplete` without `role="combobox"` (invalid ARIA on **every** page of every
+app — fixed in `@repo/ui` as a proper combobox with `aria-controls`/`aria-activedescendant`), and
+language-hub's icon-only edit/delete/back controls and its progress bar had no accessible names.
+When adding a page or an icon-only control, run the app's a11y scan; a bare icon button needs an
+`aria-label`.
+
+### Visual regression (`pnpm --filter <app> test:visual`)
+
+Five apps have full-page screenshot baselines (`toHaveScreenshot`) of their primary HTML pages, driven
+through the same stubbed seeding so the render is deterministic. Kept **separate from the default e2e
+run**: the specs are `e2e-visual/*.visual.ts` (not `.spec.ts`) under their own
+`playwright.visual.config.ts`, so `playwright test` never collects them — only `test:visual` does.
+Canvas/PDF surfaces (mock-space's attempt page) are deliberately not snapshotted; pdf.js rasterisation
+varies by platform and they are covered functionally.
+
+**These baselines are a LOCAL guard, not CI-enforced.** Screenshots are platform-specific (Playwright
+suffixes them `-darwin` / `-linux`) and the committed ones were generated on the dev machine. CI runs
+on Linux and would need `-linux` baselines. The `visual-baselines.yml` workflow (manual dispatch)
+regenerates them on ubuntu and uploads them as an artifact; commit those into each
+`e2e-visual/*-snapshots/` dir to enable enforcement, then add the suite to `ci.yml`. After any
+intended UI change, refresh with `pnpm --filter <app> test:visual -- --update-snapshots` and review
+the diff before committing.
+
+### Lighthouse budgets (`pnpm --filter scholium-home lighthouse`)
+
+Performance / accessibility / best-practices / SEO budgets for **scholium-home** — the public
+marketing site, the one app where these signals matter and where no auth blocks Lighthouse. Config in
+`apps/scholium-home/lighthouserc.cjs`: it builds, serves the result with `vite preview` (dev-server
+scores are meaningless), and runs Lighthouse 3× per URL over `/`, `/about`, `/memory-science`, taking
+the median. Budgets are `minScore 0.9` on all four categories — calibrated from measured medians
+(perf 1.00, a11y 0.92–0.96, best-practices 0.96, seo 0.92) and held below them so a real regression
+(a dropped meta tag, a heavy new dependency, an unlabelled control) fails while run-to-run noise does
+not. Unlike visual baselines, category scores are portable enough to enforce in CI: `lighthouse.yml`
+runs on any change under `apps/scholium-home/**`. The other apps are gated behind auth (Lighthouse
+can't use the network stubs), so this is scoped to the public site; extend to their `/signin` pages if
+wanted. `.lighthouseci/` reports are gitignored.
+
+### Database security suite (`pnpm test:db`)
+
+Two files under `database/tests/`, run via `vitest.db.config.ts`. **Deliberately outside `pnpm test`
+and outside `ci.yml`**: they assert things about the *deployed* database, not about the checkout, so
+they must never gate a PR — a green PR would otherwise imply a claim about production that the PR's
+code has no bearing on. `.github/workflows/db-security.yml` runs them daily instead.
+
+| File | Credential | Question |
+|---|---|---|
+| `anon-access.test.ts` | anon key, over HTTPS | what can a signed-**out** caller reach? |
+| `rls-isolation.test.ts` | linked Supabase CLI | can a signed-**in** user reach someone else's rows? |
+
+The anon key is the right credential to attack with because it is public by construction — it ships
+in all six client bundles. The service role key is never used by either file.
+
+`rls-isolation.test.ts` creates **no test accounts**. `auth.uid()` reads `request.jwt.claims`, so a
+transaction can simply declare who it is:
+
+```sql
+begin;
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"<uuid>","role":"authenticated"}';
+…
+rollback;
+```
+
+Real user ids are discovered at run time, so no UUIDs or emails are committed. It needs
+database-level access rather than just the anon key, so it **skips** wherever the linked CLI is
+unavailable — CI included. Roughly 60s: every assertion is a separate CLI process.
+
+The table classification in that file is hardcoded, not derived from `pg_policies`, and that is the
+point — `analytics_events` is listed as write-only, so if anyone ever adds a `SELECT` policy to it
+the suite fails. Clients insert events and can never read them back; the only read path is the
+SECURITY DEFINER `admin_analytics_*` RPCs.
+
+Every probe is inert by construction: read-only RPCs are called as-is, mutating RPCs only with ids
+that cannot match a row, and `admin_save_chapter` / `admin_save_two_sider` are never called at all
+(they could INSERT on a bogus id) — they are covered by the static guard-coverage audit instead.
+Keep it that way; do not "test properly" by substituting real ids.
+
+Two live findings so far, both fixed:
+- `_assert_admin` gated on `email <> '…'`, and `NULL <> 'x'` is NULL, not TRUE — so the guard passed
+  for anonymous callers. Fixed by `IS DISTINCT FROM` in 20260724000000 / 20260724020000.
+- `refresh_analytics_daily` was SECURITY DEFINER, unguarded and anon-executable, letting anyone wipe
+  the `analytics_daily` rollup beyond the 180-day `analytics_events` retention. Fixed in
+  20260724050000 — see the grants gotcha below.
+
+**`REVOKE … FROM public` does not revoke from `anon`.** Supabase's default privileges grant EXECUTE
+*directly* to the `anon` and `authenticated` roles, and a direct role grant survives a revoke aimed
+at PUBLIC. 20260724040000 ran `REVOKE ALL … FROM public` and the function stayed wide open. Always
+`REVOKE EXECUTE ON FUNCTION … FROM anon, authenticated`, and verify with `proacl` rather than
+assuming — a leading `=X/postgres` in the ACL is PUBLIC, `anon=X/postgres` is the direct grant.
+
+Note that adding `_assert_admin()` is the *wrong* fix for anything pg_cron calls: cron jobs run as
+`postgres` with no JWT, so `auth.uid()` is NULL and the guard would raise. Use grants there.
+
+Every app has a committed **`.env.test`** holding dummy Supabase values. `src/integrations/supabase/
+client.ts` calls `createClient()` at module scope, so merely importing a page throws
+`supabaseUrl is required` without them — which is why the suites could not run on a fresh clone or in
+CI. They are not credentials, and Vite only loads them when the mode is `test`.
+
+Storybook substitutes `src/__mocks__/supabase-client.ts` for the real client via an alias in
+`.storybook/main.ts`. That alias matches the `@/integrations/supabase/client` specifier only —
+poetry-notes imports the client by *relative* path everywhere, so its stories get the real client and
+rely on `.env.test` instead.
+
+### Two remotes: merge PRs on DD10654 only
+
+The repo lives on **two** GitHub remotes. `origin` has one fetch URL and *two push URLs*, so a plain
+`git push` already reaches both:
+
+| Repo | Role |
+|---|---|
+| `DD10654/Scholium` | **Canonical.** origin's fetch URL; open and merge PRs here |
+| `AaravAgarwal1511/Scholium` | **Pure mirror.** Never merge a PR on it |
+
+Local pushes were never the problem — *server-side* merges are. Clicking "Merge" on a PR creates a
+merge commit inside GitHub that never passes through any clone, so doing it on both repos for the
+same branch yields two different merge commits over **identical trees** and the two mains fork. That
+happened to `unit-tests`, `new-subjects` and `fix/schema-drift-secrets-if`, and was repaired in
+`d991662` by merging the mirror back in — not by force-pushing, which would have orphaned the other
+repo's PR merges for no content gain.
+
+To diagnose a suspected fork: `git diff main mirror/main` empty means the *content* already matches,
+and `git log --oneline --no-merges main..mirror/main` empty means the extra commits are merges only.
+That combination is cosmetic — merge, don't force.
+
+`.github/workflows/mirror.yml` makes this self-healing: on every push to `main` it force-pushes
+canonical → mirror. It is guarded by `if: github.repository == 'DD10654/Scholium'` because the file
+is itself mirrored and would otherwise run on the mirror and push to itself. It needs a
+`MIRROR_TOKEN` secret (PAT, write access to the mirror) and skips with a warning if that is unset, so
+an unconfigured fork never shows a red X. Only `main` is mirrored — feature branches already reach
+both repos via the dual push URLs.
 
 ## Architecture
 
@@ -155,6 +349,18 @@ All apps use **Tailwind CSS** with **shadcn/ui** (Radix UI primitives + CVA). De
   Vitest runs in **node**, not a browser, so it does not contend with the Playwright-backed suites.
   `pnpm make:sample --filter=mock-space` regenerates `public/sample-paper.pdf`, the paper `/demo`
   opens.
+
+  **e2e (`pnpm --filter mock-space test:e2e`)** rides `/demo` for exactly the reason the route's own
+  comment gives — it is a real attempt through the real pipeline, but signed out and ephemeral, so
+  the whole surface below the auth gate is drivable with no account and no seeding. `e2e/helpers.ts`
+  reaches a running attempt with a focused box; `append-only.spec.ts` proves the guarantee model.test
+  already proves in the unit, but through the real textarea sink and real keyboard events — the wiring
+  the model cannot vouch for. Two behaviours there are load-bearing and easy to get wrong when writing
+  the tests: select-all is a **blocked chord** (`BLOCKED_CHORDS` in AnswerBox), so it selects nothing
+  and Backspace only nibbles the pending word; and the export heading is `Time&rsquo;s up` with a
+  typographic apostrophe, so match it with a regex, not a straight `'`. Stable selectors:
+  `data-testid` on `timer-start`/`timer-pause`/`timer-finish`/`clock`/`download`/`save-failed`, plus
+  `data-page`, `data-box`, `textarea.ms-sink`, and `.ms-text`.
 
   Four invariants hold the app together; breaking any one silently corrupts a student's script:
 

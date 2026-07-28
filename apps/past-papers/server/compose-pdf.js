@@ -29,81 +29,10 @@ const CONTENT_TOP = PAGE_H - MARGIN;
 const CONTENT_BOTTOM = MARGIN;
 
 // Phase 3 crop knobs (see BUILD.md → Stage 3, Stage 5).
-const MIN_CROP_HEIGHT = 20;         // floor every pipeline applies
-const INTRA_GROUP_GAP = 4;          // between a stimulus and its sub-part
-const BANNER_BLOCK_H = 36;          // inline paper banner (label + q list + rule)
-const HEADER_ZONE = 45;             // page number / paper code / © line live above this
-const FOOTER_ZONE = 50;             // © UCLES / [Turn over] band at the foot
-const MIN_CONTENT_CHARS = 8;        // MIN_CHARS_FOR_CONTENT
-const TIGHTEN_PAD = 5;              // breathing room under the last trimmed line
-
-// `has_content` in _build_topicals.py drops crops holding nothing but page
-// furniture. It counts extracted characters, which needs a text layer we can't
-// read with pdf-lib — but the thing it is actually catching here is the
-// "BLANK PAGE" separator, and those are trivially separable by how much is drawn
-// on the page. Measured across 544 source pages of 0455/0606/0607/0625/0478:
-//
-//   every page from 159 to 349 bytes of content stream is a literal BLANK PAGE
-//   the smallest page carrying real content is 495 bytes
-//
-// 400 sits in that gap. Erring high would drop real content, so if this ever
-// needs adjusting, move it DOWN — a kept blank page is cosmetic, a dropped
-// question is not. Note this measures drawn content, not text, so a full-page
-// figure (large stream, no text) is correctly kept — which a text-based check
-// would have wrongly discarded.
-const BLANK_PAGE_MAX_STREAM = 400;
-
-// Crop geometry is a property of the *extraction pipeline*, not of the app, and
-// the pipelines have diverged. 0606/0607/0625/0478 come from the original
-// _build_topicals.py, which shifts both crop edges by one headroom value, marks
-// "runs past the page bottom" with 720.0, and finds the stop by walking forward
-// to question q+1. 0455 comes from a later revision that
-//   - moved the sentinel to 760.0,
-//   - split the shift into top (clear the first line's ascenders) and bottom
-//     (only clear the next marker's baseline), with a 20pt minimum crop height,
-//   - records `next_boundary` [page, y] so the stop is read, not walked, and
-//   - carries `stem_specs`: the shared stimulus a sub-part belongs to, which must
-//     be laid down directly above it or the question is unreadable on its own.
-// Getting this wrong is silent — crops land a few points off, or a sub-part
-// prints without its source material — so it is keyed per subject explicitly.
-const DEFAULT_GEOMETRY = {
-  sentinel: 720.0,
-  questions: { top: 14, bottom: 14 },   // FRACTION_HEADROOM
-  markSchemes: { top: 2, bottom: 2 },
-  hasStems: false,
-};
-
-const SUBJECT_GEOMETRY = {
-  '0455': {
-    sentinel: 760.0,
-    questions: { top: 10, bottom: 6 },  // TOP_HEADROOM / HEADROOM
-    markSchemes: { top: 2, bottom: 2 },
-    hasStems: true,
-  },
-  '0625': {
-    sentinel: 720.0,
-    questions: { top: 8, bottom: 8 },   // MARKER_HEADROOM
-    markSchemes: { top: 2, bottom: 2 },
-    hasStems: false,
-  },
-};
-
-function geometryFor(subject) {
-  return SUBJECT_GEOMETRY[subject] ?? DEFAULT_GEOMETRY;
-}
-
-// "2", "2(a)", "10" — order numerically, then by part letter.
-const Q_SORT_RE = /^(\d+)(?:\(([a-z])\))?$/;
-function qSortKey(q) {
-  const m = Q_SORT_RE.exec(String(q).trim());
-  return m ? [parseInt(m[1], 10), m[2] ?? ''] : [9999, ''];
-}
-
-function compareQ(a, b) {
-  const [an, al] = qSortKey(a);
-  const [bn, bl] = qSortKey(b);
-  return an !== bn ? an - bn : al < bl ? -1 : al > bl ? 1 : 0;
-}
+const FRACTION_HEADROOM = 14;       // question pipeline
+const MS_HEADROOM = 2;              // mark-scheme pipeline
+export const BOTTOM_FOOTER_SENTINEL = 720.0;
+export const HEADER_SKIP = 45;             // continuation pages
 
 // Source PDF + index cache (per request, so a single composition reuses I/O).
 function makeCache() {
@@ -202,14 +131,14 @@ async function prefetchSources(cache, loader, sections, kind) {
 // The suffix in "P2-Q081" is a serial number (sorted-CSV index), NOT the
 // question number within the paper. The in-paper question number lives in
 // questions_metadata.question_number.
-function parsePaperNum(id) {
+export function parsePaperNum(id) {
   const m = id.match(/^P(\d+)-Q\d+$/);
   if (!m) throw new Error(`Invalid question id: ${id}`);
   return parseInt(m[1], 10);
 }
 
 // CSV "June-2014-1" + paperNum 2 → stem "June2014-21".
-function makeStem(paperField, paperNum) {
+export function makeStem(paperField, paperNum) {
   const parts = paperField.split('-');
   if (parts.length !== 3) {
     throw new Error(`Unexpected paper format: ${paperField}`);
@@ -219,7 +148,7 @@ function makeStem(paperField, paperNum) {
 }
 
 const MONTH_ORDER = { March: 0, June: 1, November: 2 };
-function paperSortKey(meta) {
+export function paperSortKey(meta) {
   return [meta.year, MONTH_ORDER[meta.month] ?? 99, meta.timezone];
 }
 
@@ -230,48 +159,32 @@ export const PAPER_ORDERS = ['oldest', 'newest'];
 
 // Crop spec computation — mirrors `_page_specs` in _build_topicals.py.
 // Returns [{page, yTop, yBot}] in TOP-origin coordinates (PDF points from top).
-// `yBot: null` means "to the bottom of that source page".
+export function pageSpecs(qRecord, byQ, skippablePages, headroom) {
+  const specs = [];
+  const yStart = Math.max(0, qRecord.y_start - headroom);
+  const yEnd = qRecord.y_end - headroom;
+  specs.push({ page: qRecord.page, yTop: yStart, yBot: yEnd });
 
-// Every subject's `_build_topicals.py` implements the SAME algorithm; only the
-// constants differ (and 0455 adds `next_boundary`). This is that algorithm.
-//
-// The sentinel means "the next marker is not on this page", so a record carrying
-// it runs to the BOTTOM of its own page and continues on the following ones. An
-// earlier version of this file instead cropped to `sentinel - headroom` (a
-// coordinate that means nothing) and started continuation pages at a 45pt header
-// skip, which silently truncated every multi-page question — ~136pt lost off the
-// first page. On 0625 Paper 2 that ate the answer options off MCQ items, and on
-// its mark schemes it dropped the answer row and left only the table header.
-function pageSpecs(qRecord, nextRecord, skippablePages, geom, kind, pageCount) {
-  const { top, bottom } = geom[kind === 'questions' ? 'questions' : 'markSchemes'];
-  const yTop = Math.max(0, qRecord.y_start - top);
+  if (qRecord.y_end !== BOTTOM_FOOTER_SENTINEL) return specs;
 
-  if (qRecord.y_end !== geom.sentinel) {
-    return [
-      { page: qRecord.page, yTop, yBot: Math.max(yTop + MIN_CROP_HEIGHT, qRecord.y_end - bottom) },
-    ];
-  }
-
-  // Where the run stops. 0455 records `next_boundary` — the next marker of ANY
-  // kind — which for a question's last sub-part is the following question's
-  // *number*, above its stimulus; the next stored record would instead be that
-  // question's first sub-part, and stopping there swallows the stimulus.
-  let endPage = null;
-  let endY = null;
-  if (qRecord.next_boundary) {
-    endPage = Number(qRecord.next_boundary[0]);
-    endY = Number(qRecord.next_boundary[1]);
-  } else if (nextRecord) {
-    endPage = nextRecord.page;
-    endY = Number(nextRecord.y_start);
-  }
-
-  // Only the run-on pages are marked `continuation`. The record's own page always
-  // holds the question itself and is never eligible to be dropped as empty.
-  const specs = [{ page: qRecord.page, yTop, yBot: null }];
-  if (endPage === null) {
-    for (let p = qRecord.page + 1; p <= pageCount; p++) {
-      if (!skippablePages.has(p)) specs.push({ page: p, yTop: 0, yBot: null, continuation: true });
+  const next = byQ.get(qRecord.q + 1);
+  let cur = qRecord.page + 1;
+  const guard = cur + 40;
+  while (cur < guard) {
+    if (next && cur === next.page) {
+      const nextTop = Math.max(0, next.y_start - headroom);
+      if (nextTop > HEADER_SKIP) {
+        specs.push({ page: cur, yTop: HEADER_SKIP, yBot: nextTop });
+      }
+      return specs;
+    }
+    if (skippablePages.has(cur)) {
+      cur += 1;
+      continue;
+    }
+    if (!next) {
+      specs.push({ page: cur, yTop: HEADER_SKIP, yBot: BOTTOM_FOOTER_SENTINEL });
+      return specs;
     }
     return specs;
   }
