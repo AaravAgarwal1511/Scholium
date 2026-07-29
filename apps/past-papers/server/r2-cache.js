@@ -28,7 +28,13 @@ export const CACHE_PREFIX = '_cache';
 // header-only slivers, and the layout could strand a section banner — or nothing
 // at all — on a page of its own. v2 was never deployed, but objects were written
 // under it while testing, so it is retired too rather than served stale.
-const CACHE_VERSION = 'v3';
+//
+// v4 (2026-07-29): the "BLANK PAGE" banner itself is 9 non-whitespace
+// characters, enough to clear regionHasContent's MIN_CONTENT_CHARS on its own —
+// so a filler page whose byte stream slipped past isBlankPage's threshold could
+// still be swept into a continuation crop and rendered. Every v3 chapter that
+// hit that gap is stale (see hasBlankPageBanner in page-chars.js).
+const CACHE_VERSION = 'v4';
 
 const R2_PUBLIC_URL = (
   process.env.VITE_R2_PUBLIC_URL ||
