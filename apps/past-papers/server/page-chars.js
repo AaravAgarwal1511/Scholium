@@ -59,19 +59,55 @@ async function openDoc(bytes) {
 // Text runs on a page, in top-origin points: `y` is the baseline (what the
 // reference filters on), `bottom` approximates the glyph box's lower edge so a
 // crop trimmed to it does not clip descenders, and `n` is the character count.
+//
+// `lines` groups the same items by baseline (pdf.js sometimes splits one
+// printed line across multiple items) and keeps their text + horizontal
+// center, which plain char-counting throws away — needed to recognize the
+// literal "BLANK PAGE" banner (see hasBlankPageBanner).
 async function pageRuns(doc, pageNum) {
   const page = await doc.getPage(pageNum);
   const viewport = page.getViewport({ scale: 1 });
   const content = await page.getTextContent();
   const runs = [];
+  const parts = [];
   for (const item of content.items) {
+    const text = item.str.trim();
     const n = item.str.replace(/\s/g, '').length;
     if (!n) continue;
     const y = viewport.height - item.transform[5];
     const descender = Math.max(2, (item.height || 0) * 0.3);
     runs.push({ y, bottom: y + descender, n });
+    if (text) {
+      const x = item.transform[4];
+      parts.push({ y, x, xEnd: x + (item.width || 0), text });
+    }
   }
-  return { runs, height: viewport.height };
+  return { runs, lines: mergeLines(parts), height: viewport.height, width: viewport.width };
+}
+
+// Groups text items sitting on the same baseline (within LINE_TOL) into one
+// logical line, ordered left-to-right, so a banner split across items (e.g.
+// "BLANK" and "PAGE" drawn as separate runs) still reads as one string.
+const LINE_TOL = 2;
+export function mergeLines(parts) {
+  const lines = [];
+  for (const part of parts) {
+    const line = lines.find((l) => Math.abs(l.y - part.y) <= LINE_TOL);
+    if (line) line.parts.push(part);
+    else lines.push({ y: part.y, parts: [part] });
+  }
+  return lines.map(({ y, parts: lineParts }) => {
+    const ordered = [...lineParts].sort((a, b) => a.x - b.x);
+    return {
+      y,
+      text: ordered
+        .map((p) => p.text)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim(),
+      xCenter: (Math.min(...ordered.map((p) => p.x)) + Math.max(...ordered.map((p) => p.xEnd))) / 2,
+    };
+  });
 }
 
 // One entry per source PDF; pages are parsed on first use.
@@ -119,6 +155,28 @@ export function regionHasContent(
     }
   }
   return false;
+}
+
+// A literal "BLANK PAGE" banner, printed top-center on the physical filler
+// pages Cambridge inserts between real content. This is a stronger signal than
+// isBlankPage's byte-stream size or regionHasContent's char count — both are
+// proxies for "this page carries no real content," but "BLANK PAGE" itself is
+// 9 non-whitespace characters, so a filler page whose content stream happens
+// to land above the byte threshold would otherwise clear MIN_CONTENT_CHARS on
+// the strength of the banner text alone. Reading the phrase directly closes
+// that gap instead of tuning the proxies further.
+const BLANK_PAGE_TOP_ZONE = 150;     // banner sits well above any body text
+const BLANK_PAGE_CENTER_TOL = 0.15;  // fraction of page width either side of center
+
+export function hasBlankPageBanner({ lines, width }) {
+  const centerX = width / 2;
+  const tol = width * BLANK_PAGE_CENTER_TOL;
+  return lines.some(
+    (line) =>
+      line.y <= BLANK_PAGE_TOP_ZONE &&
+      line.text.toUpperCase() === 'BLANK PAGE' &&
+      Math.abs(line.xCenter - centerX) <= tol,
+  );
 }
 
 // `tighten_bottom` from _build_topicals.py: pull a crop's lower bound up to the

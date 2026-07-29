@@ -1,7 +1,7 @@
 import { PDFDocument, PDFArray, StandardFonts, decodePDFRawStream, rgb } from 'pdf-lib';
 import { createClient } from '@supabase/supabase-js';
 import { fetchRowsByIds } from './supabase-rows.js';
-import { createCharIndex, regionHasContent, tightenBottom } from './page-chars.js';
+import { createCharIndex, regionHasContent, tightenBottom, hasBlankPageBanner } from './page-chars.js';
 
 // Lazily create the Supabase client so merely importing this module never throws
 // (env is present at runtime in both the dev server and the serverless function).
@@ -301,7 +301,11 @@ export function pageSpecs(qRecord, nextRecord, skippablePages, geom, kind, pageC
 // altogether, because every such row sits on its own record's page.
 //
 // The cheap page-level check runs first so obvious BLANK PAGEs never pay for
-// text extraction.
+// text extraction. When it does run, the literal "BLANK PAGE" banner (see
+// hasBlankPageBanner) is checked before falling back to the char count — the
+// banner text is itself 9 characters, enough to clear MIN_CONTENT_CHARS on its
+// own, so a filler page whose byte stream slips past BLANK_PAGE_MAX_STREAM
+// would otherwise read as real content.
 // An open-ended crop (`yBot === null`) means "to the bottom of the page", which
 // drags in the blank remainder and the © UCLES footer. Trim it to the last line
 // of real content instead — the reference's `tighten_bottom`.
@@ -341,6 +345,7 @@ async function isEmptyContinuation(cache, srcDoc, spec) {
   if (!source) return false; // no bytes retained → keep the crop
   try {
     const page = await cache.chars.pageChars(source.key, source.bytes, spec.page);
+    if (hasBlankPageBanner(page)) return true;
     return !regionHasContent(page, spec.yTop, spec.yBot, {
       headerSkip: HEADER_ZONE,
       footerSkip: FOOTER_ZONE,
