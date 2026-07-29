@@ -9,39 +9,140 @@
 // Only pages reached by a *continuation* crop are ever parsed, so on a typical
 // composition this touches a small fraction of the source pages.
 
-import { createRequire } from 'module';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// pdf.js's legacy Node build needs `DOMMatrix`/`ImageData`/`Path2D` for some
-// embedded-font glyph handling inside getTextContent() itself, not just for
-// actual rendering. It tries to polyfill them from `@napi-rs/canvas` — but
-// only as ITS OWN internal optional dependency, reached through a require()
-// buried inside a try/catch several layers deep in pdfjs-dist's own code.
-// That's exactly the shape of dependency serverless bundlers are known to
-// drop (there is no static import for them to trace), and that's what
-// happened here: the package was silently missing at runtime, every
-// getTextContent() call threw `DOMMatrix is not defined`, and every text-based
-// blank-page check (regionHasContent, hasBlankPageBanner) silently failed
-// closed to "keep the crop" — so pages that should have been dropped as empty
-// were kept, full page height, and grouped-crop questions (0455) shrank to fit
-// them, making real content look tiny next to blank space.
+// pdfjs-dist's legacy Node build has `const SCALE_MATRIX = new DOMMatrix();`
+// at its own MODULE TOP LEVEL — so without a global DOMMatrix, importing
+// pdfjs-dist throws immediately, before any of our code runs, and every
+// later call reuses that same failure ("DOMMatrix is not defined" on every
+// pageChars() call). That's what silently broke text-based blank-page
+// detection in prod: regionHasContent/hasBlankPageBanner always threw,
+// isEmptyContinuation's catch-all failed closed to "keep the crop", and a
+// question's page group (0455 groups a stimulus with all its page crops as
+// one unbreakable block) could include a full, untrimmed acknowledgements/
+// "BLANK PAGE" page — which forces the whole group to shrink to fit one
+// page, making the real question tiny next to blank space.
 //
-// Depending on it directly here — a plain top-level dependency behind a single
-// require(), same shape as e.g. `sharp` on Vercel — is a dependency bundlers
-// reliably trace. Setting these globals before pdfjs-dist's own internal
-// check (`if (!globalThis.DOMMatrix) { ... }`) means it sees them already
-// defined and never needs its own fragile fallback at all.
-try {
-  const require = createRequire(import.meta.url);
-  const canvas = require('@napi-rs/canvas');
-  globalThis.DOMMatrix ??= canvas.DOMMatrix;
-  globalThis.ImageData ??= canvas.ImageData;
-  globalThis.Path2D ??= canvas.Path2D;
-} catch {
-  // Falls through to pdfjs-dist's own attempt, which warns and degrades the
-  // same way this codebase has always tolerated a missing text layer.
+// pdfjs-dist tries to source DOMMatrix/ImageData/Path2D from @napi-rs/canvas,
+// a native binary. Depending on that directly (even as an explicit, direct
+// dependency — tried and confirmed still missing at runtime in prod) puts
+// correctness at the mercy of Vercel's bundler tracing a native module
+// through pdfjs-dist's own dynamic, try/catch-wrapped require. A pure-JS
+// polyfill has no such dependency — it's not a separate file the bundler can
+// fail to include.
+//
+// It only needs to be correct for what getTextContent() actually reaches:
+// every OTHER DOMMatrix/Path2D use in pdfjs-dist (paintChar, showType3Text,
+// pattern/gradient fills) lives in CanvasGraphics, the rendering path, which
+// only runs from page.render() — never called anywhere in this codebase.
+class DOMMatrixPolyfill {
+  constructor(init) {
+    this.a = 1;
+    this.b = 0;
+    this.c = 0;
+    this.d = 1;
+    this.e = 0;
+    this.f = 0;
+    if (Array.isArray(init)) {
+      if (init.length === 6) [this.a, this.b, this.c, this.d, this.e, this.f] = init;
+      else if (init.length === 16) {
+        this.a = init[0];
+        this.b = init[1];
+        this.c = init[4];
+        this.d = init[5];
+        this.e = init[12];
+        this.f = init[13];
+      }
+    } else if (init && typeof init === 'object') {
+      this.a = init.a ?? 1;
+      this.b = init.b ?? 0;
+      this.c = init.c ?? 0;
+      this.d = init.d ?? 1;
+      this.e = init.e ?? 0;
+      this.f = init.f ?? 0;
+    }
+  }
+  multiplySelf(m) {
+    const { a, b, c, d, e, f } = this;
+    this.a = a * m.a + c * m.b;
+    this.b = b * m.a + d * m.b;
+    this.c = a * m.c + c * m.d;
+    this.d = b * m.c + d * m.d;
+    this.e = a * m.e + c * m.f + e;
+    this.f = b * m.e + d * m.f + f;
+    return this;
+  }
+  preMultiplySelf(m) {
+    const result = new DOMMatrixPolyfill(m).multiplySelf(this);
+    Object.assign(this, result);
+    return this;
+  }
+  multiply(m) {
+    return new DOMMatrixPolyfill(this).multiplySelf(m);
+  }
+  translateSelf(tx = 0, ty = 0) {
+    return this.multiplySelf({ a: 1, b: 0, c: 0, d: 1, e: tx, f: ty });
+  }
+  translate(tx = 0, ty = 0) {
+    return new DOMMatrixPolyfill(this).translateSelf(tx, ty);
+  }
+  scaleSelf(sx = 1, sy = sx) {
+    return this.multiplySelf({ a: sx, b: 0, c: 0, d: sy, e: 0, f: 0 });
+  }
+  scale(sx = 1, sy = sx) {
+    return new DOMMatrixPolyfill(this).scaleSelf(sx, sy);
+  }
+  invertSelf() {
+    const { a, b, c, d, e, f } = this;
+    const det = a * d - b * c;
+    if (!det) {
+      this.a = this.b = this.c = this.d = this.e = this.f = NaN;
+      return this;
+    }
+    this.a = d / det;
+    this.b = -b / det;
+    this.c = -c / det;
+    this.d = a / det;
+    this.e = -(this.a * e + this.c * f);
+    this.f = -(this.b * e + this.d * f);
+    return this;
+  }
+  inverse() {
+    return new DOMMatrixPolyfill(this).invertSelf();
+  }
 }
+
+// Rendering-only in pdfjs-dist (canvas pixel buffers, clip-path geometry) —
+// never read by getTextContent(), so a shape that just doesn't throw is enough.
+class ImageDataPolyfill {
+  constructor(dataOrWidth, widthOrHeight, height) {
+    if (dataOrWidth instanceof Uint8ClampedArray) {
+      this.data = dataOrWidth;
+      this.width = widthOrHeight;
+      this.height = height;
+    } else {
+      this.width = dataOrWidth;
+      this.height = widthOrHeight;
+      this.data = new Uint8ClampedArray(this.width * this.height * 4);
+    }
+  }
+}
+class Path2DPolyfill {
+  addPath() {}
+  moveTo() {}
+  lineTo() {}
+  bezierCurveTo() {}
+  quadraticCurveTo() {}
+  closePath() {}
+  rect() {}
+  arc() {}
+  ellipse() {}
+}
+
+globalThis.DOMMatrix ??= DOMMatrixPolyfill;
+globalThis.ImageData ??= ImageDataPolyfill;
+globalThis.Path2D ??= Path2DPolyfill;
 
 // pdf.js ships an ESM build that expects a browser; the legacy build is the one
 // that runs under Node (and inside a Vercel function).
