@@ -9,8 +9,8 @@
 // Only pages reached by a *continuation* crop are ever parsed, so on a typical
 // composition this touches a small fraction of the source pages.
 
-import { createRequire } from 'module';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 // pdf.js ships an ESM build that expects a browser; the legacy build is the one
 // that runs under Node (and inside a Vercel function).
@@ -23,23 +23,20 @@ function getPdfjs() {
 // Without this pdf.js raises "Ensure that the `standardFontDataUrl` API
 // parameter is provided" for any PDF relying on one of the 14 standard fonts,
 // and the glyphs of the affected runs go missing from getTextContent(). That
-// would undercount a region and make a page with real content look blank, so it
-// is resolved from the installed package rather than left to chance.
-let fontDirUrl;
-function standardFontDataUrl() {
-  if (fontDirUrl === undefined) {
-    try {
-      const require = createRequire(import.meta.url);
-      const pkg = require.resolve('pdfjs-dist/package.json');
-      // Under Node this must be a filesystem path with a trailing separator —
-      // pdf.js reads it from disk. A file:// URL fails to load.
-      fontDirUrl = path.join(path.dirname(pkg), 'standard_fonts') + path.sep;
-    } catch {
-      fontDirUrl = null;
-    }
-  }
-  return fontDirUrl;
-}
+// would undercount a region and make a page with real content look blank.
+//
+// This used to resolve pdfjs-dist's own standard_fonts/ via require.resolve,
+// but that directory is only ever reached dynamically (never a static
+// import), which Vercel's function bundler can't trace — the files silently
+// didn't make it into the deployed function. Forcing them in via
+// vercel.json's includeFiles then failed a different way: pnpm installs
+// pdfjs-dist as a symlink, and copying through a symlinked path during the
+// build produced `ENOTDIR: not a directory, mkdir '.../node_modules/pdfjs-dist'`.
+// Vendoring the (14-font, ~800KB, effectively-static) directory straight into
+// this package sidesteps both problems — it's a plain path relative to this
+// file, no node_modules resolution or symlink involved.
+const fontDirUrl =
+  path.join(path.dirname(fileURLToPath(import.meta.url)), 'pdfjs-standard-fonts') + path.sep;
 
 // `getDocument({data})` TRANSFERS the buffer and leaves the original detached —
 // the same trap mock-space documents. compose-pdf.js hands these bytes to
@@ -48,11 +45,10 @@ async function openDoc(bytes) {
   const pdfjs = await getPdfjs();
   const copy = new Uint8Array(bytes.length);
   copy.set(bytes);
-  const fonts = standardFontDataUrl();
   return pdfjs.getDocument({
     data: copy,
     isEvalSupported: false,
-    ...(fonts ? { standardFontDataUrl: fonts } : {}),
+    standardFontDataUrl: fontDirUrl,
   }).promise;
 }
 
