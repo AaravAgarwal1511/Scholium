@@ -9,8 +9,39 @@
 // Only pages reached by a *continuation* crop are ever parsed, so on a typical
 // composition this touches a small fraction of the source pages.
 
+import { createRequire } from 'module';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+// pdf.js's legacy Node build needs `DOMMatrix`/`ImageData`/`Path2D` for some
+// embedded-font glyph handling inside getTextContent() itself, not just for
+// actual rendering. It tries to polyfill them from `@napi-rs/canvas` — but
+// only as ITS OWN internal optional dependency, reached through a require()
+// buried inside a try/catch several layers deep in pdfjs-dist's own code.
+// That's exactly the shape of dependency serverless bundlers are known to
+// drop (there is no static import for them to trace), and that's what
+// happened here: the package was silently missing at runtime, every
+// getTextContent() call threw `DOMMatrix is not defined`, and every text-based
+// blank-page check (regionHasContent, hasBlankPageBanner) silently failed
+// closed to "keep the crop" — so pages that should have been dropped as empty
+// were kept, full page height, and grouped-crop questions (0455) shrank to fit
+// them, making real content look tiny next to blank space.
+//
+// Depending on it directly here — a plain top-level dependency behind a single
+// require(), same shape as e.g. `sharp` on Vercel — is a dependency bundlers
+// reliably trace. Setting these globals before pdfjs-dist's own internal
+// check (`if (!globalThis.DOMMatrix) { ... }`) means it sees them already
+// defined and never needs its own fragile fallback at all.
+try {
+  const require = createRequire(import.meta.url);
+  const canvas = require('@napi-rs/canvas');
+  globalThis.DOMMatrix ??= canvas.DOMMatrix;
+  globalThis.ImageData ??= canvas.ImageData;
+  globalThis.Path2D ??= canvas.Path2D;
+} catch {
+  // Falls through to pdfjs-dist's own attempt, which warns and degrades the
+  // same way this codebase has always tolerated a missing text layer.
+}
 
 // pdf.js ships an ESM build that expects a browser; the legacy build is the one
 // that runs under Node (and inside a Vercel function).
