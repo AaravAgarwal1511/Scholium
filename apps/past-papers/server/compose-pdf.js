@@ -111,6 +111,7 @@ function makeCache() {
     pdfs: new Map(),     // `${paperNum}/${kind}/${stem}` → PDFDocument
     indexes: new Map(),  // `${paperNum}/${kind}` → Map<stem, {meta, byQ, questions}>
     blank: new Map(),    // PDFDocument → Map<pageIndex, boolean>
+    blankText: new Map(), // PDFDocument → Map<pageIndex, boolean>
     bytes: new Map(),    // PDFDocument → { key, bytes }  (for the text layer)
     chars: createCharIndex(),
   };
@@ -133,6 +134,41 @@ function isBlankPage(cache, srcDoc, pageIndex) {
   }
   perDoc.set(pageIndex, blank);
   return blank;
+}
+
+// A literal "BLANK PAGE" banner, read straight from the raw content stream —
+// no pdf.js, no fonts, no native binary. Text-showing operators write plain
+// ASCII inside parentheses (`(BLANK PAGE) Tj`, or split across a kerned array
+// like `[(BLANK)-250(PAGE)]TJ`), so concatenating every parenthesized literal
+// on the page and stripping whitespace before searching catches the banner
+// regardless of how the words got split into operators.
+//
+// isBlankPage's byte-size threshold already catches most literal BLANK PAGE
+// separators, but not the closing acknowledgements page — that one carries
+// substantial real text (the UCLES permissions paragraph) alongside its own
+// "BLANK PAGE" banner further down, so its stream is well over
+// BLANK_PAGE_MAX_STREAM. This is what actually catches that page: reading the
+// stream directly, with no dependency on the pdf.js/canvas machinery that
+// proved unreliable in the serverless runtime (missing standard fonts,
+// missing native canvas — see hasBlankPageBanner and its history).
+function pageHasBlankPageText(cache, srcDoc, pageIndex) {
+  let perDoc = cache.blankText.get(srcDoc);
+  if (!perDoc) cache.blankText.set(srcDoc, (perDoc = new Map()));
+  if (perDoc.has(pageIndex)) return perDoc.get(pageIndex);
+
+  let found = false;
+  try {
+    let contents = srcDoc.getPage(pageIndex).node.Contents();
+    if (contents instanceof PDFArray) contents = contents.lookup(0);
+    const bytes = decodePDFRawStream(contents).decode();
+    const stream = Buffer.from(bytes).toString('latin1');
+    const literals = [...stream.matchAll(/\(([^()\\]*)\)/g)].map((m) => m[1]).join('');
+    found = literals.toUpperCase().replace(/\s+/g, '').includes('BLANKPAGE');
+  } catch {
+    found = false; // unreadable stream → never drop content on a guess
+  }
+  perDoc.set(pageIndex, found);
+  return found;
 }
 
 async function loadIndex(cache, loader, paperNum, kind) {
@@ -340,6 +376,7 @@ async function tightenOpenEnd(cache, srcDoc, spec, kind) {
 async function isEmptyContinuation(cache, srcDoc, spec) {
   if (!spec.continuation) return false;
   if (isBlankPage(cache, srcDoc, spec.page - 1)) return true;
+  if (pageHasBlankPageText(cache, srcDoc, spec.page - 1)) return true;
 
   const source = cache.bytes.get(srcDoc);
   if (!source) return false; // no bytes retained → keep the crop
