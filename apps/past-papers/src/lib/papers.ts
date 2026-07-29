@@ -36,7 +36,7 @@ export function subjectDisplayName(code: string): string {
 //
 // Note this hides the subject; it does not make the files unreachable. The R2
 // bucket is public, so anyone holding a direct PDF URL can still fetch it.
-const DISABLED_SUBJECTS = new Set<string>(["0455"]);
+const DISABLED_SUBJECTS = new Set<string>([]);
 
 export function isSubjectDisabled(code: string): boolean {
   return DISABLED_SUBJECTS.has(code);
