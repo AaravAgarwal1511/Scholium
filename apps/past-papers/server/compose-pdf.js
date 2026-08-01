@@ -92,6 +92,21 @@ export function geometryFor(subject) {
   return SUBJECT_GEOMETRY[subject] ?? DEFAULT_GEOMETRY;
 }
 
+// Mirrors SUBJECT_DISPLAY_NAMES in src/lib/papers.ts — that copy is what the
+// browse UI shows, this one titles the composed PDF itself, and the two need
+// to move together when a subject is added.
+const SUBJECT_DISPLAY_NAMES = {
+  '0455': 'Economics',
+  '0478': 'Computer Science',
+  '0606': 'Additional Mathematics',
+  '0607': 'International Mathematics',
+  '0625': 'Physics',
+};
+
+export function subjectDisplayName(code) {
+  return SUBJECT_DISPLAY_NAMES[code] ?? code;
+}
+
 // "2", "2(a)", "10" — order numerically, then by part letter.
 const Q_SORT_RE = /^(\d+)(?:\(([a-z])\))?$/;
 function qSortKey(q) {
@@ -472,9 +487,25 @@ class PageLayout {
     this.cursor -= blockH;
   }
 
-  // Full-page section heading (e.g. "Questions" / "Mark Scheme").
-  sectionHeader(text) {
+  // Full-page section heading (e.g. "Questions" / "Mark Scheme"). `coverTitle`
+  // is passed only for the section landing on the document's actual first
+  // page, so the subject + paper title is printed once, never on a later
+  // "Mark Scheme" divider that follows a "Questions" section.
+  sectionHeader(text, coverTitle = null) {
     this._newPage();
+
+    if (coverTitle) {
+      const titleSize = 20;
+      const tw = this.boldFont.widthOfTextAtSize(coverTitle, titleSize);
+      this.page.drawText(coverTitle, {
+        x: (PAGE_W - tw) / 2,
+        y: PAGE_H / 2 + 70,
+        size: titleSize,
+        font: this.boldFont,
+        color: rgb(0.25, 0.25, 0.32),
+      });
+    }
+
     const size = 36;
     const w = this.boldFont.widthOfTextAtSize(text, size);
     this.page.drawText(text, {
@@ -751,9 +782,17 @@ export async function composePdf(questionIds, subject, loader, options = {}) {
   const boldFont = await outDoc.embedFont(StandardFonts.HelveticaBold);
   const layout = new PageLayout(outDoc, font, boldFont);
 
+  // Every item shares one paper component — GeneratePaperPage locks the
+  // selection to a single component before chapters can be picked, and chapter
+  // downloads scope by the `P<n>-` id prefix — so the first item's paper number
+  // titles the whole document.
+  const coverTitle = `${subjectDisplayName(subject)} — Paper ${items[0].paperNum}`;
+  let coverDrawn = false;
+
   // Section 1 — Questions
   if (!markSchemeOnly) {
-    layout.sectionHeader('Questions');
+    layout.sectionHeader('Questions', coverTitle);
+    coverDrawn = true;
     await renderSection(layout, cache, items, 'questions', loader, order, geom);
   }
 
@@ -771,7 +810,8 @@ export async function composePdf(questionIds, subject, loader, options = {}) {
       return entry ? entry.byQ.has(String(it.qNum)) : false;
     });
     if (msItems.length > 0) {
-      layout.sectionHeader('Mark Scheme');
+      layout.sectionHeader('Mark Scheme', coverDrawn ? null : coverTitle);
+      coverDrawn = true;
       await renderSection(layout, cache, msItems, 'mark_schemes', loader, order, geom);
       msCount = msItems.length;
     } else if (markSchemeOnly) {
