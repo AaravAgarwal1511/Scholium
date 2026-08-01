@@ -34,7 +34,11 @@ export const CACHE_PREFIX = '_cache';
 // so a filler page whose byte stream slipped past isBlankPage's threshold could
 // still be swept into a continuation crop and rendered. Every v3 chapter that
 // hit that gap is stale (see hasBlankPageBanner in page-chars.js).
-const CACHE_VERSION = 'v4';
+//
+// v5 (2026-08-01): the first section-divider page now also prints the subject
+// name + paper number above "Questions"/"Mark Scheme", so every v4 object is
+// missing that title.
+const CACHE_VERSION = 'v5';
 
 const R2_PUBLIC_URL = (
   process.env.VITE_R2_PUBLIC_URL ||
