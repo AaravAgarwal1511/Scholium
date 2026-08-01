@@ -3,6 +3,7 @@ import { Navigate, useParams } from "react-router-dom";
 import { AlertCircle, Download, FileText, Loader2, ScrollText } from "lucide-react";
 import Layout from "@/components/Layout";
 import Crumbs from "@/components/Crumbs";
+import CalculatorAlert from "@/components/CalculatorAlert";
 import { ErrorState, EmptyState } from "@/components/StateViews";
 import { useAsync } from "@/hooks/useAsync";
 import {
@@ -366,6 +367,8 @@ export default function ChaptersPage() {
         </h2>
         <p className="text-sm text-muted-foreground mt-1">{subjectDisplayName(subjectName)}</p>
       </div>
+
+      {subjectName === "0606" && paperNum === 1 && <CalculatorAlert />}
 
       {allYears.length > 0 && (
         <SelectionBar

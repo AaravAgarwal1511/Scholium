@@ -4,6 +4,7 @@ import { useAnalytics } from "@repo/analytics";
 import { ChevronLeft, Zap, Download, AlertCircle } from "lucide-react";
 import Layout from "@/components/Layout";
 import Tetris from "@/components/Tetris";
+import CalculatorAlert from "@/components/CalculatorAlert";
 import { EmptyState } from "@/components/StateViews";
 import { useAsync } from "@/hooks/useAsync";
 import {
@@ -334,6 +335,12 @@ export default function GeneratePaperPage() {
     setGenerateError(null);
   };
 
+  // Additional Mathematics (0606) Paper 1 — flags the pre-2025 calculator
+  // policy change wherever a generated paper could pull questions from those
+  // years (see CalculatorAlert).
+  const isAddMathPaper1 =
+    selectedSubject === "0606" && !!selectedComponent && paperNumOf(selectedComponent) === 1;
+
   const selectedChapters = Object.keys(selections).map(Number);
   const totalQuestions = Object.values(selections).reduce((a, b) => a + b, 0);
   const overLimit = totalQuestions > MAX_GENERATED_QUESTIONS;
@@ -540,6 +547,8 @@ export default function GeneratePaperPage() {
             </span>
             Choose Years, Chapters & Question Counts
           </h2>
+
+          {isAddMathPaper1 && <CalculatorAlert />}
 
           {allYears.length > 0 && (
             <YearRangeBar
