@@ -107,19 +107,37 @@ function s3() {
   return client;
 }
 
+// Errors thrown by Node's http/https client itself (before any response is
+// received) rather than by R2 — a stale pooled keep-alive socket the far end
+// already closed is the common case. Safe to retry: the body is a Buffer, so
+// each attempt resends the exact same bytes, never a partially-drained stream.
+const TRANSIENT_CODES = new Set(['EPIPE', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED']);
+const WRITE_RETRY_ATTEMPTS = 3;
+
 // `fileName` is what the browser saves the PDF as. A chapter download is opened
 // in a tab, so it stays `inline`; a generated paper is fetched by a plain anchor
 // click and asks for `attachment` so the browser saves it instead of navigating
 // the app away.
 export async function writeCached(key, bytes, fileName, disposition = 'inline') {
-  await s3().send(
-    new PutObjectCommand({
-      Bucket: R2_BUCKET,
-      Key: key,
-      Body: Buffer.from(bytes),
-      ContentType: 'application/pdf',
-      ContentDisposition: `${disposition}; filename="${fileName.replace(/["\\]/g, '')}"`,
-    }),
-  );
-  return cacheUrl(key);
+  const body = Buffer.from(bytes);
+  const contentDisposition = `${disposition}; filename="${fileName.replace(/["\\]/g, '')}"`;
+
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await s3().send(
+        new PutObjectCommand({
+          Bucket: R2_BUCKET,
+          Key: key,
+          Body: body,
+          ContentType: 'application/pdf',
+          ContentDisposition: contentDisposition,
+        }),
+      );
+      return cacheUrl(key);
+    } catch (err) {
+      const transient = TRANSIENT_CODES.has(err.code) || TRANSIENT_CODES.has(err.cause?.code);
+      if (!transient || attempt >= WRITE_RETRY_ATTEMPTS) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+    }
+  }
 }
