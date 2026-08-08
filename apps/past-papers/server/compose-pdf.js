@@ -86,6 +86,14 @@ const SUBJECT_GEOMETRY = {
     markSchemes: { top: 2, bottom: 2 },
     hasStems: false,
   },
+  // Ported from the 0625 pipeline (see 0610's BUILD.md) with identical geometry
+  // constants — BOTTOM_FOOTER_SENTINEL, MARKER_HEADROOM, and no stem_specs.
+  '0610': {
+    sentinel: 720.0,
+    questions: { top: 8, bottom: 8 },   // MARKER_HEADROOM
+    markSchemes: { top: 2, bottom: 2 },
+    hasStems: false,
+  },
 };
 
 export function geometryFor(subject) {
@@ -100,6 +108,7 @@ const SUBJECT_DISPLAY_NAMES = {
   '0478': 'Computer Science',
   '0606': 'Additional Mathematics',
   '0607': 'International Mathematics',
+  '0610': 'Biology',
   '0625': 'Physics',
 };
 
