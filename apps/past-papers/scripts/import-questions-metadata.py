@@ -171,6 +171,20 @@ CHAPTER_NUM = {
         "Biotechnology and Genetic Modification": 21,
         "Unclassified": 22,
     },
+    "0620": {
+        "States of Matter": 1,
+        "Atoms, Elements and Compounds": 2,
+        "Stoichiometry": 3,
+        "Electrochemistry": 4,
+        "Chemical Energetics": 5,
+        "Chemical Reactions": 6,
+        "Acids, Bases and Salts": 7,
+        "The Periodic Table": 8,
+        "Metals": 9,
+        "Chemistry of the Environment": 10,
+        "Organic Chemistry": 11,
+        "Experimental Techniques and Chemical Analysis": 12,
+    },
 }
 
 
