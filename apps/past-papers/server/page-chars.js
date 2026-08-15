@@ -196,17 +196,28 @@ async function pageRuns(doc, pageNum) {
   const page = await doc.getPage(pageNum);
   const viewport = page.getViewport({ scale: 1 });
   const content = await page.getTextContent();
+  const { Util } = await getPdfjs();
   const runs = [];
   const parts = [];
   for (const item of content.items) {
     const text = item.str.trim();
     const n = item.str.replace(/\s/g, '').length;
     if (!n) continue;
-    const y = viewport.height - item.transform[5];
+    // `item.transform` is in the page's raw content space; only
+    // `viewport.transform` bakes in `/Rotate`. Composing the two (the same
+    // thing pdf.js's own text layer does) is what makes this correct for a
+    // rotated page — the 2018–2024 0625/0610 Paper 4 & 6 mark schemes are
+    // `/Rotate 90`. The old `viewport.height − item.transform[5]` shortcut
+    // only happens to work at rotation 0 (there it reduces to the same flip);
+    // on a rotated page it read glyphs at nonsensical/negative y — verified
+    // against June2018-41.pdf p5, where the repeated "Question | Answer |
+    // Marks" header (Cambridge prints it around y≈70) came back around y≈535.
+    const tx = Util.transform(viewport.transform, item.transform);
+    const x = tx[4];
+    const y = tx[5];
     const descender = Math.max(2, (item.height || 0) * 0.3);
     runs.push({ y, bottom: y + descender, n });
     if (text) {
-      const x = item.transform[4];
       parts.push({ y, x, xEnd: x + (item.width || 0), text });
     }
   }
