@@ -1,4 +1,4 @@
-import { PDFDocument, PDFArray, StandardFonts, decodePDFRawStream, rgb } from 'pdf-lib';
+import { PDFDocument, PDFArray, StandardFonts, decodePDFRawStream, rgb, degrees } from 'pdf-lib';
 import { createClient } from '@supabase/supabase-js';
 import { fetchRowsByIds } from './supabase-rows.js';
 import { createCharIndex, regionHasContent, tightenBottom, hasBlankPageBanner } from './page-chars.js';
@@ -33,6 +33,13 @@ const MIN_CROP_HEIGHT = 20;         // floor every pipeline applies
 const INTRA_GROUP_GAP = 4;          // between a stimulus and its sub-part
 const BANNER_BLOCK_H = 36;          // inline paper banner (label + q list + rule)
 const HEADER_ZONE = 45;             // page number / paper code / © line live above this
+// Mark-scheme continuation pages repeat the "Question | Answer | Marks" column
+// header at their own top (BUILD.md's `spillover_header_skip`, ~y 70 in the
+// corpus) — well below HEADER_ZONE, so isEmptyContinuation would otherwise
+// count that header as real content and keep an otherwise-empty page. Applies
+// only to mark_schemes continuations; the question pipeline has no such
+// repeating header and keeps using HEADER_ZONE.
+const MS_HEADER_ZONE = 95;
 const FOOTER_ZONE = 50;             // © UCLES / [Turn over] band at the foot
 const MIN_CONTENT_CHARS = 8;        // MIN_CHARS_FOR_CONTENT
 const TIGHTEN_PAD = 5;              // breathing room under the last trimmed line
@@ -397,7 +404,7 @@ async function tightenOpenEnd(cache, srcDoc, spec, kind) {
   }
 }
 
-async function isEmptyContinuation(cache, srcDoc, spec) {
+async function isEmptyContinuation(cache, srcDoc, spec, kind) {
   if (!spec.continuation) return false;
   if (isBlankPage(cache, srcDoc, spec.page - 1)) return true;
   if (pageHasBlankPageText(cache, srcDoc, spec.page - 1)) return true;
@@ -408,7 +415,7 @@ async function isEmptyContinuation(cache, srcDoc, spec) {
     const page = await cache.chars.pageChars(source.key, source.bytes, spec.page);
     if (hasBlankPageBanner(page)) return true;
     return !regionHasContent(page, spec.yTop, spec.yBot, {
-      headerSkip: HEADER_ZONE,
+      headerSkip: kind === 'mark_schemes' ? MS_HEADER_ZONE : HEADER_ZONE,
       footerSkip: FOOTER_ZONE,
       minChars: MIN_CONTENT_CHARS,
     });
@@ -435,6 +442,57 @@ function stemSpecs(qRecord, geom, pageCount) {
     out.push({ page, yTop, yBot });
   }
   return out;
+}
+
+// The 2018–2024 Physics (0625) and Biology (0610) Paper 4 / Paper 6 mark-scheme
+// source PDFs are landscape pages stored as a portrait MediaBox (595 × 842)
+// plus `/Rotate 90` — see BUILD.md's "Rotation normalisation" section (ported
+// identically between the two subjects). Every y-coordinate in
+// `_mark_schemes.json` comes from pdfplumber, which honours `/Rotate` and so
+// reports coordinates in VISUAL (rotated) space — but pdf-lib's
+// `PDFPage.getWidth()/getHeight()` report the raw, un-rotated MediaBox and
+// `embedPage()`'s bounding box is interpreted in that same raw space. Applying
+// a visual-space crop rectangle straight to the raw content therefore lands on
+// the wrong axis entirely: it pulls in whatever unrelated content occupies the
+// swapped region (extra rows from neighbouring questions bleeding in) while
+// cutting off the real content, and draws what remains sideways. This mirrors
+// what `transfer_rotation_to_content()` does for the prebuilt topicals — bake
+// the rotation into the crop box and the draw transform instead of trusting
+// pdf-lib to do it.
+//
+// Only 0° and 90° are observed anywhere in the corpus (2025-era mark schemes
+// are natively landscape with `/Rotate 0`), so other angles are refused rather
+// than guessed at — a wrong guess here silently mis-renders exam content.
+export function rotatedCropBox(rawW, rawH, rotation, yTopFromTop, yBotFromTop) {
+  const rot = ((rotation % 360) + 360) % 360;
+
+  if (rot === 0) {
+    const yBot = yBotFromTop === null ? rawH : yBotFromTop;
+    return {
+      rotation: 0,
+      visW: rawW,
+      cropH: yBot - yTopFromTop,
+      box: { left: 0, right: rawW, bottom: rawH - yBot, top: rawH - yTopFromTop },
+    };
+  }
+
+  if (rot === 90) {
+    // Visual space is rawH wide × rawW tall (dimensions swap under a
+    // quarter turn). A page-relative top-origin y-coordinate maps directly
+    // onto the raw x-axis for a 90° rotation — see BUILD.md-adjacent notes in
+    // the fix-mark-scheme worktree history for the full corner-mapping
+    // derivation; empirically verified against the real June2018-41 source.
+    const visH = rawW;
+    const yBot = yBotFromTop === null ? visH : yBotFromTop;
+    return {
+      rotation: 90,
+      visW: rawH,
+      cropH: yBot - yTopFromTop,
+      box: { left: yTopFromTop, right: yBot, bottom: 0, top: rawH },
+    };
+  }
+
+  throw new Error(`Unsupported source page rotation ${rot}° (only 0° and 90° are handled)`);
 }
 
 // Vertical-flow layout on A4 — mirrors PageLayout in _build_topicals.py.
@@ -545,26 +603,37 @@ class PageLayout {
   // stays as the index recorded it.
   _measure(srcDoc, pageIndex, yTopFromTop, yBotFromTop) {
     const srcPage = srcDoc.getPage(pageIndex);
-    const srcW = srcPage.getWidth();
-    const srcH = srcPage.getHeight();
-    const pdfTop = srcH - yTopFromTop;
-    const pdfBot = srcH - (yBotFromTop === null ? srcH : yBotFromTop);
-    const cropH = pdfTop - pdfBot;
+    const rawW = srcPage.getWidth();
+    const rawH = srcPage.getHeight();
+    const rotation = srcPage.getRotation().angle;
+    const { visW, cropH, box, rotation: rot } = rotatedCropBox(
+      rawW,
+      rawH,
+      rotation,
+      yTopFromTop,
+      yBotFromTop,
+    );
     if (cropH <= 0) return null;
-    const scale = Math.min(1.0, CONTENT_W / srcW);
-    return { srcPage, srcW, pdfTop, pdfBot, cropH, scale };
+    const scale = Math.min(1.0, CONTENT_W / visW);
+    return { srcPage, box, visW, cropH, scale, rotation: rot };
   }
 
   async _draw(m, scale) {
-    const embedded = await this.out.embedPage(m.srcPage, {
-      left: 0,
-      bottom: m.pdfBot,
-      right: m.srcW,
-      top: m.pdfTop,
-    });
-    const drawW = m.srcW * scale;
+    const embedded = await this.out.embedPage(m.srcPage, m.box);
+    const drawW = m.visW * scale;
     const drawH = m.cropH * scale;
     const x = MARGIN + (CONTENT_W - drawW) / 2;
+
+    if (m.rotation === 90) {
+      // The embedded form's own width/height axes (spanning the crop box) are
+      // swapped relative to the un-rotated case, and `(x, y)` now anchors the
+      // TOP-LEFT corner of the drawn box rather than the bottom-left — see
+      // rotatedCropBox's derivation notes.
+      const y = this.cursor;
+      this.page.drawPage(embedded, { x, y, width: drawH, height: drawW, rotate: degrees(-90) });
+      return y - drawH;
+    }
+
     const y = this.cursor - drawH;
     this.page.drawPage(embedded, { x, y, width: drawW, height: drawH });
     return y;
@@ -713,7 +782,7 @@ async function renderSection(layout, cache, items, kind, loader, order, geom) {
       ].filter((s) => s.page - 1 >= 0 && s.page - 1 < pageCount);
 
       const keep = await Promise.all(
-        onPage.map(async (s) => !(await isEmptyContinuation(cache, srcDoc, s))),
+        onPage.map(async (s) => !(await isEmptyContinuation(cache, srcDoc, s, kind))),
       );
       const trimmed = await Promise.all(
         onPage.map((s) => tightenOpenEnd(cache, srcDoc, s, kind)),

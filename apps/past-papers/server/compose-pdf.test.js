@@ -7,6 +7,7 @@ import {
   geometryFor,
   compareQ,
   PAPER_ORDERS,
+  rotatedCropBox,
 } from "./compose-pdf.js";
 
 // Crop geometry is per subject now (the extraction pipelines diverged), so the
@@ -205,5 +206,71 @@ describe("pageSpecs — cropping a question off its source page", () => {
     const q = { q: 1, page: 2, y_start: 100, y_end: 300 };
     const specs = pageSpecs(q, null, new Set(), DEFAULT, "mark_schemes", 5);
     expect(specs).toEqual([{ page: 2, yTop: 98, yBot: 298 }]); // shift of 2, not 14
+  });
+});
+
+describe("rotatedCropBox — placing a crop on a rotated source page", () => {
+  // pdf-lib's PDFPage.getWidth()/getHeight() report the raw, un-rotated
+  // MediaBox; embedPage()'s bounding box is interpreted in that same raw
+  // space. `_mark_schemes.json` coordinates come from pdfplumber, which DOES
+  // honour `/Rotate` — so every coordinate handed to this function is in
+  // VISUAL (rotated) space and must be translated into the page's raw space
+  // before it can be used as an embedPage boundingBox.
+  //
+  // 0625/0610 Papers 4 & 6 (2018–2024): portrait MediaBox 595×842 + /Rotate 90
+  // → visual page is 842 wide × 595 tall. These numbers are exercised against
+  // the real June2018-41.pdf source in the fix-mark-scheme investigation (see
+  // conversation history) — rendering the resulting crop reproduced the
+  // prebuilt topical's Q2 content exactly, sideways-free and with no
+  // neighbouring-question bleed.
+
+  it("rotation 0 — behaves exactly like an un-rotated crop (no regression)", () => {
+    const result = rotatedCropBox(595, 842, 0, 100, 300);
+    expect(result).toEqual({
+      rotation: 0,
+      visW: 595,
+      cropH: 200, // 300 - 100
+      box: { left: 0, right: 595, bottom: 542, top: 742 }, // 842-300, 842-100
+    });
+  });
+
+  it("rotation 0 — a null yBot runs to the raw page height", () => {
+    const result = rotatedCropBox(595, 842, 0, 100, null);
+    expect(result.box).toEqual({ left: 0, right: 595, bottom: 0, top: 742 });
+    expect(result.cropH).toBe(742); // 842 - 100
+  });
+
+  it("rotation 90 — swaps visual width/height and maps top-origin y directly onto raw x", () => {
+    // June2018-41 p4, Q2: y_start 329.98 minus the MS headroom (2) = 327.98.
+    const result = rotatedCropBox(595, 842, 90, 327.98, 595);
+    expect(result.rotation).toBe(90);
+    expect(result.visW).toBe(842); // = raw height
+    expect(result.cropH).toBeCloseTo(267.02); // 595 - 327.98
+    expect(result.box).toEqual({ left: 327.98, right: 595, bottom: 0, top: 842 });
+  });
+
+  it("rotation 90 — a null yBot runs to the visual page height, not the raw one", () => {
+    // The bug this guards: using the raw height (842) here instead of the
+    // visual height (595, = raw width) swept in the next question's entire
+    // table row — the "irrelevant mark-scheme content" symptom.
+    const result = rotatedCropBox(595, 842, 90, 100, null);
+    expect(result.box.right).toBe(595); // visual height, i.e. raw width — NOT 842
+    expect(result.cropH).toBe(495); // 595 - 100
+  });
+
+  it("rotation 90 — a normalized-rotation source (270 rotation) still round-trips through modulo", () => {
+    // getRotation().angle is documented as always one of 0/90/180/270, but the
+    // normalisation (`((r % 360) + 360) % 360`) is defensive against a
+    // negative angle rather than assuming the library never hands one back.
+    expect(() => rotatedCropBox(595, 842, -270, 100, 300)).not.toThrow();
+    expect(rotatedCropBox(595, 842, -270, 100, 300)).toEqual(rotatedCropBox(595, 842, 90, 100, 300));
+  });
+
+  it("refuses 180°/270° rather than silently mis-rendering", () => {
+    // Never observed in the corpus (2025-era mark schemes are natively
+    // landscape with /Rotate 0), so there's no verified transform for them —
+    // guessing risks the exact "mis-cropped, sideways" bug this fixes.
+    expect(() => rotatedCropBox(595, 842, 180, 100, 300)).toThrow(/Unsupported source page rotation/);
+    expect(() => rotatedCropBox(595, 842, 270, 100, 300)).toThrow(/Unsupported source page rotation/);
   });
 });
