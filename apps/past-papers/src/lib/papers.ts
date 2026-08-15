@@ -22,6 +22,7 @@ const SUBJECT_DISPLAY_NAMES: Record<string, string> = {
   "0606": "Additional Mathematics",
   "0607": "International Mathematics",
   "0610": "Biology",
+  "0620": "Chemistry",
   "0625": "Physics",
 };
 

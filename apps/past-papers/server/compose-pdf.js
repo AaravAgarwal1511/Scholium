@@ -101,6 +101,14 @@ const SUBJECT_GEOMETRY = {
     markSchemes: { top: 2, bottom: 2 },
     hasStems: false,
   },
+  // Same pipeline as 0625/0610 — verified against Chemistry's own
+  // _build_topicals.py (BOTTOM_FOOTER_SENTINEL = 720.0, MARKER_HEADROOM = 8.0).
+  '0620': {
+    sentinel: 720.0,
+    questions: { top: 8, bottom: 8 },   // MARKER_HEADROOM
+    markSchemes: { top: 2, bottom: 2 },
+    hasStems: false,
+  },
 };
 
 export function geometryFor(subject) {
@@ -116,6 +124,7 @@ const SUBJECT_DISPLAY_NAMES = {
   '0606': 'Additional Mathematics',
   '0607': 'International Mathematics',
   '0610': 'Biology',
+  '0620': 'Chemistry',
   '0625': 'Physics',
 };
 
