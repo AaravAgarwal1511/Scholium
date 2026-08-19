@@ -1,4 +1,14 @@
-import { PDFDocument, PDFArray, StandardFonts, decodePDFRawStream, rgb, degrees } from 'pdf-lib';
+import {
+  PDFDocument,
+  PDFArray,
+  PDFDict,
+  PDFName,
+  PDFRawStream,
+  StandardFonts,
+  decodePDFRawStream,
+  rgb,
+  degrees,
+} from 'pdf-lib';
 import { createClient } from '@supabase/supabase-js';
 import { fetchRowsByIds } from './supabase-rows.js';
 import {
@@ -159,6 +169,7 @@ function makeCache() {
     indexes: new Map(),  // `${paperNum}/${kind}` → Map<stem, {meta, byQ, questions}>
     blank: new Map(),    // PDFDocument → Map<pageIndex, boolean>
     blankText: new Map(), // PDFDocument → Map<pageIndex, boolean>
+    streamLines: new Map(), // PDFDocument → Map<pageIndex, {lines, height}> (marks, no pdf.js)
     bytes: new Map(),    // PDFDocument → { key, bytes }  (for the text layer)
     chars: createCharIndex(),
   };
@@ -216,6 +227,614 @@ function pageHasBlankPageText(cache, srcDoc, pageIndex) {
   }
   perDoc.set(pageIndex, found);
   return found;
+}
+
+// --- Mark-token extraction, read straight off the raw content stream -------
+//
+// pdf.js's getTextContent() has repeatedly proven unreliable in the Vercel
+// serverless runtime for this app — three separate fixes (vendoring
+// pdfjs-dist's standard fonts in 6e87153, dropping @napi-rs/canvas for a pure
+// DOMMatrix polyfill in 96381f1/d8a1b55) still left it failing in prod while
+// working perfectly locally, which is why 7b5e419 stopped depending on it for
+// blank-page detection (pageHasBlankPageText, above) and reads the raw stream
+// instead. The "[n]" mark allocation is the same kind of literal ASCII text —
+// Cambridge draws it as one self-contained string per part (`( [1] )Tj`), not
+// split across a kerned TJ array (verified against the corpus) — so it reads
+// the same way pageHasBlankPageText does, with one addition: this needs the
+// token's Y position, not just a yes/no match, to know which question's crop
+// it falls inside. That means tracking the text line matrix through
+// Tm/Td/TD/T*, the same composition every PDF viewer performs, rather than
+// just concatenating literals.
+//
+// Verified against the corpus: Cambridge's content streams never wrap page
+// text in a non-identity `cm` (CTM) — `cm` only ever appears around answer-box
+// tick images (`q ... cm /ImN Do Q`), never around a BT/ET block — so page
+// user space can be treated as text space directly.
+
+// PDF matrix composition in the row-vector convention the spec itself uses to
+// define Td: "Tlm = [1 0 0 1 tx ty] × Tlm". `a` is applied first, then `b`.
+function composeMatrix(a, b) {
+  return [
+    a[0] * b[0] + a[1] * b[2],
+    a[0] * b[1] + a[1] * b[3],
+    a[2] * b[0] + a[3] * b[2],
+    a[2] * b[1] + a[3] * b[3],
+    a[4] * b[0] + a[5] * b[2] + b[4],
+    a[4] * b[1] + a[5] * b[3] + b[5],
+  ];
+}
+
+const IDENTITY_MATRIX = [1, 0, 0, 1, 0, 0];
+
+// A minimal content-stream tokenizer — just enough of the PDF operator
+// grammar to walk text-positioning and text-showing operators without
+// mistaking operands inside a `[...]` TJ array or a `(...)` string literal
+// for operators. Everything this doesn't specifically need (images, paths,
+// color, graphics state) still tokenizes correctly as opaque operators or
+// operands; the interpreter below simply ignores any operator it doesn't
+// recognize, discarding whatever operands preceded it — exactly how a real
+// content-stream interpreter treats operators it consumes but doesn't act on.
+export function tokenizeContentStream(stream) {
+  const tokens = [];
+  const n = stream.length;
+  let i = 0;
+
+  while (i < n) {
+    const c = stream[i];
+
+    if (c === '%') {
+      while (i < n && stream[i] !== '\n' && stream[i] !== '\r') i++;
+      continue;
+    }
+    if (c === ' ' || c === '\t' || c === '\r' || c === '\n' || c === '\f' || c === '\0') {
+      i++;
+      continue;
+    }
+    if (c === '(') {
+      // Balanced, escape-aware string literal. PDF string escapes: \n \r \t
+      // \b \f map to their control character, \( \) \\ map to the literal
+      // char (and — crucially — do NOT affect paren-depth balancing), a
+      // trailing \<EOL> is a line-continuation (no character emitted), and
+      // \ddd is a 1–3 digit octal character code. Getting this escape
+      // handling right is what keeps a "©" (`\251`) in a footer from
+      // desyncing the whole rest of the tokenizer.
+      let depth = 1;
+      let j = i + 1;
+      let buf = '';
+      while (j < n && depth > 0) {
+        const ch = stream[j];
+        if (ch === '\\') {
+          const next = stream[j + 1];
+          if (next === undefined) {
+            j++;
+            continue;
+          }
+          if (next >= '0' && next <= '7') {
+            let oct = next;
+            let k = j + 2;
+            for (let count = 0; count < 2 && stream[k] >= '0' && stream[k] <= '7'; count++, k++) {
+              oct += stream[k];
+            }
+            buf += String.fromCharCode(parseInt(oct, 8) & 0xff);
+            j = k;
+            continue;
+          }
+          if (next === '\n') {
+            j += 2;
+            continue;
+          }
+          if (next === '\r') {
+            j += stream[j + 2] === '\n' ? 3 : 2;
+            continue;
+          }
+          const escapeMap = { n: '\n', r: '\r', t: '\t', b: '\b', f: '\f' };
+          buf += escapeMap[next] ?? next;
+          j += 2;
+          continue;
+        }
+        if (ch === '(') {
+          depth++;
+          buf += ch;
+          j++;
+          continue;
+        }
+        if (ch === ')') {
+          depth--;
+          j++;
+          if (depth > 0) buf += ch;
+          continue;
+        }
+        buf += ch;
+        j++;
+      }
+      tokens.push({ type: 'str', value: buf });
+      i = j;
+      continue;
+    }
+    if (c === '<') {
+      if (stream[i + 1] === '<') {
+        // Inline dict (e.g. a BDC property list) — skip the balanced pair,
+        // no text ever lives inside one.
+        let depth = 1;
+        let j = i + 2;
+        while (j < n && depth > 0) {
+          if (stream[j] === '<' && stream[j + 1] === '<') {
+            depth++;
+            j += 2;
+            continue;
+          }
+          if (stream[j] === '>' && stream[j + 1] === '>') {
+            depth--;
+            j += 2;
+            continue;
+          }
+          j++;
+        }
+        i = j;
+        continue;
+      }
+      // Hex string. Some pages show text with `<0003>Tj` instead of a
+      // parenthesized literal (verified against the corpus — 0620 Paper 4
+      // June2018-41.pdf draws marks tokens exactly this way), so this must
+      // decode to the same raw-byte representation `(...)` strings do — an
+      // odd digit count pads a trailing 0 per the PDF spec — and come out as
+      // an ordinary `str` token so every downstream consumer (showOperand,
+      // decodeShownBytes) needs no separate hex-string path at all.
+      let j = i + 1;
+      while (j < n && stream[j] !== '>') j++;
+      let hex = stream.slice(i + 1, j).replace(/\s+/g, '');
+      if (hex.length % 2 !== 0) hex += '0';
+      let bytes = '';
+      for (let k = 0; k < hex.length; k += 2) {
+        bytes += String.fromCharCode(parseInt(hex.slice(k, k + 2), 16) || 0);
+      }
+      tokens.push({ type: 'str', value: bytes });
+      i = j + 1;
+      continue;
+    }
+    if (c === '[') {
+      tokens.push({ type: 'arrstart' });
+      i++;
+      continue;
+    }
+    if (c === ']') {
+      tokens.push({ type: 'arrend' });
+      i++;
+      continue;
+    }
+    if (c === '/') {
+      let j = i + 1;
+      while (j < n && !/[\s()<>[\]{}/%]/.test(stream[j])) j++;
+      tokens.push({ type: 'name', value: stream.slice(i, j) });
+      i = j;
+      continue;
+    }
+    if (c === '{' || c === '}') {
+      i++; // PostScript calculator functions — not used in content streams.
+      continue;
+    }
+    if (c === '-' || c === '+' || c === '.' || (c >= '0' && c <= '9')) {
+      let j = i + 1;
+      while (j < n && /[-+.0-9eE]/.test(stream[j])) j++;
+      const num = parseFloat(stream.slice(i, j));
+      tokens.push({ type: 'num', value: Number.isFinite(num) ? num : 0 });
+      i = j;
+      continue;
+    }
+    if (c === "'" || c === '"') {
+      tokens.push({ type: 'op', value: c });
+      i++;
+      continue;
+    }
+    if (/[A-Za-z*]/.test(c)) {
+      let j = i + 1;
+      while (j < n && /[A-Za-z0-9*]/.test(stream[j])) j++;
+      tokens.push({ type: 'op', value: stream.slice(i, j) });
+      i = j;
+      continue;
+    }
+    i++; // stray byte between tokens — skip rather than risk misreading it as one.
+  }
+
+  return tokens;
+}
+
+// A run of text shown by a composite (Type0) font is not ASCII bytes — it's a
+// sequence of 2-byte CIDs (glyph indices), meaningless without that specific
+// font's own `/ToUnicode` CMap. Verified against the corpus: 0607 Paper 4
+// draws a question's own "[2]" mark allocation through exactly such a font
+// (`/C2_0`, `[(\000>\000\025\000@)] TJ`) — the bytes 0x003E/0x0015/0x0040 are
+// not '[' '2' ']' in any byte encoding; only that font's ToUnicode CMap says
+// so. `beginbfchar`/`beginbfrange` is a small, fully self-contained format
+// (PDF spec §9.10.3) — no font-program parsing needed, just this text block.
+export function parseToUnicodeCMap(cmapText) {
+  const map = new Map();
+  const hexToCode = (hex) => parseInt(hex, 16);
+  // A `dst` is hex-encoded UTF-16BE; almost always one BMP code point (4 hex
+  // digits) for the glyphs a mark token is drawn with, but decode in general.
+  const hexToText = (hex) => {
+    let text = '';
+    for (let i = 0; i + 4 <= hex.length; i += 4) {
+      text += String.fromCharCode(parseInt(hex.slice(i, i + 4), 16));
+    }
+    return text;
+  };
+
+  for (const block of cmapText.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
+    for (const m of block[1].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) {
+      map.set(hexToCode(m[1]), hexToText(m[2]));
+    }
+  }
+
+  for (const block of cmapText.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
+    // One pass handling both range forms — <lo> <hi> [<d0> <d1> ...] (explicit
+    // per-code destinations) and <lo> <hi> <dst> (dst increments per code) —
+    // as alternatives of the same match, so the array form's own bracketed
+    // <..> entries are consumed as part of that match and never separately
+    // misread as the start of a <lo> <hi> <dst> triple.
+    const re = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*(?:\[([\s\S]*?)\]|<([0-9A-Fa-f]+)>)/g;
+    for (const m of block[1].matchAll(re)) {
+      const lo = hexToCode(m[1]);
+      if (m[3] !== undefined) {
+        const items = [...m[3].matchAll(/<([0-9A-Fa-f]+)>/g)].map((x) => hexToText(x[1]));
+        items.forEach((text, i) => map.set(lo + i, text));
+      } else {
+        const hi = hexToCode(m[2]);
+        const dstCode = hexToCode(m[4]);
+        for (let c = lo; c <= hi; c++) map.set(c, String.fromCharCode(dstCode + (c - lo)));
+      }
+    }
+  }
+
+  return map;
+}
+
+// Decodes one shown string's raw bytes into text, given what's known about the
+// font that drew it. A simple font (Type1/TrueType/Type3 — everything this
+// corpus uses outside the occasional composite math/symbol run) is one byte
+// per character and those bytes are already the right Latin-1/ASCII codes for
+// every character a mark token or its surrounding words use — verified
+// against 7 of 8 sampled subjects matching their official totals exactly with
+// no decoding at all. A composite (Type0) font is 2-byte CIDs that only its
+// own ToUnicode map can resolve; a code with no entry contributes nothing
+// (never a guess).
+function decodeShownBytes(rawBytes, fontInfo) {
+  if (!fontInfo || !fontInfo.composite) return rawBytes;
+  if (!fontInfo.toUnicode) return '';
+  let text = '';
+  for (let i = 0; i + 1 < rawBytes.length; i += 2) {
+    const code = (rawBytes.charCodeAt(i) << 8) | rawBytes.charCodeAt(i + 1);
+    text += fontInfo.toUnicode.get(code) ?? '';
+  }
+  return text;
+}
+
+// A Form XObject can invoke another Form XObject; guard against a cyclic or
+// pathologically deep reference chain (never observed in the corpus, but this
+// is untrusted-ish PDF structure) rather than recursing without bound.
+const MAX_XOBJECT_DEPTH = 8;
+
+// Interprets the text-positioning/showing subset of the operator stream, plus
+// enough of the graphics-state subset (q/Q/cm/Do) to follow a page's content
+// out into any Form XObjects it invokes, to recover each show-text
+// operation's line in TOP-origin points (matching every other y-coordinate
+// this composer works with — see pageSpecs).
+//
+// Every position is read as the `f` component of Tm∘CTM — the mapping of the
+// text-space origin through both the current text matrix AND the current
+// graphics-state transform. Tracking CTM at all (via q/Q/cm) exists for one
+// reason: Cambridge's newest export pipeline (November 2025 papers, verified
+// against the corpus) wraps a page's entire real content in one Form XObject
+// invoked via `cm ... /R Do` — a flat page-content-stream reader sees nothing
+// but that one `Do` call and reports zero marks on an otherwise normal paper.
+// Recursing into that XObject needs its invocation's CTM (and its own
+// `/Matrix`) composed in, or text drawn inside would be positioned as if the
+// XObject were never transformed at all.
+//
+// `opts.resolveFont(name)` — optional — looks up `{composite, toUnicode}` for
+// a font named by `Tf` (see decodeShownBytes). `opts.resolveXObject(name)` —
+// optional — looks up `{subtype, content, matrix, resolveFont,
+// resolveXObject}` for a name used by `Do`; only `subtype === 'Form'` is
+// followed (an Image XObject carries no text). Omitting either treats that
+// operator as a no-op, which is what every test predating XObject support
+// exercises and keeps this function's behavior unchanged without them.
+//
+// Returns one *unmerged* part per show-text operation — `{x, y, text}`, in
+// TOP-origin points. Grouping same-baseline parts into logical lines is a
+// separate step (see mergeMarkParts) done once, after XObject recursion has
+// flattened everything for the whole page: Cambridge's own generator
+// routinely splits a single printed run across several Tj/TJ calls with zero
+// actual gap between them (a bracket in one font, a digit in another; a
+// kerning nudge that happens to have ty=0) — verified against the corpus,
+// e.g. 0620 Paper 4's own "[3]" mark allocation is drawn as two adjacent
+// calls, "[" then "3]" — so nothing about *this* function's job (walking
+// operators, tracking state) should also be deciding where a "line" ends.
+export function partsFromContentStreamTokens(tokens, height, opts = {}) {
+  const { resolveFont, resolveXObject, ctm: initialCtm = IDENTITY_MATRIX, depth = 0 } = opts;
+  const parts = [];
+  let tlm = IDENTITY_MATRIX;
+  let ctm = initialCtm;
+  let currentFont = null;
+  // Font selection (Tf) is a graphics-state parameter, not a text-object one —
+  // it is saved/restored by q/Q exactly like CTM (PDF spec §8.4, §9.3). Real
+  // corpus bug this fixes: a q…Tf…Q block that only ever *temporarily*
+  // switches font (a superscript/subscript run in a different size, say) was
+  // leaking its font selection past the Q, so a mark token shown afterward
+  // with no intervening Tf of its own was decoded under the wrong font
+  // entirely — silently producing garbage instead of "[3]".
+  const gStateStack = [];
+  let leading = 0;
+  const operands = [];
+
+  const numAt = (offsetFromEnd) => {
+    const t = operands[operands.length + offsetFromEnd];
+    return t && t.type === 'num' ? t.value : 0;
+  };
+  const currentPoint = () => {
+    const m = composeMatrix(tlm, ctm);
+    return { x: m[4], y: height - m[5] };
+  };
+  const moveTo = (tx, ty) => {
+    tlm = composeMatrix([1, 0, 0, 1, tx, ty], tlm);
+  };
+  const showString = (rawBytes) => {
+    const fontInfo = resolveFont && currentFont ? resolveFont(currentFont) : null;
+    const text = decodeShownBytes(rawBytes, fontInfo);
+    // An empty decode happens for a genuinely empty PDF string and for a
+    // composite-font run with no ToUnicode entry for its code(s) — neither
+    // carries anything marksInRegion could match.
+    if (!text) return;
+    const { x, y } = currentPoint();
+    parts.push({ x, y, text });
+  };
+
+  for (const tok of tokens) {
+    if (tok.type === 'num' || tok.type === 'str' || tok.type === 'name') {
+      operands.push(tok);
+      continue;
+    }
+    if (tok.type === 'arrstart') {
+      operands.push({ type: 'arrstart' });
+      continue;
+    }
+    if (tok.type === 'arrend') {
+      const items = [];
+      let x = operands.pop();
+      while (x && x.type !== 'arrstart') {
+        items.unshift(x);
+        x = operands.pop();
+      }
+      operands.push({ type: 'arr', items });
+      continue;
+    }
+    if (tok.type !== 'op') continue;
+
+    switch (tok.value) {
+      case 'q':
+        gStateStack.push({ ctm, font: currentFont });
+        break;
+      case 'Q':
+        if (gStateStack.length) {
+          const restored = gStateStack.pop();
+          ctm = restored.ctm;
+          currentFont = restored.font;
+        }
+        break;
+      case 'cm': {
+        const m = [numAt(-6), numAt(-5), numAt(-4), numAt(-3), numAt(-2), numAt(-1)];
+        ctm = composeMatrix(m, ctm);
+        break;
+      }
+      case 'Do': {
+        const nameTok = operands[operands.length - 1];
+        if (nameTok?.type === 'name' && resolveXObject && depth < MAX_XOBJECT_DEPTH) {
+          const xobj = resolveXObject(nameTok.value.slice(1));
+          if (xobj?.subtype === 'Form') {
+            const childCtm = composeMatrix(xobj.matrix ?? IDENTITY_MATRIX, ctm);
+            const childParts = partsFromContentStreamTokens(
+              tokenizeContentStream(xobj.content),
+              height,
+              {
+                resolveFont: xobj.resolveFont,
+                resolveXObject: xobj.resolveXObject,
+                ctm: childCtm,
+                depth: depth + 1,
+              },
+            );
+            parts.push(...childParts);
+          }
+        }
+        break;
+      }
+      case 'BT':
+        tlm = IDENTITY_MATRIX;
+        leading = 0;
+        break;
+      case 'Td':
+        moveTo(numAt(-2), numAt(-1));
+        break;
+      case 'TD':
+        leading = -numAt(-1);
+        moveTo(numAt(-2), numAt(-1));
+        break;
+      case 'Tm':
+        tlm = [numAt(-6), numAt(-5), numAt(-4), numAt(-3), numAt(-2), numAt(-1)];
+        break;
+      case 'T*':
+        moveTo(0, -leading);
+        break;
+      case 'TL':
+        leading = numAt(-1);
+        break;
+      case 'Tf': {
+        const nameTok = operands[operands.length - 2];
+        if (nameTok && nameTok.type === 'name') currentFont = nameTok.value.slice(1);
+        break;
+      }
+      case 'Tj': {
+        const s = operands[operands.length - 1];
+        if (s && s.type === 'str') showString(s.value);
+        break;
+      }
+      case "'": {
+        // Move-to-next-line-then-show, per the spec definition of `'`.
+        moveTo(0, -leading);
+        const s = operands[operands.length - 1];
+        if (s && s.type === 'str') showString(s.value);
+        break;
+      }
+      case '"': {
+        // `aw ac string "` — same move as `'`; the leading two operands are
+        // word/char spacing, irrelevant to position.
+        moveTo(0, -leading);
+        const s = operands[operands.length - 1];
+        if (s && s.type === 'str') showString(s.value);
+        break;
+      }
+      case 'TJ': {
+        const arr = operands[operands.length - 1];
+        if (arr && arr.type === 'arr') {
+          for (const item of arr.items) {
+            if (item.type === 'str') showString(item.value);
+          }
+        }
+        break;
+      }
+      default:
+        break;
+    }
+    operands.length = 0;
+  }
+
+  return parts;
+}
+
+// Groups same-baseline parts into one line, ordered left-to-right, joined
+// with NO separator — deliberately unlike page-chars.js's mergeLines, which
+// joins with a space (right for reassembling a word-boundary banner like
+// "BLANK PAGE" out of separate items). Cambridge's generator draws a mark
+// allocation's bracket and digit as directly-adjacent separate Tj/TJ calls
+// with zero real gap (see partsFromContentStreamTokens); a space-joining
+// merge would put a space inside "[3]" and break marksInRegion's match. The
+// opposite failure — losing a real space between two unrelated words — is
+// harmless here: nothing this composer looks for spans a word boundary.
+const MARK_LINE_TOL = 2;
+function mergeMarkParts(parts) {
+  const lines = [];
+  for (const part of parts) {
+    const line = lines.find((l) => Math.abs(l.y - part.y) <= MARK_LINE_TOL);
+    if (line) line.parts.push(part);
+    else lines.push({ y: part.y, parts: [part] });
+  }
+  return lines.map(({ y, parts: lineParts }) => ({
+    y,
+    text: [...lineParts]
+      .sort((a, b) => a.x - b.x)
+      .map((p) => p.text)
+      .join(''),
+  }));
+}
+
+export function contentStreamTextLines(stream, height, opts) {
+  return mergeMarkParts(partsFromContentStreamTokens(tokenizeContentStream(stream), height, opts));
+}
+
+// Resolves the font and Form-XObject names a content stream can reference via
+// `Tf`/`Do` against one /Resources dict — a page's own, or a Form XObject's
+// own (a Form only falls back to the invoking scope's resources when it omits
+// `/Resources` entirely, which the spec allows but this corpus's own XObjects
+// never do). Recursing into a nested Form XObject calls this again against
+// *its* Resources, so a font named "/F0" inside one XObject can never resolve
+// against a same-named-but-different font in the page or another XObject.
+//
+// Failing to resolve anything (missing Resources, unknown name, no
+// ToUnicode) is not an error — it just means that text can't be decoded or
+// that XObject can't be followed, same fallback quality as a genuinely
+// undecodable code point.
+export function makeResourceResolver(srcDoc, resourcesDict) {
+  const fontMemo = new Map();
+  const xobjMemo = new Map();
+
+  const resolveFont = (fontName) => {
+    if (fontMemo.has(fontName)) return fontMemo.get(fontName);
+    let info = { composite: false, toUnicode: null };
+    try {
+      const fontDict = resourcesDict?.lookup(PDFName.of('Font'), PDFDict);
+      const ref = fontDict?.get(PDFName.of(fontName));
+      if (ref) {
+        const dict = srcDoc.context.lookup(ref, PDFDict);
+        const subtype = dict.get(PDFName.of('Subtype'));
+        if (subtype?.encodedName === '/Type0') {
+          info.composite = true;
+          const toUniRef = dict.get(PDFName.of('ToUnicode'));
+          if (toUniRef) {
+            const stream = srcDoc.context.lookup(toUniRef, PDFRawStream);
+            const text = Buffer.from(decodePDFRawStream(stream).decode()).toString('latin1');
+            info.toUnicode = parseToUnicodeCMap(text);
+          }
+        }
+      }
+    } catch {
+      info = { composite: false, toUnicode: null };
+    }
+    fontMemo.set(fontName, info);
+    return info;
+  };
+
+  const resolveXObject = (xobjName) => {
+    if (xobjMemo.has(xobjName)) return xobjMemo.get(xobjName);
+    let info = null;
+    try {
+      const xobjDict = resourcesDict?.lookup(PDFName.of('XObject'), PDFDict);
+      const ref = xobjDict?.get(PDFName.of(xobjName));
+      if (ref) {
+        const stream = srcDoc.context.lookup(ref, PDFRawStream);
+        const subtype = stream.dict.get(PDFName.of('Subtype'));
+        if (subtype?.encodedName === '/Form') {
+          const matrixArr = stream.dict.get(PDFName.of('Matrix'));
+          const matrix = matrixArr ? matrixArr.asArray() : IDENTITY_MATRIX;
+          const ownResRef = stream.dict.get(PDFName.of('Resources'));
+          const ownRes = ownResRef ? srcDoc.context.lookup(ownResRef, PDFDict) : resourcesDict;
+          const content = Buffer.from(decodePDFRawStream(stream).decode()).toString('latin1');
+          const child = makeResourceResolver(srcDoc, ownRes);
+          info = { subtype: 'Form', content, matrix, ...child };
+        }
+      }
+    } catch {
+      info = null;
+    }
+    xobjMemo.set(xobjName, info);
+    return info;
+  };
+
+  return { resolveFont, resolveXObject };
+}
+
+// Cached per (srcDoc, pageIndex), same pattern as isBlankPage/
+// pageHasBlankPageText. Fails safe to an empty page — the caller's fallback
+// (1 mark for a question with no token found) already covers "this page's
+// text couldn't be read" exactly as it covers "this is a multiple-choice
+// question that never prints one".
+function pageMarkLines(cache, srcDoc, pageIndex) {
+  let perDoc = cache.streamLines.get(srcDoc);
+  if (!perDoc) cache.streamLines.set(srcDoc, (perDoc = new Map()));
+  if (perDoc.has(pageIndex)) return perDoc.get(pageIndex);
+
+  let page = { lines: [], height: 0 };
+  try {
+    const srcPage = srcDoc.getPage(pageIndex);
+    let contents = srcPage.node.Contents();
+    if (contents instanceof PDFArray) contents = contents.lookup(0);
+    const bytes = decodePDFRawStream(contents).decode();
+    const stream = Buffer.from(bytes).toString('latin1');
+    const height = srcPage.getHeight();
+    const { resolveFont, resolveXObject } = makeResourceResolver(srcDoc, srcPage.node.Resources());
+    page = { lines: contentStreamTextLines(stream, height, { resolveFont, resolveXObject }), height };
+  } catch (err) {
+    console.warn(`  ⚠️  Content-stream text read failed: ${err.message}`);
+  }
+  perDoc.set(pageIndex, page);
+  return page;
 }
 
 async function loadIndex(cache, loader, paperNum, kind) {
@@ -750,27 +1369,28 @@ class PageLayout {
   }
 }
 
-// Sums the "[n]" mark tokens (see marksInRegion) whose baseline falls inside the
-// crops actually kept for one question, deduped so a stem crop overlapping its
-// own sub-part crop cannot double-count a token both see. Falls back to 1 mark
-// when the question yields no token at all — multiple-choice papers never print
-// one. `collector.total` accumulates across the whole section; a thrown text-
-// layer read sets `collector.unreadable` so the caller can skip printing a total
-// that would otherwise be silently short, rather than guess.
-export async function collectQuestionMarks(cache, srcDoc, specs, collector) {
-  const source = cache.bytes.get(srcDoc);
-  if (!source) {
-    collector.unreadable = true;
-    return;
-  }
+// Sums the "[n]" mark tokens (see marksInRegion, fed by pageMarkLines above —
+// deliberately not the pdf.js-backed cache.chars, per the history at
+// pageHasBlankPageText) whose baseline falls inside the crops actually kept
+// for one question, deduped so a stem crop overlapping its own sub-part crop
+// cannot double-count a token both see. Falls back to 1 mark when the
+// question yields no token at all — multiple-choice papers never print one.
+// `collector.total` accumulates across the whole section; `collector.seen` is
+// keyed per srcDoc (not just page number + position) since a Questions
+// section spans many distinct exam PDFs that each restart their own page
+// numbering, so "page 3" alone cannot disambiguate them.
+export function collectQuestionMarks(cache, srcDoc, specs, collector) {
+  let seenForDoc = collector.seen.get(srcDoc);
+  if (!seenForDoc) collector.seen.set(srcDoc, (seenForDoc = new Set()));
+
   let total = 0;
   try {
     for (const spec of specs) {
-      const page = await cache.chars.pageChars(source.key, source.bytes, spec.page);
+      const page = pageMarkLines(cache, srcDoc, spec.page - 1);
       for (const hit of marksInRegion(page, spec.yTop, spec.yBot)) {
-        const dedupeKey = `${source.key}:${spec.page}:${hit.y.toFixed(1)}:${hit.i}`;
-        if (collector.seen.has(dedupeKey)) continue;
-        collector.seen.add(dedupeKey);
+        const dedupeKey = `${spec.page}:${hit.y.toFixed(1)}:${hit.i}`;
+        if (seenForDoc.has(dedupeKey)) continue;
+        seenForDoc.add(dedupeKey);
         total += hit.marks;
       }
     }
@@ -884,7 +1504,7 @@ async function renderSection(layout, cache, items, kind, loader, order, geom, ma
       }));
 
       if (marksCollector && kind === 'questions') {
-        await collectQuestionMarks(cache, srcDoc, keptSpecs, marksCollector);
+        collectQuestionMarks(cache, srcDoc, keptSpecs, marksCollector);
       }
 
       if (withStems) {
@@ -985,7 +1605,7 @@ export async function composePdf(questionIds, subject, loader, options = {}) {
   const willDrawTotal = !markSchemeOnly && includeMarkScheme && msItems.length > 0;
 
   // Section 1 — Questions
-  const marksCollector = willDrawTotal ? { total: 0, seen: new Set(), unreadable: false } : null;
+  const marksCollector = willDrawTotal ? { total: 0, seen: new Map(), unreadable: false } : null;
   if (!markSchemeOnly) {
     layout.sectionHeader('Questions', coverTitle);
     coverDrawn = true;
