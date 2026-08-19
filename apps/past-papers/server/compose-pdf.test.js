@@ -8,6 +8,7 @@ import {
   compareQ,
   PAPER_ORDERS,
   rotatedCropBox,
+  collectQuestionMarks,
 } from "./compose-pdf.js";
 
 // Crop geometry is per subject now (the extraction pipelines diverged), so the
@@ -272,5 +273,100 @@ describe("rotatedCropBox — placing a crop on a rotated source page", () => {
     // guessing risks the exact "mis-cropped, sideways" bug this fixes.
     expect(() => rotatedCropBox(595, 842, 180, 100, 300)).toThrow(/Unsupported source page rotation/);
     expect(() => rotatedCropBox(595, 842, 270, 100, 300)).toThrow(/Unsupported source page rotation/);
+  });
+});
+
+// The total-marks footer's aggregation step: how many marks one question's kept
+// crops are actually worth, read straight off the source PDF's own "[n]" text
+// (see marksInRegion in page-chars.js) since questions_metadata carries no
+// marks column at all.
+describe("collectQuestionMarks — per-question mark aggregation", () => {
+  // A minimal stand-in for makeCache()'s `{ bytes, chars }` pair: `pages` maps
+  // page number → the {lines, height} shape marksInRegion reads, keyed exactly
+  // as cache.chars.pageChars(key, bytes, pageNum) would resolve it.
+  function fakeCache(pages, { throws = false } = {}) {
+    const srcDoc = {};
+    const cache = {
+      bytes: new Map([[srcDoc, { key: "stem", bytes: null }]]),
+      chars: {
+        async pageChars(_key, _bytes, pageNum) {
+          if (throws) throw new Error("pdf.js blew up");
+          return pages[pageNum] ?? { lines: [], height: 842 };
+        },
+      },
+    };
+    return { cache, srcDoc };
+  }
+
+  it("sums the [n] tokens found across a question's kept crops", async () => {
+    const { cache, srcDoc } = fakeCache({
+      2: { height: 842, lines: [{ y: 300, text: "(a) [2]" }] },
+      3: { height: 842, lines: [{ y: 100, text: "(b) [4]" }] },
+    });
+    const collector = { total: 0, seen: new Set(), unreadable: false };
+    await collectQuestionMarks(
+      cache,
+      srcDoc,
+      [
+        { page: 2, yTop: 0, yBot: null },
+        { page: 3, yTop: 0, yBot: null },
+      ],
+      collector,
+    );
+    expect(collector.total).toBe(6);
+    expect(collector.unreadable).toBe(false);
+  });
+
+  it("falls back to 1 mark for a question with no readable token (the MCQ convention)", async () => {
+    const { cache, srcDoc } = fakeCache({
+      5: { height: 842, lines: [{ y: 200, text: "1 A" }] },
+    });
+    const collector = { total: 0, seen: new Set(), unreadable: false };
+    await collectQuestionMarks(cache, srcDoc, [{ page: 5, yTop: 0, yBot: null }], collector);
+    expect(collector.total).toBe(1);
+  });
+
+  it("dedupes a token seen through two overlapping crops (e.g. a stem crop and its sub-part)", async () => {
+    const { cache, srcDoc } = fakeCache({
+      4: { height: 842, lines: [{ y: 150, text: "(a) [3]" }] },
+    });
+    const collector = { total: 0, seen: new Set(), unreadable: false };
+    // Two specs on the same page whose y-ranges both cover y=150 — the stem crop
+    // (0..842) and a narrower sub-part crop (100..300) both "see" the same line.
+    await collectQuestionMarks(
+      cache,
+      srcDoc,
+      [
+        { page: 4, yTop: 0, yBot: null },
+        { page: 4, yTop: 100, yBot: 300 },
+      ],
+      collector,
+    );
+    expect(collector.total).toBe(3);
+  });
+
+  it("accumulates across repeated calls, as renderSection does across a whole section", async () => {
+    const { cache, srcDoc } = fakeCache({
+      1: { height: 842, lines: [{ y: 90, text: "[5]" }] },
+      2: { height: 842, lines: [{ y: 90, text: "[7]" }] },
+    });
+    const collector = { total: 0, seen: new Set(), unreadable: false };
+    await collectQuestionMarks(cache, srcDoc, [{ page: 1, yTop: 0, yBot: null }], collector);
+    await collectQuestionMarks(cache, srcDoc, [{ page: 2, yTop: 0, yBot: null }], collector);
+    expect(collector.total).toBe(12);
+  });
+
+  it("marks the collector unreadable, rather than guessing, when the text layer throws", async () => {
+    const { cache, srcDoc } = fakeCache({}, { throws: true });
+    const collector = { total: 0, seen: new Set(), unreadable: false };
+    await collectQuestionMarks(cache, srcDoc, [{ page: 1, yTop: 0, yBot: null }], collector);
+    expect(collector.unreadable).toBe(true);
+    expect(collector.total).toBe(0);
+  });
+
+  it("marks the collector unreadable when the source bytes were never cached for this doc", async () => {
+    const collector = { total: 0, seen: new Set(), unreadable: false };
+    await collectQuestionMarks({ bytes: new Map() }, {}, [{ page: 1, yTop: 0, yBot: null }], collector);
+    expect(collector.unreadable).toBe(true);
   });
 });

@@ -38,6 +38,15 @@ export const CACHE_PREFIX = '_cache';
 // v5 (2026-08-01): the first section-divider page now also prints the subject
 // name + paper number above "Questions"/"Mark Scheme", so every v4 object is
 // missing that title.
+//
+// Deliberately NOT bumped for the "Total: N marks" footer added 2026-08-19: it
+// only ever appears when a Questions section is followed by a Mark Scheme
+// section in the same document, which chapterCacheKey's callers never produce
+// (kind is always 'qp'-only or 'ms'-only — see chapter-handler.js) — so no
+// object keyed here can be affected. generatedCacheKey hashes the composed
+// bytes directly, so a changed /generate paper already gets a new key on its
+// own; nothing under this prefix would be orphaned by bumping, but nothing
+// needs it either.
 const CACHE_VERSION = 'v5';
 
 const R2_PUBLIC_URL = (
