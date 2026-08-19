@@ -1,12 +1,15 @@
-import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { Link } from "react-router-dom";
+import { toast } from "sonner";
 import { useAnalytics } from "@repo/analytics";
-import { ChevronLeft, Zap, Download, AlertCircle } from "lucide-react";
+import { Zap, Download, AlertCircle, CheckCircle2, ExternalLink } from "lucide-react";
 import Layout from "@/components/Layout";
 import Tetris from "@/components/Tetris";
 import CalculatorAlert from "@/components/CalculatorAlert";
 import { EmptyState } from "@/components/StateViews";
 import { useAsync } from "@/hooks/useAsync";
+import { useAuth } from "@/contexts/AuthContext";
+import { stageForMockSpace, MOCK_SPACE_URL } from "@/lib/mockSpaceHandoff";
 import {
   listSubjects,
   listComponents,
@@ -161,9 +164,13 @@ function GeneratingOverlay({
   );
 }
 
-export default function GeneratePaperPage() {
-  const navigate = useNavigate();
+interface GeneratePaperPageProps {
+  description?: string | null;
+}
+
+export default function GeneratePaperPage({ description }: GeneratePaperPageProps = {}) {
   const { track } = useAnalytics();
+  const { user, loadingAuth } = useAuth();
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
   const [selectedComponent, setSelectedComponent] = useState<string | null>(
     null
@@ -179,6 +186,12 @@ export default function GeneratePaperPage() {
   const [elapsed, setElapsed] = useState(0);
   const [estimate, setEstimate] = useState(0);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ paper: GeneratedPaper; fileName: string } | null>(null);
+  const [handingOff, setHandingOff] = useState(false);
+  // True for a few seconds right after a paper finishes generating, driving the
+  // one-shot attention ring on the primary action below (see the effect below).
+  const [justGenerated, setJustGenerated] = useState(false);
+  const resultSectionRef = useRef<HTMLElement>(null);
 
   // Count up while a paper is composing, so the overlay can show elapsed time and
   // advance the progress bar against the estimate.
@@ -189,6 +202,20 @@ export default function GeneratePaperPage() {
     const id = setInterval(() => setElapsed((performance.now() - start) / 1000), 200);
     return () => clearInterval(id);
   }, [isGenerating]);
+
+  // A fresh result scrolls itself into view and briefly rings the primary
+  // action, so a paper generated below the fold doesn't go unnoticed.
+  useEffect(() => {
+    if (!result) return;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    resultSectionRef.current?.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "start",
+    });
+    setJustGenerated(true);
+    const id = setTimeout(() => setJustGenerated(false), 2400);
+    return () => clearTimeout(id);
+  }, [result]);
 
   // Load subjects
   const { data: subjects, loading: loadingSubjects } = useAsync(
@@ -298,6 +325,7 @@ export default function GeneratePaperPage() {
     setPickedFrom(null);
     setPickedTo(null);
     setGenerateError(null);
+    setResult(null);
   };
 
   const handleSubjectSelect = (subject: string) => {
@@ -315,11 +343,13 @@ export default function GeneratePaperPage() {
     setPickedFrom(next);
     if (next > yearTo) setPickedTo(next);
     setGenerateError(null);
+    setResult(null);
   };
 
   const handleYearTo = (next: number) => {
     setPickedTo(next);
     setGenerateError(null);
+    setResult(null);
   };
 
   const handleChapterToggle = (chapter: number, count: number) => {
@@ -333,6 +363,7 @@ export default function GeneratePaperPage() {
       return updated;
     });
     setGenerateError(null);
+    setResult(null);
   };
 
   // Additional Mathematics (0606) Paper 1 — flags the pre-2025 calculator
@@ -363,6 +394,7 @@ export default function GeneratePaperPage() {
     setEstimate(estimateGenerationSeconds(totalQuestions));
     setIsGenerating(true);
     setGenerateError(null);
+    setResult(null);
     track("generate_submit", {
       subject: selectedSubject,
       component: selectedComponent ?? "",
@@ -403,7 +435,7 @@ export default function GeneratePaperPage() {
         questions: selectedQuestionIds.length,
       });
 
-      downloadPaper(paper, fileName);
+      setResult({ paper, fileName });
     } catch (error) {
       track("generate_failed", {
         reason: error instanceof Error ? error.message.slice(0, 64) : "unknown",
@@ -417,16 +449,54 @@ export default function GeneratePaperPage() {
     }
   };
 
+  // Uploads the generated paper into the user's mock-space-papers folder and
+  // deep-links to mock-space's /open route, which downloads it back out, starts
+  // an attempt, and deletes this handoff copy. Disabled entirely when signed out
+  // — see the button below — so `user` is always set here.
+  //
+  // Deliberately does NOT open a blank tab up front and fill it in later: that
+  // leaves an "about:blank" tab sitting there for however long the upload takes,
+  // which reads as broken rather than loading. window.open is only ever called
+  // with the real destination, so the new tab shows real content the instant it
+  // exists. The tradeoff is that on a slow upload the browser's popup blocker
+  // can refuse a window.open this far from the click that started it — a toast
+  // with its own "Open" action is the recovery path, since that click is a
+  // fresh user gesture and is never itself blocked.
+  const handleOpenInMockSpace = async () => {
+    if (!result || !user) return;
+    setHandingOff(true);
+    setGenerateError(null);
+    try {
+      const id = await stageForMockSpace(user.id, result.paper);
+      const title = result.fileName.replace(/\.pdf$/i, "");
+      const url = `${MOCK_SPACE_URL}/open?paper=${id}&title=${encodeURIComponent(title)}`;
+      const tab = window.open(url, "_blank");
+      if (tab) {
+        tab.opener = null;
+      } else {
+        toast.error("Your browser blocked the new tab", {
+          description: "Your paper is ready — open it in Mock Space when you're set.",
+          action: {
+            label: "Open in Mock Space",
+            onClick: () => {
+              const retry = window.open(url, "_blank");
+              if (retry) retry.opener = null;
+            },
+          },
+        });
+      }
+    } catch (error) {
+      setGenerateError(
+        error instanceof Error ? error.message : "Could not open this paper in Mock Space"
+      );
+    } finally {
+      setHandingOff(false);
+    }
+  };
+
   return (
-    <Layout>
+    <Layout subtitle={description ?? undefined}>
       {isGenerating && <GeneratingOverlay elapsed={elapsed} estimate={estimate} />}
-      <button
-        onClick={() => navigate("/")}
-        className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mb-6"
-      >
-        <ChevronLeft size={16} />
-        Back
-      </button>
 
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-3">
@@ -620,10 +690,14 @@ export default function GeneratePaperPage() {
                       </div>
                       {isSelected && (
                         <div className="flex items-center gap-2">
-                          <label className="text-xs font-medium text-muted-foreground">
+                          <label
+                            htmlFor={`generate-question-count-${ch.number}`}
+                            className="text-xs font-medium text-muted-foreground"
+                          >
                             Questions:
                           </label>
                           <input
+                            id={`generate-question-count-${ch.number}`}
                             type="number"
                             min="1"
                             max={available}
@@ -659,20 +733,32 @@ export default function GeneratePaperPage() {
           <div className="space-y-4">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Mark Scheme</label>
+                <label htmlFor="generate-include-mark-scheme" className="text-sm font-medium">
+                  Mark Scheme
+                </label>
                 <input
+                  id="generate-include-mark-scheme"
                   type="checkbox"
                   checked={includeMarkScheme}
-                  onChange={(e) => setIncludeMarkScheme(e.target.checked)}
+                  onChange={(e) => {
+                    setIncludeMarkScheme(e.target.checked);
+                    setResult(null);
+                  }}
                   className="w-4 h-4 rounded cursor-pointer"
                 />
               </div>
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Randomize Order</label>
+                <label htmlFor="generate-randomize-order" className="text-sm font-medium">
+                  Randomize Order
+                </label>
                 <input
+                  id="generate-randomize-order"
                   type="checkbox"
                   checked={randomize}
-                  onChange={(e) => setRandomize(e.target.checked)}
+                  onChange={(e) => {
+                    setRandomize(e.target.checked);
+                    setResult(null);
+                  }}
                   className="w-4 h-4 rounded cursor-pointer"
                 />
               </div>
@@ -775,16 +861,88 @@ export default function GeneratePaperPage() {
                   opacity: isGenerating || overLimit ? 0.6 : 1,
                 }}
               >
-                <Download size={18} />
-                {isGenerating ? "Generating..." : "Generate & Download"}
+                <Zap size={18} />
+                {isGenerating ? "Generating..." : "Generate Paper"}
               </button>
 
               <p className="mt-3 text-xs text-muted-foreground">
-                A large paper is built and served as a download link, so it may take a few
-                seconds to start.
+                A large paper can take a few seconds to build. Once it's ready you can download
+                it or open it straight into Mock Space below.
               </p>
             </div>
           </div>
+        </section>
+      )}
+
+      {/* Step 4: Result */}
+      {result && (
+        <section
+          ref={resultSectionRef}
+          className="mb-8 rounded-xl border border-border bg-card p-5 motion-safe:animate-fade-in-up"
+          style={{ boxShadow: "var(--shadow-card)" }}
+        >
+          <h2 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
+            <span className="flex items-center justify-center w-7 h-7 rounded-full bg-success/10 text-success text-sm font-bold">
+              4
+            </span>
+            Your Paper Is Ready
+          </h2>
+
+          <div className="flex items-start gap-3 mb-5 p-3 rounded-lg bg-success/5 border border-success/20">
+            <CheckCircle2 size={16} className="text-success mt-0.5 shrink-0" />
+            <p className="text-sm text-foreground">
+              <span className="font-medium">{result.fileName}</span> has been generated.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="relative">
+              {justGenerated && (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 rounded-lg motion-safe:animate-ping"
+                  style={{ backgroundColor: "hsl(var(--primary) / 0.4)" }}
+                />
+              )}
+              <button
+                onClick={() => downloadPaper(result.paper, result.fileName)}
+                className="relative w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all"
+                style={{
+                  backgroundColor: "hsl(var(--primary))",
+                  color: "hsl(var(--primary-foreground))",
+                }}
+              >
+                <Download size={18} />
+                Download paper
+              </button>
+            </div>
+
+            <button
+              onClick={handleOpenInMockSpace}
+              disabled={!user || handingOff}
+              aria-describedby={!user && !loadingAuth ? "mock-space-signin-hint" : undefined}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all"
+              style={{
+                backgroundColor:
+                  !user || handingOff ? "hsl(var(--muted))" : "hsl(var(--accent) / 0.1)",
+                color: !user || handingOff ? "hsl(var(--muted-foreground))" : "hsl(var(--accent))",
+                cursor: !user || handingOff ? "not-allowed" : "pointer",
+                opacity: !user || handingOff ? 0.6 : 1,
+              }}
+            >
+              <ExternalLink size={18} />
+              {handingOff ? "Opening…" : "Open in Mock Space"}
+            </button>
+          </div>
+
+          {!user && !loadingAuth && (
+            <p id="mock-space-signin-hint" className="mt-3 text-xs text-muted-foreground">
+              <Link to="/signin" className="underline hover:text-foreground">
+                Sign in
+              </Link>{" "}
+              to open this paper in Mock Space.
+            </p>
+          )}
         </section>
       )}
     </Layout>

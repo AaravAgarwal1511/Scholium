@@ -1,22 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileUp, Clock, Pencil, Play, Trash2 } from "lucide-react";
+import { FileUp, Pencil, Play, Trash2 } from "lucide-react";
 import { useAttempt } from "@/contexts/AttemptContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { deleteAttempt, listAttempts } from "@/lib/attemptStore";
 import { formatClock } from "@/lib/useTimer";
 import RecommendedSubjects from "@/components/RecommendedSubjects";
+import MinutesPicker from "@/components/MinutesPicker";
 import {
   daysUntilPaperExpiry,
   isPaperExpired,
   PAPER_RETENTION_DAYS,
 } from "@/lib/paperRetention";
 import { deletePaper } from "@/lib/paperStorage";
+import { clampMinutes, DEFAULT_MINUTES, isValidMinutes } from "@/lib/minutes";
 import type { Attempt } from "@/lib/model";
-
-const MIN_MINUTES = 10;
-const MAX_MINUTES = 150;
-const DEFAULT_MINUTES = 90;
 
 const HERO_FALLBACK =
   "Sit a past paper under exam conditions. Type straight onto the PDF — the cursor only ever moves forwards, so you can never quietly reword an answer before you mark it.";
@@ -51,11 +49,7 @@ export default function HomePage({ description }: { description: string | null }
   const [listFailed, setListFailed] = useState(false);
 
   const parsed = Number(minutes);
-  const minutesValid =
-    minutes.trim() !== "" &&
-    Number.isInteger(parsed) &&
-    parsed >= MIN_MINUTES &&
-    parsed <= MAX_MINUTES;
+  const minutesValid = isValidMinutes(minutes);
 
   // Reading the attempt list is a network call now, so it can fail. Say so rather
   // than show an empty list, which reads as "you have no papers".
@@ -136,55 +130,15 @@ export default function HomePage({ description }: { description: string | null }
           up on any device you sign in on.
         </p>
 
-        <label
-          htmlFor="minutes"
-          className="mt-6 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-        >
-          <Clock size={14} /> Time allowed
-        </label>
-        <div className="mt-2 flex items-center gap-2">
-          <input
-            id="minutes"
-            type="number"
-            inputMode="numeric"
-            min={MIN_MINUTES}
-            max={MAX_MINUTES}
-            step={5}
-            value={minutes}
-            data-testid="minutes"
-            onChange={(e) => setMinutes(e.target.value)}
-            // The browser will not stop someone typing 900 into a number input, so
-            // clamp when they leave the field rather than starting a nine-hour mock.
-            onBlur={() => {
-              if (minutes.trim() === "" || !Number.isFinite(parsed)) return;
-              const clamped = Math.min(MAX_MINUTES, Math.max(MIN_MINUTES, Math.round(parsed)));
-              setMinutes(String(clamped));
-            }}
-            aria-invalid={!minutesValid}
-            aria-describedby="minutes-hint"
-            className="w-28 rounded-lg border border-border bg-background px-3 py-2 text-sm tabular-nums outline-none focus:ring-2"
-            style={
-              {
-                "--tw-ring-color": "hsl(var(--primary) / 0.4)",
-                borderColor: minutesValid ? undefined : "hsl(var(--destructive))",
-              } as React.CSSProperties
-            }
-          />
-          <span className="text-sm text-muted-foreground">minutes</span>
-        </div>
-        <p
-          id="minutes-hint"
-          className="mt-1.5 text-xs"
-          style={{ color: minutesValid ? undefined : "hsl(var(--destructive))" }}
-        >
-          {minutesValid ? (
-            <span className="text-muted-foreground">
-              Between {MIN_MINUTES} and {MAX_MINUTES} minutes.
-            </span>
-          ) : (
-            `Enter a whole number of minutes between ${MIN_MINUTES} and ${MAX_MINUTES}.`
-          )}
-        </p>
+        <MinutesPicker
+          minutes={minutes}
+          valid={minutesValid}
+          onChange={setMinutes}
+          onBlurClamp={() => {
+            if (minutes.trim() === "" || !Number.isFinite(parsed)) return;
+            setMinutes(String(clampMinutes(parsed)));
+          }}
+        />
 
         {error && (
           <p

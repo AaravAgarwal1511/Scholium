@@ -264,61 +264,6 @@ export async function getChapterQuestions(
   return byChapter;
 }
 
-// Which exam years each chapter of a component actually has questions for, so a
-// chapter card can offer exactly those years and recognise when the user has
-// asked for the full range (which the prebuilt topical PDF already covers).
-export async function getChapterYears(
-  subject: string,
-  paperNum: number,
-): Promise<Map<number, number[]>> {
-  const byChapter = await getChapterQuestions(subject, paperNum);
-  return new Map(
-    Array.from(byChapter, ([chapter, questions]) => [
-      chapter,
-      Array.from(new Set(questions.map((q) => q.year))).sort((a, b) => a - b),
-    ]),
-  );
-}
-
-export type PaperOrder = "oldest" | "newest";
-
-export interface ChapterPaperRequest {
-  subject: string;
-  paperNum: number;
-  chapter: number;
-  yearFrom: number;
-  yearTo: number;
-  order: PaperOrder;
-  kind: "qp" | "ms";
-}
-
-// Compose one chapter over a year range / ordering the prebuilt PDFs don't cover.
-// The server caches the result in R2 and hands back a public URL — a whole chapter
-// is far too large to return inline.
-export async function requestChapterPaper(req: ChapterPaperRequest): Promise<string> {
-  const response = await fetch("/api/chapter-paper", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req),
-  });
-
-  if (!response.ok) {
-    let message = `Server error (${response.status})`;
-    try {
-      const body = await response.json();
-      message = body.error || message;
-    } catch {
-      const text = await response.text().catch(() => "");
-      if (text) message = text.slice(0, 200);
-    }
-    throw new Error(message);
-  }
-
-  const { url } = await response.json();
-  if (!url) throw new Error("No PDF URL in response");
-  return url as string;
-}
-
 interface GeneratePaperOptions {
   includeMarkScheme?: boolean;
   randomize?: boolean;
@@ -335,10 +280,13 @@ export const MAX_GENERATED_QUESTIONS = 400;
 
 // A composed paper comes back inline when it fits in a serverless response body,
 // and as an R2 URL when it doesn't (see server/compose-handler.js). Papers of a
-// dozen chapters routinely land on the second path.
+// dozen chapters routinely land on the second path. `key` is the R2 object key
+// behind that URL — the public R2 URL has no CORS headers, so a caller that
+// needs the bytes back (rather than just handing the URL to an anchor click)
+// has to go through /api/proxy-paper?key=... instead of fetching `url` directly.
 export type GeneratedPaper =
   | { kind: "blob"; blob: Blob }
-  | { kind: "url"; url: string };
+  | { kind: "url"; url: string; key: string };
 
 // Roughly how long composing a paper takes, in seconds, as a function of the
 // question count — used only to drive the progress estimate the user sees while
@@ -394,8 +342,8 @@ export async function generatePaper(
   const text = await response.text();
   if (!text) throw new Error("Empty response from server");
 
-  const { pdfBase64, url } = JSON.parse(text);
-  if (url) return { kind: "url", url: url as string };
+  const { pdfBase64, url, key } = JSON.parse(text);
+  if (url) return { kind: "url", url: url as string, key: key as string };
   if (!pdfBase64) throw new Error("No PDF data in response");
   const binaryString = atob(pdfBase64);
   const bytes = new Uint8Array(binaryString.length);

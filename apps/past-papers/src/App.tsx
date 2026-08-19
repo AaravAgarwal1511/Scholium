@@ -8,10 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Analytics } from "@vercel/analytics/react";
 import { usePageView, useAnalytics } from "@repo/analytics";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import SubjectsPage from "@/pages/SubjectsPage";
-import Demo from "@/pages/Demo";
-import ComponentsPage from "@/pages/ComponentsPage";
-import ChaptersPage from "@/pages/ChaptersPage";
+import { Toaster } from "@/components/ui/sonner";
 import GeneratePaperPage from "@/pages/GeneratePaperPage";
 import SettingsPage from "@/pages/Settings";
 import Auth from "@/pages/Auth";
@@ -72,10 +69,7 @@ export default function App() {
     <AuthProvider>
       <Analytics />
       <BrowserRouter>
-        <Routes>
-          <Route path="/demo" element={<Demo />} />
-          <Route path="*" element={<MainRoutes apps={apps} ownDescription={ownDescription} />} />
-        </Routes>
+        <MainRoutes apps={apps} ownDescription={ownDescription} />
       </BrowserRouter>
     </AuthProvider>
   );
@@ -87,19 +81,18 @@ function MainRoutes({ apps, ownDescription }: { apps: AppLink[]; ownDescription:
     <>
       <NavbarWired apps={apps} />
       <Routes>
-        <Route path="/" element={<SubjectsPage description={ownDescription} />} />
+        <Route path="/" element={<GeneratePaperPage description={ownDescription} />} />
+        <Route path="/generate" element={<Navigate to="/" replace />} />
         <Route path="/signin" element={<Auth defaultMode="signin" />} />
         <Route path="/signup" element={<Auth defaultMode="signup" />} />
         <Route path="/auth/reset-password" element={<ResetPassword />} />
-        <Route path="/generate" element={<GeneratePaperPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/terms" element={<TermsOfService homeUrl={SCHOLIUM_HOME_URL} />} />
         <Route path="/privacy" element={<PrivacyPolicy homeUrl={SCHOLIUM_HOME_URL} />} />
-        <Route path="/:subject" element={<ComponentsPage />} />
-        <Route path="/:subject/:component" element={<ChaptersPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <ScholiumFooter homeUrl={SCHOLIUM_HOME_URL} />
+      <Toaster />
     </>
   );
 }

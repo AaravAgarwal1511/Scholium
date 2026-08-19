@@ -11,6 +11,9 @@ vi.mock("@aws-sdk/client-s3", () => ({
   PutObjectCommand: vi.fn().mockImplementation(function PutObjectCommand(input) {
     return input;
   }),
+  GetObjectCommand: vi.fn().mockImplementation(function GetObjectCommand(input) {
+    return input;
+  }),
 }));
 
 process.env.R2_ACCOUNT_ID = "test-account";
@@ -18,7 +21,7 @@ process.env.R2_ACCESS_KEY_ID = "test-key";
 process.env.R2_SECRET_ACCESS_KEY = "test-secret";
 process.env.R2_PUBLIC_URL = "https://pub.example.com";
 
-const { writeCached } = await import("./r2-cache.js");
+const { writeCached, readObjectBytes } = await import("./r2-cache.js");
 
 /**
  * writeCached's retry loop is what stands between a real student and a "write
@@ -63,5 +66,33 @@ describe("writeCached", () => {
       writeCached("_cache/0610/foo.pdf", new Uint8Array([1, 2, 3]), "foo.pdf"),
     ).rejects.toThrow("Access Denied");
     expect(send).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * readObjectBytes is the server-side counterpart to a browser fetch(url) that
+ * the mock-space handoff can't make itself — the bucket has no CORS headers,
+ * so it goes through /api/proxy-paper, which calls this instead of hitting the
+ * public URL.
+ */
+describe("readObjectBytes", () => {
+  beforeEach(() => {
+    send.mockReset();
+  });
+
+  it("returns the object's bytes on a hit", async () => {
+    const bytes = new Uint8Array([1, 2, 3]);
+    send.mockResolvedValueOnce({ Body: { transformToByteArray: async () => bytes } });
+    await expect(readObjectBytes("_cache/0610/foo.pdf")).resolves.toBe(bytes);
+  });
+
+  it("returns null rather than throwing on a miss", async () => {
+    send.mockRejectedValueOnce(Object.assign(new Error("not found"), { name: "NoSuchKey" }));
+    await expect(readObjectBytes("_cache/0610/missing.pdf")).resolves.toBeNull();
+  });
+
+  it("propagates any other R2 error", async () => {
+    send.mockRejectedValueOnce(Object.assign(new Error("Access Denied"), { name: "AccessDenied" }));
+    await expect(readObjectBytes("_cache/0610/foo.pdf")).rejects.toThrow("Access Denied");
   });
 });
