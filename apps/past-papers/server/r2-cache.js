@@ -38,7 +38,11 @@ export const CACHE_PREFIX = '_cache';
 // v5 (2026-08-01): the first section-divider page now also prints the subject
 // name + paper number above "Questions"/"Mark Scheme", so every v4 object is
 // missing that title.
-const CACHE_VERSION = 'v5';
+//
+// v6 (2026-08-19): every composed page now carries a "Scholium" wordmark in the
+// top margin. v5 objects are unbranded, and the key is otherwise deterministic,
+// so they would be served forever without this bump.
+const CACHE_VERSION = 'v6';
 
 const R2_PUBLIC_URL = (
   process.env.VITE_R2_PUBLIC_URL ||

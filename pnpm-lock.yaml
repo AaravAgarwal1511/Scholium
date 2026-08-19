@@ -439,6 +439,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1083.0
         version: 3.1083.0
+      '@pdf-lib/fontkit':
+        specifier: ^1.1.1
+        version: 1.1.1
       '@repo/analytics':
         specifier: workspace:*
         version: link:../../packages/analytics

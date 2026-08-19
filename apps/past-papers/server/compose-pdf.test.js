@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { PDFDocument, PDFArray, PDFDict, PDFName, decodePDFRawStream } from "pdf-lib";
 import {
   parsePaperNum,
   makeStem,
@@ -8,7 +9,50 @@ import {
   compareQ,
   PAPER_ORDERS,
   rotatedCropBox,
+  stampBrandHeader,
+  embedBrandFont,
+  BRAND_HEADER,
+  CONTENT_TOP,
 } from "./compose-pdf.js";
+
+// Recovers the text a page's single Tj call actually drew, from a *reloaded*
+// document (so this reads the saved bytes pdf-lib produced, not the live
+// object graph). Two encodings show up here:
+//  - a standard font (WinAnsi) writes single-byte codes that equal the
+//    character's Latin-1 code point, whether as a literal `(...)` or a hex
+//    string `<...>` — hasBlankPageBanner reads *source* PDFs the same way.
+//  - a custom embedded font (Poppins, subset-embedded via fontkit) is always
+//    CID-keyed: the hex string holds 2-byte glyph ids, not character codes,
+//    so it only decodes through the ToUnicode CMap pdf-lib attaches for
+//    copy/paste — verified by dumping an actual saved stream.
+function drawnText(reloadedDoc, page) {
+  let contents = page.node.Contents();
+  if (contents instanceof PDFArray) contents = contents.lookup(0);
+  const stream = Buffer.from(decodePDFRawStream(contents).decode()).toString("latin1");
+
+  const fontsDict = page.node.Resources().lookup(PDFName.of("Font"), PDFDict);
+  for (const [, ref] of fontsDict.entries()) {
+    const fontDict = reloadedDoc.context.lookup(ref, PDFDict);
+    const toUnicodeRef = fontDict.get(PDFName.of("ToUnicode"));
+    if (!toUnicodeRef) continue;
+    const cmapText = Buffer.from(
+      decodePDFRawStream(reloadedDoc.context.lookup(toUnicodeRef)).decode(),
+    ).toString("latin1");
+    const cmap = new Map();
+    for (const m of cmapText.matchAll(/<([0-9A-Fa-f]{4})>\s*<([0-9A-Fa-f]+)>/g)) {
+      const units = m[2].match(/.{4}/g) ?? [];
+      cmap.set(m[1].toUpperCase(), units.map((u) => String.fromCharCode(parseInt(u, 16))).join(""));
+    }
+    const hex = stream.match(/<([0-9A-Fa-f]+)>\s*Tj/)?.[1] ?? "";
+    return (hex.match(/.{4}/g) ?? []).map((cid) => cmap.get(cid.toUpperCase()) ?? "?").join("");
+  }
+
+  const literals = [...stream.matchAll(/\(([^()\\]*)\)/g)].map((m) => m[1]);
+  const hexRuns = [...stream.matchAll(/<([0-9A-Fa-f]+)>/g)].map((m) =>
+    Buffer.from(m[1], "hex").toString("latin1"),
+  );
+  return [...literals, ...hexRuns].join("");
+}
 
 // Crop geometry is per subject now (the extraction pipelines diverged), so the
 // sentinel comes from the profile rather than a single module-level constant.
@@ -272,5 +316,38 @@ describe("rotatedCropBox — placing a crop on a rotated source page", () => {
     // guessing risks the exact "mis-cropped, sideways" bug this fixes.
     expect(() => rotatedCropBox(595, 842, 180, 100, 300)).toThrow(/Unsupported source page rotation/);
     expect(() => rotatedCropBox(595, 842, 270, 100, 300)).toThrow(/Unsupported source page rotation/);
+  });
+});
+
+describe("embedBrandFont / stampBrandHeader", () => {
+  it("loads the vendored Poppins file and stamps the wordmark, with no © line, on every page", async () => {
+    const doc = await PDFDocument.create();
+    doc.addPage([595.276, 841.89]);
+    doc.addPage([595.276, 841.89]);
+    doc.addPage([595.276, 841.89]);
+
+    const brandFont = await embedBrandFont(doc);
+    stampBrandHeader(doc, brandFont);
+    const reloaded = await PDFDocument.load(await doc.save());
+
+    for (const page of reloaded.getPages()) {
+      const text = drawnText(reloaded, page);
+      expect(text).toBe(BRAND_HEADER.text);
+      expect(text).not.toContain("©");
+    }
+  });
+
+  it("fits inside the page — the domain makes the mark far longer than a bare wordmark", async () => {
+    const doc = await PDFDocument.create();
+    const brandFont = await embedBrandFont(doc);
+    const width = brandFont.widthOfTextAtSize(BRAND_HEADER.text, BRAND_HEADER.size);
+    expect(BRAND_HEADER.x + width).toBeLessThan(595.276 - 36); // must clear the right margin too
+  });
+
+  it("places the header above CONTENT_TOP, so nothing else ever draws over it", () => {
+    // The whole reason stamping needs no reflow: everything else on the page
+    // (_newPage, sectionHeader, _flushBanner, _draw) works downward from
+    // CONTENT_TOP, so a header strictly above it can never collide.
+    expect(BRAND_HEADER.y).toBeGreaterThan(CONTENT_TOP);
   });
 });
