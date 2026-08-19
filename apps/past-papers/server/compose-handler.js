@@ -81,13 +81,11 @@ export async function handleCompose(body, loaderFactory) {
       return { status: 200, body: { pdfBase64: Buffer.from(bytes).toString('base64'), metadata } };
     }
 
-    const url = await writeCached(
-      generatedCacheKey(subject, bytes),
-      bytes,
-      safeFileName(fileName, `${subject}-paper.pdf`),
-      'attachment',
-    );
-    return { status: 200, body: { url, metadata } };
+    const key = generatedCacheKey(subject, bytes);
+    const url = await writeCached(key, bytes, safeFileName(fileName, `${subject}-paper.pdf`), 'attachment');
+    // `key` lets a caller that can't fetch `url` cross-origin (no CORS on the
+    // bucket) go through /api/proxy-paper instead — see mockSpaceHandoff.ts.
+    return { status: 200, body: { url, key, metadata } };
   } catch (error) {
     // Log the stack, but don't ship it to the browser.
     console.error('PDF composition error:', error);

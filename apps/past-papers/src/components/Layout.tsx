@@ -7,7 +7,7 @@ interface LayoutProps {
 
 export default function Layout({
   children,
-  subtitle = "Browse topical papers and mark schemes by subject, component, and chapter.",
+  subtitle = "Generate a custom paper by picking chapters and how many questions you want from each.",
 }: LayoutProps) {
   return (
     <div className="min-h-screen flex flex-col">

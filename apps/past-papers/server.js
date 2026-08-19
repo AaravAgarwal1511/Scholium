@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { handleCompose } from './server/compose-handler.js';
 import { handleChapterPaper } from './server/chapter-handler.js';
+import { handleProxyPaper } from './server/proxy-paper-handler.js';
 import { createLocalLoader, createR2Loader } from './server/loaders.js';
 
 const app = express();
@@ -36,6 +37,17 @@ app.post('/api/compose-paper', async (req, res) => {
 // don't cover. Composes, caches to R2, responds with the object's public URL.
 app.post('/api/chapter-paper', async (req, res) => {
   const { status, body } = await handleChapterPaper(req.body, loaderFactory);
+  res.status(status).json(body);
+});
+
+// Server-side read of a cached R2 object, for callers that can't fetch the
+// public R2 URL cross-origin (see server/proxy-paper-handler.js).
+app.get('/api/proxy-paper', async (req, res) => {
+  const { status, body, bytes } = await handleProxyPaper(req.query.key);
+  if (bytes) {
+    res.setHeader('Content-Type', 'application/pdf');
+    return res.status(status).send(Buffer.from(bytes));
+  }
   res.status(status).json(body);
 });
 

@@ -11,7 +11,7 @@
 // show up as browseable chapters. A bucket lifecycle rule can expire this prefix.
 
 import { createHash } from 'node:crypto';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
 export const CACHE_PREFIX = '_cache';
 
@@ -113,6 +113,20 @@ function s3() {
 // each attempt resends the exact same bytes, never a partially-drained stream.
 const TRANSIENT_CODES = new Set(['EPIPE', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED']);
 const WRITE_RETRY_ATTEMPTS = 3;
+
+// Reads an object straight from R2 via the S3 API rather than the public URL —
+// for a caller that can't do a cross-origin browser fetch against that URL
+// (the bucket has no CORS headers configured). Returns null on a miss rather
+// than throwing, so a caller can tell "not found" apart from a real R2 error.
+export async function readObjectBytes(key) {
+  try {
+    const res = await s3().send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+    return await res.Body.transformToByteArray();
+  } catch (err) {
+    if (err.name === 'NoSuchKey') return null;
+    throw err;
+  }
+}
 
 // `fileName` is what the browser saves the PDF as. A chapter download is opened
 // in a tab, so it stays `inline`; a generated paper is fetched by a plain anchor

@@ -16,11 +16,11 @@ async function stubPaperTree(context: BrowserContext) {
   });
 }
 
-test('subjects', async ({ page, context }) => {
+test('generator', async ({ page, context }) => {
   await seedAuth(context);
   await stubPaperTree(context);
   await page.goto('/');
-  await expect(page.getByText('International Mathematics')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'International Mathematics' })).toBeVisible();
   await page.waitForTimeout(500);
-  await expect(page).toHaveScreenshot('subjects.png', { fullPage: true });
+  await expect(page).toHaveScreenshot('generator.png', { fullPage: true });
 });

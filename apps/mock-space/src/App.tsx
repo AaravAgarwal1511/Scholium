@@ -20,13 +20,17 @@ import { AttemptProvider } from "@/contexts/AttemptContext";
 import HomePage from "@/pages/HomePage";
 import AttemptPage from "@/pages/AttemptPage";
 import ExportPage from "@/pages/ExportPage";
+import OpenPaperPage from "@/pages/OpenPaperPage";
 import Demo from "@/pages/Demo";
 import Auth from "@/pages/Auth";
 import ResetPassword from "@/pages/ResetPassword";
 import SettingsPage from "@/pages/Settings";
 
-// This app's own row in scholium_apps. Ids are UUIDs (not slugs), so match by URL.
-const OWN_APP_URL = "https://mock-space.vercel.app";
+// This app's own row in scholium_apps. Ids are UUIDs (not slugs), so match by URL
+// — which means this must stay byte-equal to that row's `url`. Also duplicated in
+// apps/past-papers/src/lib/mockSpaceUrl.ts for the cross-app "Open in Mock Space"
+// deep link; keep the two in step.
+const OWN_APP_URL = "https://mockspace.thescholium.com";
 
 async function loadScholiumApps(): Promise<AppLink[]> {
   const first = await supabase
@@ -110,6 +114,7 @@ function MainRoutes({ apps, ownDescription }: { apps: AppLink[]; ownDescription:
       <div className="flex-1">
         <Routes>
           <Route path="/" element={<HomePage description={ownDescription} />} />
+          <Route path="/open" element={<OpenPaperPage />} />
           <Route path="/export" element={<ExportPage />} />
           <Route path="/signin" element={<Auth defaultMode="signin" />} />
           <Route path="/signup" element={<Auth defaultMode="signup" />} />
