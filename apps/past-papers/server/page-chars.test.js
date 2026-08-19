@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mergeLines, hasBlankPageBanner } from "./page-chars.js";
+import { mergeLines, hasBlankPageBanner, marksInRegion } from "./page-chars.js";
 
 describe("mergeLines", () => {
   it("merges items on the same baseline into one left-to-right line", () => {
@@ -68,5 +68,46 @@ describe("hasBlankPageBanner", () => {
   it("returns false when the page has no text at all", () => {
     const page = { width: PAGE_WIDTH, lines: [] };
     expect(hasBlankPageBanner(page)).toBe(false);
+  });
+});
+
+describe("marksInRegion", () => {
+  const HEIGHT = 842;
+
+  it("reads the bracketed mark allocation off a line inside the region", () => {
+    const page = { height: HEIGHT, lines: [{ y: 254.8, text: "Answer(b) [1]" }] };
+    expect(marksInRegion(page, 200, 300)).toEqual([{ y: 254.8, i: 0, marks: 1 }]);
+  });
+
+  it("ignores lines outside the region", () => {
+    const page = { height: HEIGHT, lines: [{ y: 100, text: "Answer(a) [2]" }] };
+    expect(marksInRegion(page, 200, 300)).toEqual([]);
+  });
+
+  it("a null yBot runs to the bottom of the page", () => {
+    const page = { height: HEIGHT, lines: [{ y: 800, text: "Answer $ [3]" }] };
+    expect(marksInRegion(page, 200, null)).toEqual([{ y: 800, i: 0, marks: 3 }]);
+  });
+
+  it("reads two tokens on the same line and orders them by position", () => {
+    const page = {
+      height: HEIGHT,
+      lines: [{ y: 300, text: "1 (a) [2] (b) [4]" }],
+    };
+    expect(marksInRegion(page, 0, HEIGHT)).toEqual([
+      { y: 300, i: 0, marks: 2 },
+      { y: 300, i: 1, marks: 4 },
+    ]);
+  });
+
+  it("ignores page furniture that carries no bracketed digits", () => {
+    const page = {
+      height: HEIGHT,
+      lines: [
+        { y: 803.6, text: "© UCLES 2014 0607/21/M/J/14 [Turn over" },
+        { y: 46.4, text: "3" },
+      ],
+    };
+    expect(marksInRegion(page, 0, HEIGHT)).toEqual([]);
   });
 });

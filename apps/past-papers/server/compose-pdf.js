@@ -1,7 +1,13 @@
 import { PDFDocument, PDFArray, StandardFonts, decodePDFRawStream, rgb, degrees } from 'pdf-lib';
 import { createClient } from '@supabase/supabase-js';
 import { fetchRowsByIds } from './supabase-rows.js';
-import { createCharIndex, regionHasContent, tightenBottom, hasBlankPageBanner } from './page-chars.js';
+import {
+  createCharIndex,
+  regionHasContent,
+  tightenBottom,
+  hasBlankPageBanner,
+  marksInRegion,
+} from './page-chars.js';
 
 // Lazily create the Supabase client so merely importing this module never throws
 // (env is present at runtime in both the dev server and the serverless function).
@@ -32,6 +38,7 @@ const CONTENT_BOTTOM = MARGIN;
 const MIN_CROP_HEIGHT = 20;         // floor every pipeline applies
 const INTRA_GROUP_GAP = 4;          // between a stimulus and its sub-part
 const BANNER_BLOCK_H = 36;          // inline paper banner (label + q list + rule)
+const TOTAL_BLOCK_H = 46;           // centred "Total: N marks" block (rule + text + rule)
 const HEADER_ZONE = 45;             // page number / paper code / © line live above this
 // Mark-scheme continuation pages repeat the "Question | Answer | Marks" column
 // header at their own top (BUILD.md's `spillover_header_skip`, ~y 70 in the
@@ -602,6 +609,46 @@ class PageLayout {
     this.pendingBanner = null;
   }
 
+  // Centred "Total: N marks" block — a thin rule, the bold total, another thin
+  // rule — echoing how Cambridge itself closes off a paper. Flows through the
+  // cursor like any other content (so it lands directly under the last crop),
+  // only starting a fresh page when it would not otherwise fit.
+  totalMarks(marks) {
+    if (this.page === null || this.cursor - TOTAL_BLOCK_H < CONTENT_BOTTOM) {
+      this._newPage();
+    }
+    this._flushBanner();
+
+    const ruleY = this.cursor - 8;
+    this.page.drawLine({
+      start: { x: PAGE_W / 2 - 90, y: ruleY },
+      end: { x: PAGE_W / 2 + 90, y: ruleY },
+      thickness: 1,
+      color: rgb(0.3, 0.3, 0.4),
+    });
+
+    const label = `Total: ${marks} mark${marks === 1 ? '' : 's'}`;
+    const size = 13;
+    const w = this.boldFont.widthOfTextAtSize(label, size);
+    this.page.drawText(label, {
+      x: (PAGE_W - w) / 2,
+      y: ruleY - 20,
+      size,
+      font: this.boldFont,
+      color: rgb(0.1, 0.1, 0.15),
+    });
+
+    const rule2Y = ruleY - 30;
+    this.page.drawLine({
+      start: { x: PAGE_W / 2 - 90, y: rule2Y },
+      end: { x: PAGE_W / 2 + 90, y: rule2Y },
+      thickness: 1,
+      color: rgb(0.3, 0.3, 0.4),
+    });
+
+    this.cursor -= TOTAL_BLOCK_H;
+  }
+
   // `yBotFromTop === null` means "to the bottom of the source page".
   //
   // A numeric bound is passed through UNCLAMPED, deliberately. 0478's mark
@@ -703,7 +750,39 @@ class PageLayout {
   }
 }
 
-async function renderSection(layout, cache, items, kind, loader, order, geom) {
+// Sums the "[n]" mark tokens (see marksInRegion) whose baseline falls inside the
+// crops actually kept for one question, deduped so a stem crop overlapping its
+// own sub-part crop cannot double-count a token both see. Falls back to 1 mark
+// when the question yields no token at all — multiple-choice papers never print
+// one. `collector.total` accumulates across the whole section; a thrown text-
+// layer read sets `collector.unreadable` so the caller can skip printing a total
+// that would otherwise be silently short, rather than guess.
+export async function collectQuestionMarks(cache, srcDoc, specs, collector) {
+  const source = cache.bytes.get(srcDoc);
+  if (!source) {
+    collector.unreadable = true;
+    return;
+  }
+  let total = 0;
+  try {
+    for (const spec of specs) {
+      const page = await cache.chars.pageChars(source.key, source.bytes, spec.page);
+      for (const hit of marksInRegion(page, spec.yTop, spec.yBot)) {
+        const dedupeKey = `${source.key}:${spec.page}:${hit.y.toFixed(1)}:${hit.i}`;
+        if (collector.seen.has(dedupeKey)) continue;
+        collector.seen.add(dedupeKey);
+        total += hit.marks;
+      }
+    }
+  } catch (err) {
+    console.warn(`  ⚠️  Marks extraction failed: ${err.message}`);
+    collector.unreadable = true;
+    return;
+  }
+  collector.total += total || 1;
+}
+
+async function renderSection(layout, cache, items, kind, loader, order, geom, marksCollector = null) {
   // Group by (paperNum, stem).
   const grouped = new Map();
   for (const it of items) {
@@ -796,9 +875,17 @@ async function renderSection(layout, cache, items, kind, loader, order, geom) {
       const trimmed = await Promise.all(
         onPage.map((s) => tightenOpenEnd(cache, srcDoc, s, kind)),
       );
-      const crops = trimmed
-        .filter((_, i) => keep[i])
-        .map((s) => ({ doc: srcDoc, pageIndex: s.page - 1, yTop: s.yTop, yBot: s.yBot ?? null }));
+      const keptSpecs = trimmed.filter((_, i) => keep[i]);
+      const crops = keptSpecs.map((s) => ({
+        doc: srcDoc,
+        pageIndex: s.page - 1,
+        yTop: s.yTop,
+        yBot: s.yBot ?? null,
+      }));
+
+      if (marksCollector && kind === 'questions') {
+        await collectQuestionMarks(cache, srcDoc, keptSpecs, marksCollector);
+      }
 
       if (withStems) {
         await layout.addGroup(crops);
@@ -876,33 +963,47 @@ export async function composePdf(questionIds, subject, loader, options = {}) {
   const coverTitle = `${subjectDisplayName(subject)} — Paper ${items[0].paperNum}`;
   let coverDrawn = false;
 
-  // Section 1 — Questions
-  if (!markSchemeOnly) {
-    layout.sectionHeader('Questions', coverTitle);
-    coverDrawn = true;
-    await renderSection(layout, cache, items, 'questions', loader, order, geom);
-  }
-
-  // Section 2 — Mark Scheme (only questions the mark-scheme index actually covers)
-  let msCount = 0;
+  // Which questions the mark-scheme index actually covers — computed up front
+  // (loadIndex memoizes into `cache.indexes` under the same keys renderSection
+  // uses, so this costs no extra I/O either way) because the Questions section
+  // needs to know, before it renders, whether a Mark Scheme section is actually
+  // going to follow: the total-marks footer is only drawn when both are present.
+  let msItems = [];
   if (markSchemeOnly || includeMarkScheme) {
-    // loadIndex memoizes into `cache.indexes` under the same keys renderSection
-    // uses, so preloading here costs no extra I/O.
     const msIdxByPaper = new Map();
     for (const paperNum of new Set(items.map((it) => it.paperNum))) {
       msIdxByPaper.set(paperNum, await loadIndex(cache, loader, paperNum, 'mark_schemes'));
     }
-    const msItems = items.filter((it) => {
+    msItems = items.filter((it) => {
       const entry = msIdxByPaper.get(it.paperNum).get(makeStem(it.paper, it.paperNum));
       return entry ? entry.byQ.has(String(it.qNum)) : false;
     });
-    if (msItems.length > 0) {
-      layout.sectionHeader('Mark Scheme', coverDrawn ? null : coverTitle);
-      coverDrawn = true;
-      await renderSection(layout, cache, msItems, 'mark_schemes', loader, order, geom);
-      msCount = msItems.length;
-    } else if (markSchemeOnly) {
+    if (msItems.length === 0 && markSchemeOnly) {
       throw new Error('No mark schemes are indexed for the selected questions');
+    }
+  }
+  const willDrawTotal = !markSchemeOnly && includeMarkScheme && msItems.length > 0;
+
+  // Section 1 — Questions
+  const marksCollector = willDrawTotal ? { total: 0, seen: new Set(), unreadable: false } : null;
+  if (!markSchemeOnly) {
+    layout.sectionHeader('Questions', coverTitle);
+    coverDrawn = true;
+    await renderSection(layout, cache, items, 'questions', loader, order, geom, marksCollector);
+    if (willDrawTotal && !marksCollector.unreadable) {
+      layout.totalMarks(marksCollector.total);
+    }
+  }
+
+  // Section 2 — Mark Scheme
+  let msCount = 0;
+  if (msItems.length > 0) {
+    layout.sectionHeader('Mark Scheme', coverDrawn ? null : coverTitle);
+    coverDrawn = true;
+    await renderSection(layout, cache, msItems, 'mark_schemes', loader, order, geom);
+    msCount = msItems.length;
+    if (willDrawTotal && !marksCollector.unreadable) {
+      layout.totalMarks(marksCollector.total);
     }
   }
 
@@ -915,6 +1016,7 @@ export async function composePdf(questionIds, subject, loader, options = {}) {
       totalQuestions: markSchemeOnly ? 0 : items.length,
       totalMarkSchemes: msCount,
       totalPages: outDoc.getPageCount(),
+      totalMarks: willDrawTotal && !marksCollector.unreadable ? marksCollector.total : null,
       includeMarkScheme,
       markSchemeOnly,
       order,

@@ -296,6 +296,34 @@ export function regionHasContent(
   return false;
 }
 
+// Cambridge prints "[3]" against every part of a structured question — the mark
+// allocation. This is the only place marks exist for this app: questions_metadata
+// has no marks column and the R2 `_questions.json` / `_mark_schemes.json` indexes
+// carry crop geometry only, never the value. Reads the same merged `lines` that
+// hasBlankPageBanner uses, so a "[3]" split across pdf.js text items (rare, but
+// so is any run boundary) still reads as one string.
+//
+// Returns one entry per bracketed token found with its line's baseline `y` and
+// its ordinal position within that line (`i`) — the caller dedupes on those,
+// since 0455's `stem_specs` crop can overlap the sub-part crop that follows it
+// and both would otherwise see the same "[2]" and double-count it.
+const MARK_TOKEN_RE = /\[(\d{1,2})\]/g;
+
+export function marksInRegion({ lines, height }, yTop, yBot) {
+  const regionTop = Math.max(0, yTop);
+  const regionBot = yBot === null || yBot === undefined ? height : Math.min(height, yBot);
+  const hits = [];
+  for (const line of lines) {
+    if (line.y < regionTop || line.y > regionBot) continue;
+    let i = 0;
+    for (const m of line.text.matchAll(MARK_TOKEN_RE)) {
+      hits.push({ y: line.y, i, marks: Number(m[1]) });
+      i++;
+    }
+  }
+  return hits;
+}
+
 // A literal "BLANK PAGE" banner, printed top-center on the physical filler
 // pages Cambridge inserts between real content. This is a stronger signal than
 // isBlankPage's byte-stream size or regionHasContent's char count — both are
