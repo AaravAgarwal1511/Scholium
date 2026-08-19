@@ -9,7 +9,10 @@ import {
   PAPER_ORDERS,
   rotatedCropBox,
   collectQuestionMarks,
+  contentStreamTextLines,
+  parseToUnicodeCMap,
 } from "./compose-pdf.js";
+import { marksInRegion } from "./page-chars.js";
 
 // Crop geometry is per subject now (the extraction pipelines diverged), so the
 // sentinel comes from the profile rather than a single module-level constant.
@@ -277,34 +280,33 @@ describe("rotatedCropBox — placing a crop on a rotated source page", () => {
 });
 
 // The total-marks footer's aggregation step: how many marks one question's kept
-// crops are actually worth, read straight off the source PDF's own "[n]" text
-// (see marksInRegion in page-chars.js) since questions_metadata carries no
-// marks column at all.
+// crops are actually worth, read straight off the source PDF's own "[n]" text.
+// Deliberately NOT backed by pdf.js (cache.chars) — see the comment above
+// pageMarkLines in compose-pdf.js for why: getTextContent() has repeatedly
+// proven unreliable in the Vercel serverless runtime for this exact codebase,
+// so marks are read from the raw content stream via pageMarkLines instead,
+// same as blank-page detection already does.
 describe("collectQuestionMarks — per-question mark aggregation", () => {
-  // A minimal stand-in for makeCache()'s `{ bytes, chars }` pair: `pages` maps
-  // page number → the {lines, height} shape marksInRegion reads, keyed exactly
-  // as cache.chars.pageChars(key, bytes, pageNum) would resolve it.
-  function fakeCache(pages, { throws = false } = {}) {
+  // A minimal stand-in for makeCache()'s streamLines cache: `pages` maps a
+  // 0-based page index (pdf-lib's own convention — collectQuestionMarks
+  // converts spec.page, which is 1-based) to the {lines, height} shape
+  // marksInRegion reads. Pre-seeding cache.streamLines means
+  // collectQuestionMarks never touches pdf-lib at all, so `srcDoc` only ever
+  // needs to work as a Map key.
+  function fakeCache(pagesByIndex) {
     const srcDoc = {};
-    const cache = {
-      bytes: new Map([[srcDoc, { key: "stem", bytes: null }]]),
-      chars: {
-        async pageChars(_key, _bytes, pageNum) {
-          if (throws) throw new Error("pdf.js blew up");
-          return pages[pageNum] ?? { lines: [], height: 842 };
-        },
-      },
-    };
+    const perDoc = new Map(Object.entries(pagesByIndex).map(([k, v]) => [Number(k), v]));
+    const cache = { streamLines: new Map([[srcDoc, perDoc]]) };
     return { cache, srcDoc };
   }
 
-  it("sums the [n] tokens found across a question's kept crops", async () => {
+  it("sums the [n] tokens found across a question's kept crops", () => {
     const { cache, srcDoc } = fakeCache({
-      2: { height: 842, lines: [{ y: 300, text: "(a) [2]" }] },
-      3: { height: 842, lines: [{ y: 100, text: "(b) [4]" }] },
+      1: { height: 842, lines: [{ y: 300, text: "(a) [2]" }] }, // page 2
+      2: { height: 842, lines: [{ y: 100, text: "(b) [4]" }] }, // page 3
     });
-    const collector = { total: 0, seen: new Set(), unreadable: false };
-    await collectQuestionMarks(
+    const collector = { total: 0, seen: new Map(), unreadable: false };
+    collectQuestionMarks(
       cache,
       srcDoc,
       [
@@ -317,23 +319,23 @@ describe("collectQuestionMarks — per-question mark aggregation", () => {
     expect(collector.unreadable).toBe(false);
   });
 
-  it("falls back to 1 mark for a question with no readable token (the MCQ convention)", async () => {
+  it("falls back to 1 mark for a question with no readable token (the MCQ convention)", () => {
     const { cache, srcDoc } = fakeCache({
-      5: { height: 842, lines: [{ y: 200, text: "1 A" }] },
+      4: { height: 842, lines: [{ y: 200, text: "1 A" }] }, // page 5
     });
-    const collector = { total: 0, seen: new Set(), unreadable: false };
-    await collectQuestionMarks(cache, srcDoc, [{ page: 5, yTop: 0, yBot: null }], collector);
+    const collector = { total: 0, seen: new Map(), unreadable: false };
+    collectQuestionMarks(cache, srcDoc, [{ page: 5, yTop: 0, yBot: null }], collector);
     expect(collector.total).toBe(1);
   });
 
-  it("dedupes a token seen through two overlapping crops (e.g. a stem crop and its sub-part)", async () => {
+  it("dedupes a token seen through two overlapping crops (e.g. a stem crop and its sub-part)", () => {
     const { cache, srcDoc } = fakeCache({
-      4: { height: 842, lines: [{ y: 150, text: "(a) [3]" }] },
+      3: { height: 842, lines: [{ y: 150, text: "(a) [3]" }] }, // page 4
     });
-    const collector = { total: 0, seen: new Set(), unreadable: false };
+    const collector = { total: 0, seen: new Map(), unreadable: false };
     // Two specs on the same page whose y-ranges both cover y=150 — the stem crop
     // (0..842) and a narrower sub-part crop (100..300) both "see" the same line.
-    await collectQuestionMarks(
+    collectQuestionMarks(
       cache,
       srcDoc,
       [
@@ -345,28 +347,377 @@ describe("collectQuestionMarks — per-question mark aggregation", () => {
     expect(collector.total).toBe(3);
   });
 
-  it("accumulates across repeated calls, as renderSection does across a whole section", async () => {
+  it("accumulates across repeated calls, as renderSection does across a whole section", () => {
     const { cache, srcDoc } = fakeCache({
-      1: { height: 842, lines: [{ y: 90, text: "[5]" }] },
-      2: { height: 842, lines: [{ y: 90, text: "[7]" }] },
+      0: { height: 842, lines: [{ y: 90, text: "[5]" }] }, // page 1
+      1: { height: 842, lines: [{ y: 90, text: "[7]" }] }, // page 2
     });
-    const collector = { total: 0, seen: new Set(), unreadable: false };
-    await collectQuestionMarks(cache, srcDoc, [{ page: 1, yTop: 0, yBot: null }], collector);
-    await collectQuestionMarks(cache, srcDoc, [{ page: 2, yTop: 0, yBot: null }], collector);
+    const collector = { total: 0, seen: new Map(), unreadable: false };
+    collectQuestionMarks(cache, srcDoc, [{ page: 1, yTop: 0, yBot: null }], collector);
+    collectQuestionMarks(cache, srcDoc, [{ page: 2, yTop: 0, yBot: null }], collector);
     expect(collector.total).toBe(12);
   });
 
-  it("marks the collector unreadable, rather than guessing, when the text layer throws", async () => {
-    const { cache, srcDoc } = fakeCache({}, { throws: true });
-    const collector = { total: 0, seen: new Set(), unreadable: false };
-    await collectQuestionMarks(cache, srcDoc, [{ page: 1, yTop: 0, yBot: null }], collector);
+  it("does not let two different exam PDFs sharing a page number collide in the dedupe set", () => {
+    // A Questions section spans many distinct exam PDFs, each restarting its
+    // own page numbering — "page 2" alone must not be treated as the same
+    // slot across two different srcDocs.
+    const { cache, srcDoc: srcDocA } = fakeCache({
+      1: { height: 842, lines: [{ y: 300, text: "[2]" }] },
+    });
+    const srcDocB = {};
+    cache.streamLines.set(
+      srcDocB,
+      new Map([[1, { height: 842, lines: [{ y: 300, text: "[5]" }] }]]),
+    );
+    const collector = { total: 0, seen: new Map(), unreadable: false };
+    collectQuestionMarks(cache, srcDocA, [{ page: 2, yTop: 0, yBot: null }], collector);
+    collectQuestionMarks(cache, srcDocB, [{ page: 2, yTop: 0, yBot: null }], collector);
+    expect(collector.total).toBe(7);
+  });
+
+  it("marks the collector unreadable, rather than guessing, if extraction throws unexpectedly", () => {
+    const collector = { total: 0, seen: new Map(), unreadable: false };
+    // No `streamLines` map at all — the same shape a genuinely broken cache
+    // would produce, forcing collectQuestionMarks's own defensive try/catch.
+    collectQuestionMarks({}, {}, [{ page: 1, yTop: 0, yBot: null }], collector);
     expect(collector.unreadable).toBe(true);
     expect(collector.total).toBe(0);
   });
+});
 
-  it("marks the collector unreadable when the source bytes were never cached for this doc", async () => {
-    const collector = { total: 0, seen: new Set(), unreadable: false };
-    await collectQuestionMarks({ bytes: new Map() }, {}, [{ page: 1, yTop: 0, yBot: null }], collector);
-    expect(collector.unreadable).toBe(true);
+// The content-stream interpreter behind pageMarkLines: recovering each
+// show-text operation's Y position by tracking the text line matrix through
+// Tm/Td/TD/T*, exactly as a PDF viewer would, but without pdf.js.
+describe("parseToUnicodeCMap — decoding a composite font's ToUnicode CMap", () => {
+  it("parses a bfchar block (the real 0607 Paper 4 fixture)", () => {
+    const map = parseToUnicodeCMap(`
+      1 begincodespacerange
+      <0000> <FFFF>
+      endcodespacerange
+      7 beginbfchar
+      <0003> <0008>
+      <000F> <002C>
+      <0011> <002E>
+      <0015> <0032>
+      <003E> <005B>
+      <0040> <005D>
+      <0BD8> <200A>
+      endbfchar
+    `);
+    expect(map.get(0x003e)).toBe("["); // U+005B
+    expect(map.get(0x0015)).toBe("2"); // U+0032
+    expect(map.get(0x0040)).toBe("]"); // U+005D
+    expect(map.get(0x0bd8)).toBe(" ");
+    expect(map.has(0x1234)).toBe(false);
+  });
+
+  it("parses a bfrange block in incrementing-destination form", () => {
+    const map = parseToUnicodeCMap(`
+      1 beginbfrange
+      <0020> <0024> <0030>
+      endbfrange
+    `);
+    expect(map.get(0x0020)).toBe("0");
+    expect(map.get(0x0021)).toBe("1");
+    expect(map.get(0x0024)).toBe("4");
+  });
+
+  it("parses a bfrange block in explicit-array form without misreading its contents as a new range", () => {
+    const map = parseToUnicodeCMap(`
+      1 beginbfrange
+      <0010> <0012> [<0041> <0042> <0043>]
+      endbfrange
+    `);
+    expect(map.get(0x0010)).toBe("A");
+    expect(map.get(0x0011)).toBe("B");
+    expect(map.get(0x0012)).toBe("C");
+    expect(map.size).toBe(3); // the array's own entries never seed a spurious 4th mapping
+  });
+
+  it("decodes a multi-code-unit dst as a UTF-16BE surrogate pair", () => {
+    const map = parseToUnicodeCMap(`
+      1 beginbfchar
+      <0099> <D83DDE00>
+      endbfchar
+    `);
+    expect(map.get(0x0099)).toBe("😀"); // 😀, as two UTF-16 code units
+  });
+
+  it("returns an empty map for a CMap with neither block", () => {
+    expect(parseToUnicodeCMap("/CIDInit /ProcSet findresource begin").size).toBe(0);
+  });
+});
+
+describe("contentStreamTextLines — text position from the raw content stream", () => {
+  const HEIGHT = 842;
+
+  it("reads a Tm-positioned Tj literal, converting to top-origin", () => {
+    // Tm sets f=690.87691 directly (bottom-origin) → top-origin y = height - f.
+    const stream = "BT\n10.9984 0 0 10.9984 522.79379 690.87691 Tm\n( [1] )Tj\nET";
+    const lines = contentStreamTextLines(stream, HEIGHT);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].text).toBe(" [1] ");
+    expect(lines[0].y).toBeCloseTo(HEIGHT - 690.87691, 4);
+  });
+
+  it("scales a Td offset by the current text matrix, not by 1:1", () => {
+    // Real corpus pattern: Tm establishes scale 10.9984, then a bare
+    // "0 -1.14951 TD" line-break moves down by ty * scale, not by ty alone.
+    const stream = [
+      "BT",
+      "10.9984 0 0 10.9984 241.7386 769.25481 Tm",
+      "(line one)Tj",
+      "0 -1.14951 TD",
+      "(line two)Tj",
+      "ET",
+    ].join("\n");
+    const lines = contentStreamTextLines(stream, HEIGHT);
+    expect(lines).toHaveLength(2);
+    expect(lines[0].text).toBe("line one");
+    expect(lines[1].text).toBe("line two");
+    const expectedSecondF = 769.25481 + -1.14951 * 10.9984;
+    expect(lines[1].y).toBeCloseTo(HEIGHT - expectedSecondF, 3);
+  });
+
+  it("reassembles a TJ kerning array into one run of text", () => {
+    const stream = "BT\n1 0 0 1 100 700 Tm\n[(Answer)-250(\\(b\\))-10( )]TJ\nET";
+    const lines = contentStreamTextLines(stream, HEIGHT);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].text).toBe("Answer(b) ");
+  });
+
+  it("T* moves down by the current leading set via TL", () => {
+    const stream = "BT\n1 0 0 1 50 800 Tm\n12 TL\n(first)Tj\nT*\n(second)Tj\nET";
+    const lines = contentStreamTextLines(stream, HEIGHT);
+    expect(lines).toHaveLength(2);
+    expect(lines[1].y).toBeCloseTo(HEIGHT - (800 - 12), 4);
+  });
+
+  it("TD both moves and sets the leading used by a later T*", () => {
+    const stream = "BT\n1 0 0 1 50 800 Tm\n0 -20 TD\n(a)Tj\nT*\n(b)Tj\nET";
+    const lines = contentStreamTextLines(stream, HEIGHT);
+    expect(lines).toHaveLength(2);
+    expect(lines[0].y).toBeCloseTo(HEIGHT - 780, 4);
+    expect(lines[1].y).toBeCloseTo(HEIGHT - 760, 4); // TD's -20 set leading=20, T* repeats it
+  });
+
+  it("' shows text after a T*-style move, \" after setting spacing first", () => {
+    const stream = [
+      "BT",
+      "1 0 0 1 50 800 Tm",
+      "10 TL",
+      "(first)Tj",
+      "(second)'",
+      "0 0 (third)\"",
+      "ET",
+    ].join("\n");
+    const lines = contentStreamTextLines(stream, HEIGHT);
+    expect(lines.map((l) => l.text)).toEqual(["first", "second", "third"]);
+    expect(lines[1].y).toBeCloseTo(HEIGHT - 790, 4);
+    expect(lines[2].y).toBeCloseTo(HEIGHT - 780, 4);
+  });
+
+  it("BT resets the text matrix, so a later block doesn't inherit the earlier position", () => {
+    const stream = [
+      "BT\n1 0 0 1 50 800 Tm\n(first)Tj\nET",
+      "q 1 0 0 1 0 0 cm Q", // unrelated graphics op between text blocks
+      "BT\n1 0 0 1 50 500 Tm\n(second)Tj\nET",
+    ].join("\n");
+    const lines = contentStreamTextLines(stream, HEIGHT);
+    expect(lines.map((l) => l.y)).toEqual([HEIGHT - 800, HEIGHT - 500]);
+  });
+
+  it("handles escaped parens and octal escapes without desyncing the tokenizer", () => {
+    // "\(b\)" must not be read as closing the string early, and "\251" (©)
+    // must consume all three octal digits, not just one.
+    const stream = "BT\n1 0 0 1 0 700 Tm\n(\\251 UCLES \\(2014\\) [3])Tj\nET";
+    const lines = contentStreamTextLines(stream, HEIGHT);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].text).toBe("© UCLES (2014) [3]");
+  });
+
+  it("ignores non-text operators and their operands entirely", () => {
+    const stream = [
+      "0 g",
+      "1 i",
+      "q 3.12 0 0 1.474 337.0394 688.4958 cm /Im0 Do Q",
+      "BT\n1 0 0 1 0 700 Tm\n(kept)Tj\nET",
+    ].join("\n");
+    const lines = contentStreamTextLines(stream, HEIGHT);
+    expect(lines).toEqual([{ y: HEIGHT - 700, text: "kept" }]);
+  });
+
+  it("returns no lines for a stream with no text-showing operators", () => {
+    expect(contentStreamTextLines("q 1 0 0 1 0 0 cm Q", HEIGHT)).toEqual([]);
+  });
+
+  it("joins a mark token split across two adjacent Tj calls with NO inserted space", () => {
+    // Real bug, real fixture: 0620 Paper 4 June2018-41.pdf and
+    // November2019-42.pdf draw "[3]" as two separate Tj calls at the exact
+    // same baseline — "  [" then "3]" — with zero actual gap between them
+    // (verified: no Td/Tm moves the pen in between, just two consecutive
+    // show-text operations). A merge that inserts a space between runs (the
+    // right call for reassembling a word-boundary banner) would turn this
+    // into "[ 3]" and marksInRegion would never match it.
+    const stream = "BT\n1 0 0 1 100 700 Tm\n(  [)Tj\n(3])Tj\nET";
+    const lines = contentStreamTextLines(stream, HEIGHT);
+    expect(lines).toEqual([{ y: HEIGHT - 700, text: "  [3]" }]);
+  });
+
+  it("reads a hex string literal the same as a parenthesized one", () => {
+    // Real corpus pattern (0620 Paper 4 June2018-41.pdf): some runs show text
+    // as `<0003>Tj` instead of `(...)Tj`. 0x00 0x03 as raw bytes is "\x00\x03"
+    // — this must come out identical to an equivalent (...) literal, not be
+    // silently dropped as an unhandled token type.
+    const stream = "BT\n1 0 0 1 0 700 Tm\n<48656C6C6F>Tj\nET"; // "Hello" in hex
+    const lines = contentStreamTextLines(stream, HEIGHT);
+    expect(lines).toEqual([{ y: HEIGHT - 700, text: "Hello" }]);
+  });
+
+  it("pads an odd-length hex string with a trailing zero nibble, per the PDF spec", () => {
+    const stream = "BT\n1 0 0 1 0 700 Tm\n<412>Tj\nET"; // 0x41, 0x20 (padded)
+    const lines = contentStreamTextLines(stream, HEIGHT);
+    expect(lines).toEqual([{ y: HEIGHT - 700, text: "A " }]);
+  });
+
+  it("decodes a composite font's hex-string TJ token via resolveFont, same as a parenthesized one", () => {
+    const toUnicode = new Map([[0x0003, "["], [0x0014, "N"], [0x0011, "]"]]);
+    const resolveFont = (name) =>
+      name === "C2_0" ? { composite: true, toUnicode } : { composite: false, toUnicode: null };
+    const stream = "BT\n/C2_0 1 Tf\n1 0 0 1 0 700 Tm\n[<000300140011>]TJ\nET";
+    const lines = contentStreamTextLines(stream, HEIGHT, { resolveFont });
+    expect(lines).toEqual([{ y: HEIGHT - 700, text: "[N]" }]);
+  });
+
+  it("decodes a composite (Type0) font's 2-byte codes via an injected resolveFont", () => {
+    // Real bug, real fixture: 0607 Paper 4 (March2023-42.pdf, page 10) draws
+    // its "[2]" mark allocation through composite font /C2_0 as
+    // `[(\000>\000\025\000@)] TJ` — raw bytes 0x00 0x3E 0x00 0x15 0x00 0x40,
+    // i.e. CIDs 0x003E, 0x0015, 0x0040 — which are NOT '[' '2' ']' in any byte
+    // encoding; only that font's own ToUnicode CMap (below, extracted
+    // verbatim from the same PDF) says so. Reading this raw-Latin1 (as every
+    // simple font on this page correctly is) silently dropped the token
+    // entirely — this is the exact case that motivated resolveFont existing.
+    const toUnicode = parseToUnicodeCMap(`
+      1 begincodespacerange
+      <0000> <FFFF>
+      endcodespacerange
+      7 beginbfchar
+      <0003> <0008>
+      <000F> <002C>
+      <0011> <002E>
+      <0015> <0032>
+      <003E> <005B>
+      <0040> <005D>
+      <0BD8> <200A>
+      endbfchar
+    `);
+    const resolveFont = (name) =>
+      name === "C2_0" ? { composite: true, toUnicode } : { composite: false, toUnicode: null };
+
+    const stream = [
+      "BT",
+      "/C2_0 11.5 Tf",
+      "11.5 0 0 11.5 532.2626 288.0196 Tm",
+      "[(\x00\x3E\x00\x15\x00\x40)] TJ",
+      "ET",
+    ].join("\n");
+    const lines = contentStreamTextLines(stream, 841.89, { resolveFont });
+    expect(lines).toHaveLength(1);
+    expect(lines[0].text).toBe("[2]");
+  });
+
+  it("a composite font with no ToUnicode contributes nothing, rather than garbage bytes", () => {
+    const resolveFont = () => ({ composite: true, toUnicode: null });
+    const stream = "BT\n/C2_0 11.5 Tf\n1 0 0 1 0 700 Tm\n(\x00\x3E\x00\x15)Tj\nET";
+    const lines = contentStreamTextLines(stream, 841.89, { resolveFont });
+    expect(lines).toEqual([]); // empty decoded text never gets pushed as a line
+  });
+
+  it("switching Tf mid-stream applies the right decode to each run", () => {
+    const toUnicode = new Map([[0x41, "Z"]]);
+    const resolveFont = (name) =>
+      name === "Composite" ? { composite: true, toUnicode } : { composite: false, toUnicode: null };
+    const stream = [
+      "BT",
+      "/Simple 10 Tf",
+      "1 0 0 1 0 700 Tm",
+      "(plain)Tj",
+      "/Composite 10 Tf",
+      "0 -20 Td",
+      "(\x00\x41)Tj",
+      "ET",
+    ].join("\n");
+    const lines = contentStreamTextLines(stream, 841.89, { resolveFont });
+    expect(lines.map((l) => l.text)).toEqual(["plain", "Z"]);
+  });
+
+  it("restores the font selected before a q...Q block, not whatever Tf ran last inside it", () => {
+    // Real bug, real fixture: 0606 Paper 1 June2014-11.pdf draws its "[3]"
+    // mark allocation with composite font /C2_0 selected *before* a
+    // `q ... /T1_9 Tf ... Q` clip block (a differently-sized inline run), and
+    // shows the token afterward with no Tf of its own — relying on Q to
+    // restore /C2_0. Font selection is graphics state (PDF spec §8.4, §9.3)
+    // and q/Q must save/restore it exactly like CTM; treating `currentFont`
+    // as a plain running variable let the inner /T1_9 leak past the Q and
+    // decoded the mark token as garbage 1-byte-per-char text instead.
+    const toUnicode = new Map([
+      [0x3e, "["],
+      [0x16, "3"],
+      [0x40, "]"],
+    ]);
+    const resolveFont = (name) =>
+      name === "C2_0" ? { composite: true, toUnicode } : { composite: false, toUnicode: null };
+
+    const stream = [
+      "BT",
+      "/C2_0 1 Tf", // selected here, before the q...Q block
+      "ET",
+      "q",
+      "BT",
+      "/T1_9 1 Tf", // selected only inside this q...Q scope
+      "10.5 0 0 10.5 200 480 Tm",
+      "(\x2A)Tj", // a simple-font byte that must NOT leak into the next run
+      "ET",
+      "Q",
+      "BT",
+      // No Tf here — must inherit whatever Q restored (C2_0), not T1_9.
+      "11.5 0 0 11.5 532.26 500 Tm",
+      "(\x00\x3E\x00\x16\x00\x40)Tj",
+      "ET",
+    ].join("\n");
+
+    const lines = contentStreamTextLines(stream, 841.89, { resolveFont });
+    expect(lines.map((l) => l.text)).toEqual(["*", "[3]"]);
+  });
+
+  it("matches the real corpus pattern for a printed mark allocation end to end", () => {
+    // Extracted verbatim from 0607 Paper 2 June2014-21.pdf's raw content
+    // stream (the actual "[1]" for question 1(a)) — this is the exact
+    // operator sequence marksInRegion has to see a "[1]" survive.
+    const stream = [
+      "BT",
+      "/T1_3 1 Tf",
+      "10.9984 0 0 10.9984 279.2126 690.87691 Tm",
+      "(A)Tj",
+      "ET",
+      "BT",
+      "/T1_3 1 Tf",
+      "10.9984 0 0 10.9984 285.93069 690.87691 Tm",
+      "(nswer\\(a\\) )Tj",
+      "ET",
+      "BT",
+      "/T1_1 1 Tf",
+      "0.62891 Tw 10.9984 0 0 10.9984 522.79379 690.87691 Tm",
+      "( [1] )Tj",
+      "ET",
+    ].join("\n");
+    const lines = contentStreamTextLines(stream, HEIGHT);
+    const marksLine = lines.find((l) => l.text.includes("[1]"));
+    expect(marksLine).toBeDefined();
+    expect(marksLine.y).toBeCloseTo(HEIGHT - 690.87691, 4);
+    const hits = marksInRegion({ lines, height: HEIGHT }, marksLine.y - 5, marksLine.y + 5);
+    expect(hits).toEqual([{ y: marksLine.y, i: 0, marks: 1 }]);
   });
 });
