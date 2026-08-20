@@ -47,7 +47,11 @@ export const CACHE_PREFIX = '_cache';
 // bytes directly, so a changed /generate paper already gets a new key on its
 // own; nothing under this prefix would be orphaned by bumping, but nothing
 // needs it either.
-const CACHE_VERSION = 'v5';
+//
+// v6 (2026-08-19): every composed page now carries a "Scholium" wordmark in the
+// top margin. v5 objects are unbranded, and the key is otherwise deterministic,
+// so they would be served forever without this bump.
+const CACHE_VERSION = 'v6';
 
 const R2_PUBLIC_URL = (
   process.env.VITE_R2_PUBLIC_URL ||

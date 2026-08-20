@@ -1,3 +1,6 @@
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import {
   PDFDocument,
   PDFArray,
@@ -9,6 +12,7 @@ import {
   rgb,
   degrees,
 } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
 import { createClient } from '@supabase/supabase-js';
 import { fetchRowsByIds } from './supabase-rows.js';
 import {
@@ -41,8 +45,44 @@ const PAGE_W = 595.276;
 const PAGE_H = 841.89;
 const MARGIN = 36; // 0.5"
 const CONTENT_W = PAGE_W - 2 * MARGIN;
-const CONTENT_TOP = PAGE_H - MARGIN;
+export const CONTENT_TOP = PAGE_H - MARGIN;
 const CONTENT_BOTTOM = MARGIN;
+
+// Brand mark on every composed page. It sits in the free top margin band —
+// everything the layout draws starts at CONTENT_TOP and works down — so adding
+// it reflows nothing. Just the wordmark + domain: the composed pages carry
+// Cambridge's own © footer and a copyright line would be wrong on both counts.
+// Color is the suite's own primary indigo/blue token (--primary in
+// packages/ui/src/tokens.css, #4F46E5), so the PDF reads as the same brand as
+// the site rather than an arbitrary blue.
+export const BRAND_HEADER = {
+  text: 'Scholium at thescholium.com',
+  x: MARGIN,
+  y: PAGE_H - 24,
+  size: 14,
+  color: rgb(0x4f / 255, 0x46 / 255, 0xe5 / 255),
+};
+
+// Poppins is vendored locally under server/fonts/ (downloaded from Google
+// Fonts' OFL-licensed source — see fonts/LICENSE_POPPINS) instead of pulled
+// from a CDN at request time, the same reasoning as server/pdfjs-standard-
+// fonts: this composer runs in a serverless function and dev server alike,
+// and neither should depend on a third-party host being reachable just to
+// stamp a page.
+const FONTS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fonts');
+
+// Read once per process and reused across composePdf() calls — the file never
+// changes at runtime, so re-reading it from disk on every request is wasted
+// I/O on a hot function.
+let brandFontBytesPromise;
+function loadBrandFontBytes() {
+  return (brandFontBytesPromise ??= fs.readFile(path.join(FONTS_DIR, 'Poppins-Bold.ttf')));
+}
+
+export async function embedBrandFont(doc) {
+  doc.registerFontkit(fontkit);
+  return doc.embedFont(await loadBrandFontBytes(), { subset: true });
+}
 
 // Phase 3 crop knobs (see BUILD.md → Stage 3, Stage 5).
 const MIN_CROP_HEIGHT = 20;         // floor every pipeline applies
@@ -1130,6 +1170,23 @@ export function rotatedCropBox(rawW, rawH, rotation, yTopFromTop, yBotFromTop) {
   throw new Error(`Unsupported source page rotation ${rot}° (only 0° and 90° are handled)`);
 }
 
+// Applied once at the end rather than from _newPage() so no page can be missed —
+// section dividers and content pages go through different creation paths.
+// `brandFont` is the embedded Poppins face from embedBrandFont() — a distinct
+// font from the Helvetica used for the rest of the document, so the brand mark
+// reads clearly at a glance rather than blending into body text.
+export function stampBrandHeader(doc, brandFont) {
+  for (const page of doc.getPages()) {
+    page.drawText(BRAND_HEADER.text, {
+      x: BRAND_HEADER.x,
+      y: BRAND_HEADER.y,
+      size: BRAND_HEADER.size,
+      font: brandFont,
+      color: BRAND_HEADER.color,
+    });
+  }
+}
+
 // Vertical-flow layout on A4 — mirrors PageLayout in _build_topicals.py.
 class PageLayout {
   constructor(outDoc, font, boldFont) {
@@ -1574,6 +1631,7 @@ export async function composePdf(questionIds, subject, loader, options = {}) {
   const outDoc = await PDFDocument.create();
   const font = await outDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await outDoc.embedFont(StandardFonts.HelveticaBold);
+  const brandFont = await embedBrandFont(outDoc);
   const layout = new PageLayout(outDoc, font, boldFont);
 
   // Every item shares one paper component — GeneratePaperPage locks the
@@ -1627,6 +1685,7 @@ export async function composePdf(questionIds, subject, loader, options = {}) {
     }
   }
 
+  stampBrandHeader(outDoc, brandFont);
   const bytes = await outDoc.save();
   console.log(`✅ PDF composed: ${(bytes.length / 1024).toFixed(1)} KB, ${outDoc.getPageCount()} pages`);
 
