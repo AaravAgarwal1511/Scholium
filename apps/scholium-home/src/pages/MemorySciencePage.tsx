@@ -1,17 +1,12 @@
 import { Brain, Dumbbell, Repeat } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { AppLink } from "@repo/ui";
-import Footer from "@/components/Footer";
+import { ScholiumFooter } from "@repo/ui";
 import { PILLARS, REFERENCES } from "@/content/memoryScience";
 import { useDocumentMeta } from "@/hooks/useDocumentMeta";
 
 const ICONS: Record<string, LucideIcon> = { Repeat, Brain, Dumbbell };
 
-interface MemorySciencePageProps {
-  apps: AppLink[];
-}
-
-export default function MemorySciencePage({ apps }: MemorySciencePageProps) {
+export default function MemorySciencePage() {
   useDocumentMeta({
     title: "The memory science behind Scholium",
     description:
@@ -165,7 +160,7 @@ export default function MemorySciencePage({ apps }: MemorySciencePageProps) {
           </div>
         </section>
       </main>
-      <Footer apps={apps} />
+      <ScholiumFooter homeUrl="/" />
     </div>
   );
 }

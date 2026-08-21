@@ -4,7 +4,7 @@ import { useAnalytics } from "@repo/analytics";
 
 // Fallback for tools with a no-signup trial at `<app-url>/demo`, used only when
 // the DB `has_demo` flag is absent (e.g. before the tags migration is applied).
-const DEMO_SLUGS = new Set(["language-hub", "recall-app", "poetry-notes"]);
+const DEMO_SLUGS = new Set(["language-hub", "recall-app", "poetry-notes", "mock-space"]);
 
 const APP_META: Record<
   string,
@@ -34,6 +34,12 @@ const APP_META: Record<
       "Past papers and mark schemes, organised by subject, component, and chapter. Track what's been tried.",
     accentVar: "--accent",
   },
+  "mock-space": {
+    tagline: "Sit a past paper under exam conditions",
+    description:
+      "Type straight onto the PDF — the cursor only ever moves forwards, so you can never quietly reword an answer before you mark it.",
+    accentVar: "--primary",
+  },
 };
 
 const screenshotModules = import.meta.glob<{ default: string }>(
@@ -53,13 +59,14 @@ function slugify(s: string): string {
 
 // The suite is loaded from the DB, where a tool's title/URL may not slugify to
 // the canonical key used by APP_META and the screenshot assets (e.g. DB title
-// "Lang. Hub" / host "language-flash-hub" → "language-hub"). These keyword
-// aliases map such rows back to the right asset/meta key.
+// "Lang. Hub" / host "langhub" → "language-hub"). These keyword aliases map
+// such rows back to the right asset/meta key.
 const SLUG_ALIASES: { slug: string; keywords: string[] }[] = [
   { slug: "language-hub", keywords: ["language", "lang"] },
   { slug: "recall-app", keywords: ["recall"] },
   { slug: "poetry-notes", keywords: ["poetry"] },
   { slug: "past-papers", keywords: ["past-paper", "pastpaper", "past papers"] },
+  { slug: "mock-space", keywords: ["mock", "mockspace"] },
 ];
 
 function candidateSlugs(title: string, url: string): string[] {
@@ -111,7 +118,6 @@ interface AppCardProps {
   has_demo?: boolean | null;
   no_login?: boolean | null;
   highlighted?: boolean;
-  imageSide?: "left" | "right";
 }
 
 export default function AppCard({
@@ -124,7 +130,6 @@ export default function AppCard({
   has_demo,
   no_login,
   highlighted,
-  imageSide = "right",
 }: AppCardProps) {
   const { track } = useAnalytics();
   const slug = useMemo(() => resolveAppSlug(title, url), [title, url]);
@@ -146,152 +151,126 @@ export default function AppCard({
         outline: `2px solid ${accent}`,
         outlineOffset: "2px",
         boxShadow: `0 0 0 6px hsl(var(${accentVar}) / 0.18), var(--shadow-hover)`,
-        transform: "translateY(-2px) scale(1.005)",
+        transform: "translateY(-4px)",
       }
-    : { boxShadow: "var(--shadow-card)" };
-
-  const rowDirection =
-    imageSide === "left" ? "md:flex-row-reverse" : "md:flex-row";
+    : {};
 
   return (
     <div id={`app-${id}`} className="relative scroll-mt-24">
-    {(tryUrl || no_login) && (
-      <div className="absolute top-4 right-4 z-20 flex flex-col items-end gap-2">
-        {tryUrl && (
-          <a
-            href={tryUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => track("demo_click", { app_id: id })}
-            className="sch-focus inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-[0.08em] shadow-soft transition-transform hover:-translate-y-0.5"
-            style={{
-              background: "hsl(var(--card))",
-              color: accent,
-              border: `1px solid ${accent}`,
-            }}
-            aria-label={`Try ${title} free, no account needed`}
-          >
-            <PlayCircle size={14} strokeWidth={2.25} aria-hidden />
-            Try it free
-          </a>
-        )}
-        {no_login && (
-          <span
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-[0.08em] shadow-soft"
-            style={{
-              background: `hsl(var(${accentVar}) / 0.12)`,
-              color: accent,
-              border: `1px solid hsl(var(${accentVar}) / 0.3)`,
-            }}
-          >
-            <LockOpen size={14} strokeWidth={2.25} aria-hidden />
-            No login required
-          </span>
-        )}
-      </div>
-    )}
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      data-app-id={id}
-      onClick={() => track("app_card_click", { app_id: id, source: "grid" })}
-      className={`sch-focus group relative flex flex-col ${rowDirection} bg-paper rounded-[var(--radius-lg)] border border-[color:var(--color-border)] overflow-hidden transition-all duration-500`}
-      style={highlightStyle}
-      onMouseEnter={(e) => {
-        if (highlighted) return;
-        e.currentTarget.style.boxShadow = "var(--shadow-hover)";
-        e.currentTarget.style.borderColor = accent;
-        e.currentTarget.style.transform = "translateY(-2px)";
-      }}
-      onMouseLeave={(e) => {
-        if (highlighted) return;
-        e.currentTarget.style.boxShadow = "var(--shadow-card)";
-        e.currentTarget.style.borderColor = "";
-        e.currentTarget.style.transform = "";
-      }}
-    >
-      {/* Text side */}
-      <div className="flex-1 p-8 md:p-10 flex flex-col">
-        <div
-          className="w-12 h-12 flex items-center justify-center rounded-[var(--radius-sm)] text-2xl mb-5 border"
-          style={{
-            background: accentSoft,
-            borderColor: accent,
-            color: accent,
-          }}
-        >
-          {icon ? icon : <Sparkles size={22} strokeWidth={2} aria-hidden />}
-        </div>
-
-        <h3
-          className="text-foreground mb-1"
-          style={{
-            fontSize: "1.6rem",
-            fontWeight: 700,
-            letterSpacing: "-0.015em",
-            lineHeight: 1.2,
-          }}
-        >
-          {title}
-        </h3>
-
-        {meta && (
-          <p className="text-sm font-semibold mb-3" style={{ color: accent }}>
-            {meta.tagline}
-          </p>
-        )}
-
-        {resolvedDescription && (
-          <p className="text-sm text-muted-foreground leading-relaxed flex-1">
-            {resolvedDescription}
-          </p>
-        )}
-
-        <div className="mt-6 pt-5 border-t border-[color:var(--color-rule)] flex items-center justify-between gap-3">
-          {hasSubjects ? (
-            <ul className="flex flex-wrap items-center gap-1.5 list-none m-0 p-0">
-              {subjects!.map((subject) => (
-                <li
-                  key={subject}
-                  className="text-[0.65rem] font-semibold uppercase tracking-[0.08em] px-2 py-1 rounded-full"
-                  style={{
-                    background: accentSoft,
-                    color: accent,
-                    border: `1px solid hsl(var(${accentVar}) / 0.3)`,
-                  }}
-                >
-                  {subject}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <span />
+      {/* Demo/no-login badges are siblings of the card link, not children of
+          it — an <a> nested inside an <a> is invalid HTML (React warns via
+          validateDOMNesting) and browsers handle its click target
+          unpredictably. Absolutely positioned to sit visually over the
+          screenshot corner instead. */}
+      {(tryUrl || no_login) && (
+        <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-2">
+          {tryUrl && (
+            <a
+              href={tryUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => track("demo_click", { app_id: id })}
+              className="sch-focus inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-[0.08em] shadow-soft"
+              style={{ background: "hsl(var(--card))", color: accent, border: `1px solid ${accent}` }}
+              aria-label={`Try ${title} free, no account needed`}
+            >
+              <PlayCircle size={14} strokeWidth={2.25} aria-hidden />
+              Try it free
+            </a>
           )}
-          <ArrowUpRight
-            size={18}
-            className="flex-shrink-0 transition-all group-hover:translate-x-1 group-hover:-translate-y-1"
-            style={{ color: accent }}
-          />
-        </div>
-      </div>
-
-      {/* Image side */}
-      {hasScreenshot && (
-        <div
-          className="md:w-3/5 md:flex-shrink-0 relative overflow-hidden"
-          style={{ background: accentSoft }}
-        >
-          <img
-            src={screenshotUrl}
-            alt={`${title} screenshot`}
-            loading="lazy"
-            onError={() => setImageFailed(true)}
-            className="w-full h-auto md:h-full object-cover object-top md:object-center md:min-h-[560px]"
-          />
+          {no_login && (
+            <span
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-[0.08em] shadow-soft"
+              style={{
+                background: "hsl(var(--card))",
+                color: accent,
+                border: `1px solid hsl(var(${accentVar}) / 0.3)`,
+              }}
+            >
+              <LockOpen size={14} strokeWidth={2.25} aria-hidden />
+              No login required
+            </span>
+          )}
         </div>
       )}
-    </a>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        data-app-id={id}
+        onClick={() => track("app_card_click", { app_id: id, source: "grid" })}
+        className="sch-focus group relative flex flex-col rounded-[var(--radius-lg)] overflow-hidden bg-paper border transition-all duration-300 hover:-translate-y-1"
+        style={{
+          borderColor: "var(--color-border)",
+          boxShadow: highlighted ? undefined : "var(--shadow-card)",
+          ...highlightStyle,
+        }}
+      >
+        {/* Screenshot */}
+        <div className="relative overflow-hidden" style={{ background: accentSoft }}>
+          {hasScreenshot ? (
+            <img
+              src={screenshotUrl}
+              alt={`${title} screenshot`}
+              loading="lazy"
+              width={2400}
+              height={1600}
+              onError={() => setImageFailed(true)}
+              className="w-full aspect-[3/2] object-cover object-top transition-transform duration-500 group-hover:scale-[1.03]"
+            />
+          ) : (
+            <div className="w-full aspect-[3/2] flex items-center justify-center" style={{ color: accent }}>
+              {icon ? (
+                <span className="text-6xl" aria-hidden>
+                  {icon}
+                </span>
+              ) : (
+                <Sparkles size={48} strokeWidth={1.5} aria-hidden />
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Text */}
+        <div className="p-8 flex flex-col flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-foreground text-2xl font-semibold leading-tight" style={{ letterSpacing: "-0.02em" }}>
+                {icon && <span className="mr-2" aria-hidden>{icon}</span>}
+                {title}
+              </h3>
+              {meta && (
+                <p className="mt-1 text-sm font-semibold" style={{ color: accent }}>
+                  {meta.tagline}
+                </p>
+              )}
+            </div>
+            <ArrowUpRight
+              size={20}
+              className="flex-shrink-0 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+              style={{ color: accent }}
+            />
+          </div>
+
+          {resolvedDescription && (
+            <p className="mt-4 text-base text-muted-foreground leading-relaxed flex-1">{resolvedDescription}</p>
+          )}
+
+          {hasSubjects && (
+            <div className="mt-6 pt-5 border-t flex flex-wrap gap-1.5" style={{ borderColor: "var(--color-rule)" }}>
+              {subjects!.map((subject) => (
+                <span
+                  key={subject}
+                  className="text-[0.65rem] font-semibold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full"
+                  style={{ background: accentSoft, color: accent, border: `1px solid hsl(var(${accentVar}) / 0.3)` }}
+                >
+                  {subject}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </a>
     </div>
   );
 }
