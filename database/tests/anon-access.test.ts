@@ -185,6 +185,21 @@ describe("RLS keeps user-scoped tables closed to anonymous readers", () => {
     "active_sessions",
   ];
 
+  // questions_metadata isn't user-scoped — it's the past-papers question index,
+  // and there's no auth.uid() column to key a policy on. It's grouped with the
+  // user-scoped tables anyway because the assertion is identical: anon must get
+  // zero rows. It used to be a blanket `FOR SELECT USING (true)` policy
+  // (20260520000000_questions_metadata.sql) so the browser could query it
+  // directly; 20260821000000_revoke_anon_questions_metadata.sql closed that once
+  // the browser moved to reading it through /api/chapter-questions with the
+  // service role instead (server/chapter-questions-handler.js). This is the
+  // regression net for that: if the policy or grant is ever restored, this test
+  // fails rather than the table quietly reopening.
+  it("questions_metadata exposes no rows to anon", async () => {
+    const { rows } = await selectFrom("questions_metadata");
+    expect(rows, "questions_metadata returned rows to an anonymous reader").toHaveLength(0);
+  });
+
   it.each(userScoped)("%s exposes no rows to anon", async (table) => {
     const { rows } = await selectFrom(table);
     expect(rows, `${table} returned rows to an anonymous reader`).toHaveLength(0);
