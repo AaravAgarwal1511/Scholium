@@ -1,171 +1,124 @@
+import { useMemo } from "react";
 import { ArrowRight, ChevronDown } from "lucide-react";
-import type { ReactNode } from "react";
 import type { AppLink } from "@repo/ui";
-import type { Persona } from "./PersonaSelector";
+import HeroScene from "./HeroScene";
 
 interface HeroProps {
-  onScrollToAbout: () => void;
+  onScrollToScience: () => void;
   onExploreTools: () => void;
   apps: AppLink[];
-  persona: Persona | null;
-  personaSelector?: ReactNode;
-  onChangePersona?: () => void;
 }
 
-interface HeroCopy {
-  headline: React.ReactNode;
-  subheadline: string;
+// "Inside the suite" ticker — the tools and techniques Scholium covers. Built
+// from the fetched apps (titles + deduped subjects) plus a couple of static
+// technique terms, so a new tool or subject shows up here automatically
+// instead of living as a second hardcoded list that drifts from the DB.
+function useTicker(apps: AppLink[]): string[] {
+  return useMemo(() => {
+    const toolApps = apps.filter((a) => a.id !== "scholium-home");
+    const titles = toolApps.map((a) => a.title);
+    const subjects: string[] = [];
+    const seen = new Set<string>();
+    for (const app of toolApps) {
+      for (const subject of app.subjects ?? []) {
+        const key = subject.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          subjects.push(subject);
+        }
+      }
+    }
+    return [...titles, "Spaced repetition", "Active recall", ...subjects, "No streaks"];
+  }, [apps]);
 }
 
-function getHeroCopy(persona: Persona | null): HeroCopy {
-  if (persona === "teacher") {
-    return {
-      headline: (
-        <>
-          Equip your <span style={{ color: "hsl(var(--primary))" }}>students.</span>
-          <br />
-          Trust the <span style={{ color: "hsl(var(--accent))" }}>tools.</span>
-        </>
-      ),
-      subheadline:
-        "A free suite of memory-backed revision tools you can point your students to, no signup hassle, no distracting gamification.",
-    };
-  }
-  if (persona === "parent") {
-    return {
-      headline: (
-        <>
-          Give your <span style={{ color: "hsl(var(--primary))" }}>child</span>
-          <br />
-          an <span style={{ color: "hsl(var(--accent))" }}>edge.</span>
-        </>
-      ),
-      subheadline:
-        "A free suite of focused revision tools for your child, vocabulary drills, active recall, and exam practice, built on how memory actually works.",
-    };
-  }
-  return {
-    headline: (
-      <>
-        Learn <span style={{ color: "hsl(var(--primary))" }}>deeper.</span>
-        <br />
-        Remember <span style={{ color: "hsl(var(--accent))" }}>longer.</span>
-      </>
-    ),
-    subheadline:
-      "A suite of focused learning tools, built on how memory actually works, not how apps keep you scrolling.",
-  };
-}
-
-export default function Hero({
-  onScrollToAbout,
-  onExploreTools,
-  persona,
-  personaSelector,
-  onChangePersona,
-}: HeroProps) {
-  const copy = getHeroCopy(persona);
+export default function Hero({ onScrollToScience, onExploreTools, apps }: HeroProps) {
+  const toolCount = apps.filter((a) => a.id !== "scholium-home").length;
+  const ticker = useTicker(apps);
 
   return (
-    <section className="relative min-h-[calc(100vh-3.5rem)] flex flex-col justify-center overflow-hidden">
+    <div className="flex-1 px-6 pt-6 pb-6 flex items-end">
       <div
-        aria-hidden
-        className="absolute inset-0 -z-10 pointer-events-none"
-        style={{
-          backgroundImage:
-            "radial-gradient(ellipse 70% 50% at 18% 22%, hsl(var(--primary) / 0.14), transparent 60%), radial-gradient(ellipse 60% 50% at 82% 78%, hsl(var(--accent) / 0.14), transparent 60%)",
-        }}
-      />
-
-      {persona && onChangePersona && (
-        <button
-          type="button"
-          onClick={onChangePersona}
-          className="sch-focus absolute top-6 right-6 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all"
-          style={{
-            background: "transparent",
-            color: "hsl(var(--muted-foreground))",
-            border: "1px solid var(--color-border)",
-            animation: "rui-fade 0.5s var(--ease-out-paper) 0.4s both",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = "hsl(var(--primary))";
-            e.currentTarget.style.color = "hsl(var(--primary))";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = "var(--color-border)";
-            e.currentTarget.style.color = "hsl(var(--muted-foreground))";
-          }}
-        >
-          Not you? Change
-        </button>
-      )}
-
-      <div
-        className={`mx-auto w-full px-6 py-20 ${
-          personaSelector
-            ? "max-w-6xl flex flex-col lg:flex-row items-center gap-12 lg:gap-20"
-            : "max-w-3xl text-center"
-        }`}
+        className="relative w-full rounded-[var(--radius-lg)] overflow-hidden border"
+        style={{ height: "calc(100dvh - 3.5rem - 3rem)", borderColor: "var(--color-border)" }}
       >
-        {/* Hero copy */}
-        <div key={persona ?? "none"} className={personaSelector ? "flex-1 text-center lg:text-left" : ""}>
+        {/* On-brand memory-science backdrop (no external assets) */}
+        <HeroScene />
+
+        {/* Legibility scrim, weighted to the left where the copy sits */}
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(100deg, hsl(var(--background) / 0.92) 0%, hsl(var(--background) / 0.72) 34%, hsl(var(--background) / 0) 62%)",
+          }}
+        />
+
+        {/* Content overlay */}
+        <div className="relative z-10 flex flex-col items-start justify-start h-full p-8 sm:p-12 pt-24 sm:pt-28">
+          <span className="rui-eyebrow mb-5">The Scholium Suite</span>
+
           <h1
-            className="text-foreground"
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "clamp(2.5rem, 8vw, 5.5rem)",
-              lineHeight: 1.05,
-              letterSpacing: "-0.025em",
-              fontWeight: 700,
-              animation: "rui-rise 0.6s var(--ease-out-paper) 0.05s both",
-            }}
+            className="text-foreground text-5xl md:text-6xl font-bold leading-[1.05] max-w-xl mb-5"
+            style={{ letterSpacing: "-0.04em" }}
           >
-            {copy.headline}
+            Learn <span style={{ color: "hsl(var(--primary))" }}>deeper.</span>
+            <br />
+            Remember <span style={{ color: "hsl(var(--accent))" }}>longer.</span>
           </h1>
 
-          <p
-            className={`mt-8 text-foreground/85 text-lg leading-relaxed ${personaSelector ? "max-w-xl" : "max-w-2xl mx-auto"}`}
-            style={{ animation: "rui-rise 0.6s var(--ease-out-paper) 0.2s both" }}
-          >
-            {copy.subheadline}
+          <p className="text-foreground/70 text-base md:text-lg max-w-md mb-8 leading-relaxed">
+            A free suite of focused learning tools, built on how memory actually
+            works — not how apps keep you scrolling.{" "}
+            {toolCount > 0 ? `One account unlocks all ${toolCount}.` : "One account unlocks the whole suite."}
           </p>
 
-          {/* Primary conversion path — one strong CTA + one secondary action. */}
-          <div
-            className={`mt-9 flex flex-col sm:flex-row gap-3 ${
-              personaSelector ? "items-stretch sm:items-center" : "items-stretch sm:items-center sm:justify-center"
-            }`}
-            style={{ animation: "rui-rise 0.6s var(--ease-out-paper) 0.3s both" }}
-          >
-            <a href="/signup" className="sch-btn sch-btn--primary sch-focus">
+          {/* CTAs */}
+          <div className="flex flex-wrap items-center gap-3">
+            <a href="/signup" className="sch-pill sch-pill--primary sch-focus">
               Create free account
-              <ArrowRight size={18} aria-hidden />
+              <span className="sch-pill-arrow">
+                <ArrowRight size={18} aria-hidden />
+              </span>
             </a>
-            <button type="button" onClick={onExploreTools} className="sch-btn sch-btn--ghost sch-focus">
+
+            <button type="button" onClick={onExploreTools} className="sch-pill sch-pill--ghost sch-focus">
               Explore the tools
             </button>
           </div>
+
+          {/* Suite ticker */}
+          {ticker.length > 0 && (
+            <div className="mt-16 sm:mt-24 w-full max-w-md">
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Inside the suite
+              </p>
+              <div className="overflow-hidden">
+                <div className="marquee-track">
+                  {[...ticker, ...ticker].map((item, i) => (
+                    <span
+                      key={i}
+                      className="mx-6 shrink-0 whitespace-nowrap text-sm font-medium"
+                      style={{ color: i % 2 === 0 ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))" }}
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Persona selector — rendered to the right on desktop */}
-        {personaSelector && (
-          <div
-            className="w-full lg:w-72 flex-shrink-0"
-            style={{ animation: "rui-rise 0.6s var(--ease-out-paper) 0.15s both" }}
-          >
-            {personaSelector}
-          </div>
-        )}
+        <button
+          onClick={onScrollToScience}
+          className="sch-focus absolute bottom-4 left-1/2 -translate-x-1/2 z-10 text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100 transition-opacity"
+          aria-label="Scroll to the memory science"
+        >
+          <ChevronDown size={22} className="animate-bounce" style={{ animationDuration: "2.5s" }} />
+        </button>
       </div>
-
-      <button
-        onClick={onScrollToAbout}
-        className="sch-focus absolute bottom-6 left-1/2 -translate-x-1/2 text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100 transition-opacity"
-        aria-label="Scroll to why Scholium"
-      >
-        <ChevronDown size={22} className="animate-bounce" style={{ animationDuration: "2.5s" }} />
-      </button>
-    </section>
+    </div>
   );
 }

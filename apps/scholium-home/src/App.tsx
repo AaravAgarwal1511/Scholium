@@ -80,8 +80,8 @@ export default function App() {
           <Route path="/signin" element={<Auth defaultMode="signin" />} />
           <Route path="/signup" element={<Auth defaultMode="signup" />} />
           <Route path="/auth/reset-password" element={<ResetPassword />} />
-          <Route path="/memory-science" element={<MemorySciencePage apps={apps} />} />
-          <Route path="/about" element={<AboutPage apps={apps} />} />
+          <Route path="/memory-science" element={<MemorySciencePage />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route path="/terms" element={<TermsOfService />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           {import.meta.env.DEV && (

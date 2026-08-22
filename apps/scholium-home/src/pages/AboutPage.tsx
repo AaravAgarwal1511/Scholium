@@ -1,12 +1,7 @@
 import { useState } from "react";
-import type { AppLink } from "@repo/ui";
-import Footer from "@/components/Footer";
+import { ScholiumFooter } from "@repo/ui";
 import { ABOUT, PORTRAIT } from "@/content/about";
 import { useDocumentMeta } from "@/hooks/useDocumentMeta";
-
-interface AboutPageProps {
-  apps: AppLink[];
-}
 
 /** The photo lives in public/ and may not be there yet, so a failed load falls
  *  back to an initials monogram instead of a broken-image icon. */
@@ -55,7 +50,7 @@ function Portrait() {
   );
 }
 
-export default function AboutPage({ apps }: AboutPageProps) {
+export default function AboutPage() {
   useDocumentMeta({
     title: `About — ${ABOUT.name}`,
     description: ABOUT.lede,
@@ -139,7 +134,7 @@ export default function AboutPage({ apps }: AboutPageProps) {
           </div>
         </section>
       </main>
-      <Footer apps={apps} />
+      <ScholiumFooter homeUrl="/" />
     </div>
   );
 }
