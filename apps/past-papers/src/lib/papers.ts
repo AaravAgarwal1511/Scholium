@@ -205,53 +205,35 @@ function yearOfPaper(paperField: string): number {
   return parts.length === 3 ? Number(parts[1]) : NaN;
 }
 
-// PostgREST caps every response at 1000 rows and reports no error — a truncated
-// result looks exactly like a complete one. `questions_metadata` holds ~4000
-// rows, so page through it rather than trusting a bare select().
-const PAGE_SIZE = 1000;
-
-interface PageResult<T> {
-  data: T[] | null;
-  error: { message: string } | null;
-}
-
-// `page(from, to)` must apply `.range(from, to)` to an ordered query.
-async function fetchAllRows<T>(
-  page: (from: number, to: number) => PromiseLike<PageResult<T>>,
-): Promise<T[]> {
-  const rows: T[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await page(from, from + PAGE_SIZE - 1);
-    if (error) throw new Error(error.message);
-    const batch = data ?? [];
-    rows.push(...batch);
-    if (batch.length < PAGE_SIZE) break;
-  }
-  return rows;
-}
-
 export interface ChapterQuestion {
   id: string;
   year: number;
 }
 
 // Every indexed question of a component, grouped by chapter and tagged with the
-// year of the exam it came from. One query for the whole component rather than
-// one per chapter — hence the paging: a truncated result would silently drop
-// questions off the end of the index.
+// year of the exam it came from. One request for the whole component rather
+// than one per chapter.
+//
+// Goes through /api/chapter-questions rather than querying questions_metadata
+// directly: that table used to be world-readable so this same function could
+// hit PostgREST from the browser, but a bare anon SELECT on ~4000 rows of
+// hand-built classification made the whole index dumpable in a few paged
+// requests. The server holds the same paging logic now (fetchAllRows in
+// server/supabase-rows.js) with a service-role key that bypasses RLS, so
+// nothing here needs to page — the endpoint always returns the complete set.
 export async function getChapterQuestions(
   subject: string,
   paperNum: number,
 ): Promise<Map<number, ChapterQuestion[]>> {
-  const rows = await fetchAllRows<{ id: string; chapter_num: number; paper: string }>((from, to) =>
-    supabase
-      .from("questions_metadata")
-      .select("id, chapter_num, paper")
-      .eq("subject", subject)
-      .like("id", `P${paperNum}-%`)
-      .order("id")
-      .range(from, to),
-  );
+  const params = new URLSearchParams({ subject, paperNum: String(paperNum) });
+  const res = await fetch(`/api/chapter-questions?${params}`);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error || `Failed to load question index (${res.status})`);
+  }
+  const { rows } = (await res.json()) as {
+    rows: { id: string; chapter_num: number; paper: string }[];
+  };
 
   const byChapter = new Map<number, ChapterQuestion[]>();
   for (const row of rows) {

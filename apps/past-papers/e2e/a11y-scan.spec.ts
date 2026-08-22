@@ -27,6 +27,18 @@ async function stubPaperTree(context: BrowserContext) {
   });
 }
 
+// getChapterQuestions reads /api/chapter-questions now, not questions_metadata
+// directly (see server/chapter-questions-handler.js) — response is { rows }.
+async function stubChapterQuestions(context: BrowserContext) {
+  await context.route('**/api/chapter-questions*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ rows: QUESTIONS_METADATA }),
+    }),
+  );
+}
+
 async function scan(page: Page) {
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -43,8 +55,9 @@ function report(blocking: Awaited<ReturnType<typeof scan>>) {
 }
 
 test('the generator has no serious/critical a11y violations', async ({ page, context }) => {
-  await seedAuth(context, { questions_metadata: QUESTIONS_METADATA });
+  await seedAuth(context);
   await stubPaperTree(context);
+  await stubChapterQuestions(context);
   await page.goto('/');
   await page.waitForTimeout(500);
 
@@ -63,19 +76,15 @@ test('the signed-out result step has no serious/critical a11y violations', async
   // Signed out on purpose: seedAuth is not called, so useAuth().user stays null
   // and the mock-space button renders in its disabled state.
   await stubPaperTree(context);
-  // Catch-all first — Playwright gives precedence to the most recently
-  // registered matching route, so the specific table below must come after
-  // this or it gets shadowed (same ordering rule seedAuth documents).
+  // rest/v1 catch-all for whatever the navbar's scholium_apps read (and
+  // anything else PostgREST) asks for. stubChapterQuestions doesn't need to
+  // race this: /api/chapter-questions is a different path entirely, not a
+  // rest/v1 table, so route registration order between the two doesn't matter
+  // (unlike seedAuth's table stubs, which do need to come after its catch-all).
   await context.route('**/rest/v1/**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
   );
-  await context.route('**/rest/v1/questions_metadata*', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(QUESTIONS_METADATA),
-    }),
-  );
+  await stubChapterQuestions(context);
   await context.route('**/api/compose-paper', (route) =>
     route.fulfill({
       status: 200,

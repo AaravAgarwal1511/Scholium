@@ -8,8 +8,12 @@ import { seedAuth } from './support/auth';
  * Supabase Storage bucket rather than the paper_files table — so the storage
  * LIST endpoint (`POST /storage/v1/object/list/<bucket>`) is stubbed by
  * branching on the `prefix` in the request body, same as ChaptersPage used to.
- * getChapterQuestions always reads questions_metadata regardless of storage
- * mode, so that table is stubbed too via seedAuth's `tables` option.
+ * getChapterQuestions always calls /api/chapter-questions regardless of storage
+ * mode (that endpoint reads questions_metadata server-side with the service
+ * role — see server/chapter-questions-handler.js — so the browser no longer
+ * queries the table directly), so that endpoint is stubbed too via
+ * stubChapterQuestions rather than seedAuth's `tables` option, which only
+ * covers PostgREST's rest/v1 paths.
  * seedAuth still runs, to answer the navbar's own scholium_apps read and show
  * the signed-in state; /api/compose-paper is stubbed because no server runs in
  * this suite (see playwright.config.ts — only `vite --mode test`, no Express).
@@ -45,12 +49,25 @@ async function stubPaperTree(context: BrowserContext) {
   });
 }
 
+// getChapterQuestions's response shape ({ rows: [...] }), not the bare array
+// PostgREST returns — see server/chapter-questions-handler.js.
+async function stubChapterQuestions(context: BrowserContext) {
+  await context.route('**/api/chapter-questions*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ rows: QUESTIONS_METADATA }),
+    }),
+  );
+}
+
 test('the generator renders at / and walks subject -> component -> chapter', async ({
   page,
   context,
 }) => {
-  await seedAuth(context, { questions_metadata: QUESTIONS_METADATA });
+  await seedAuth(context);
   await stubPaperTree(context);
+  await stubChapterQuestions(context);
   await page.goto('/');
 
   // "0607" is shown via subjectDisplayName, proving listSubjects -> storage worked.
@@ -84,8 +101,9 @@ test('generating a paper shows a result step instead of downloading automaticall
   page,
   context,
 }) => {
-  await seedAuth(context, { questions_metadata: QUESTIONS_METADATA });
+  await seedAuth(context);
   await stubPaperTree(context);
+  await stubChapterQuestions(context);
   // No Express server runs in this suite, so /api/compose-paper is stubbed like
   // every other network call here rather than composed for real.
   await context.route('**/api/compose-paper', (route) =>
@@ -121,8 +139,9 @@ test('opening in Mock Space never leaves a lingering blank tab', async ({ page, 
   // sitting there. It now only ever calls window.open with the real destination
   // — so the very first thing Playwright observes about the popup is that URL,
   // never a bare "about:blank".
-  await seedAuth(context, { questions_metadata: QUESTIONS_METADATA });
+  await seedAuth(context);
   await stubPaperTree(context);
+  await stubChapterQuestions(context);
   await context.route('**/api/compose-paper', (route) =>
     route.fulfill({
       status: 200,
@@ -159,8 +178,9 @@ test('opening in Mock Space never leaves a lingering blank tab', async ({ page, 
 });
 
 test('a blocked popup surfaces a toast with a working retry action', async ({ page, context }) => {
-  await seedAuth(context, { questions_metadata: QUESTIONS_METADATA });
+  await seedAuth(context);
   await stubPaperTree(context);
+  await stubChapterQuestions(context);
   await context.route('**/api/compose-paper', (route) =>
     route.fulfill({
       status: 200,

@@ -3,6 +3,7 @@ import cors from 'cors';
 import { handleCompose } from './server/compose-handler.js';
 import { handleChapterPaper } from './server/chapter-handler.js';
 import { handleProxyPaper } from './server/proxy-paper-handler.js';
+import { handleChapterQuestions } from './server/chapter-questions-handler.js';
 import { createLocalLoader, createR2Loader } from './server/loaders.js';
 
 const app = express();
@@ -48,6 +49,14 @@ app.get('/api/proxy-paper', async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
     return res.status(status).send(Buffer.from(bytes));
   }
+  res.status(status).json(body);
+});
+
+// Question index for a subject/component, read with the service role so the
+// browser no longer needs anon SELECT on questions_metadata directly (see
+// server/chapter-questions-handler.js).
+app.get('/api/chapter-questions', async (req, res) => {
+  const { status, body } = await handleChapterQuestions(req.query);
   res.status(status).json(body);
 });
 
