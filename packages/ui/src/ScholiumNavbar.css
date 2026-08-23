@@ -51,7 +51,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  height: 2.25rem;
+  height: 2.75rem;
   padding: 0 0.75rem;
   background: transparent;
   border: 1px solid transparent;
@@ -192,8 +192,8 @@
 }
 
 .rui-navbar-icon-btn {
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.75rem;
+  height: 2.75rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -214,7 +214,7 @@
 .rui-navbar-btn {
   display: inline-flex;
   align-items: center;
-  height: 2.25rem;
+  height: 2.75rem;
   padding: 0 0.9rem;
   border-radius: var(--radius-sm);
   font-family: inherit;
@@ -306,8 +306,8 @@
 }
 
 .rui-navbar-avatar {
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.75rem;
+  height: 2.75rem;
   border-radius: 9999px;
   border: 1px solid transparent;
   background: hsl(var(--primary));
@@ -399,5 +399,29 @@
   .rui-navbar-btn {
     padding: 0 0.7rem;
     font-size: 0.825rem;
+  }
+  /* The dropdown is anchored to the tools button, which sits near the left
+   * edge — on a narrow viewport that leaves it with nowhere to grow but off
+   * the right edge of the screen. Detach it from the button and pin it to
+   * the viewport instead once the header's own height (3.5rem) is the only
+   * thing that needs matching. */
+  .rui-navbar-dropdown {
+    position: fixed;
+    top: 4rem;
+    left: 1rem;
+    right: 1rem;
+    min-width: 0;
+  }
+}
+
+/* Below ~400px even the icon-only tools button, both auth buttons, and the
+ * brand no longer fit alongside each other at comfortable (44px) tap-target
+ * sizes — drop the wordmark and keep just the mark, which is still a
+ * recognizable, clickable home link. Scoped to the navbar brand specifically
+ * so it doesn't affect ScholiumLogo used at larger sizes elsewhere (e.g. a
+ * marketing hero). */
+@media (max-width: 400px) {
+  .rui-navbar-brand .rui-scholium-wordmark {
+    display: none;
   }
 }
