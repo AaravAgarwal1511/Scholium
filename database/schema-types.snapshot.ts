@@ -1,5 +1,5 @@
 // AUTO-GENERATED SNAPSHOT of the live public schema types — do not edit by hand.
-// Regenerate with: pnpm schema:snapshot   (see scripts/check-schema-drift.sh)
+// Regenerate with: pnpm schema:snapshot (prod) or pnpm schema:snapshot:local (local) — see scripts/check-schema-drift.sh
 export type Json =
   | string
   | number
@@ -194,7 +194,7 @@ export type Database = {
           created_at: string | null
           id: string
           paper: string
-          question_number: number
+          question_number: string
           sub_topic: string
           subject: string
         }
@@ -204,7 +204,7 @@ export type Database = {
           created_at?: string | null
           id: string
           paper: string
-          question_number: number
+          question_number: string
           sub_topic: string
           subject: string
         }
@@ -214,7 +214,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           paper?: string
-          question_number?: number
+          question_number?: string
           sub_topic?: string
           subject?: string
         }

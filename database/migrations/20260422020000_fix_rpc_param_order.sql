@@ -17,6 +17,12 @@ END;
 $$;
 
 -- admin_rename_section: (p_new_name, p_section_id)
+-- Both params are text, and only the order/names changed from the original
+-- (p_section_id, p_new_name) in 20260422000000_admin_recall_rpcs.sql — Postgres
+-- refuses to rename input parameters via CREATE OR REPLACE, so the old signature
+-- must be dropped first. On prod this had already happened via an out-of-band
+-- dashboard edit by the time this migration ran; on a fresh replay it has not.
+DROP FUNCTION IF EXISTS public.admin_rename_section(text, text);
 CREATE OR REPLACE FUNCTION public.admin_rename_section(
   p_new_name   text,
   p_section_id text
@@ -35,6 +41,9 @@ END;
 $$;
 
 -- admin_rename_subject: (p_new_emoji, p_new_name, p_subject_id)
+-- Same reordering issue as admin_rename_section above — all three params are
+-- text, and the original order was (p_subject_id, p_new_name, p_new_emoji).
+DROP FUNCTION IF EXISTS public.admin_rename_subject(text, text, text);
 CREATE OR REPLACE FUNCTION public.admin_rename_subject(
   p_new_emoji  text,
   p_new_name   text,
