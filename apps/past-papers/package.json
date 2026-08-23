@@ -7,7 +7,7 @@
     "dev": "concurrently \"vite\" \"node --env-file=.env server.js\"",
     "dev:client": "vite",
     "dev:server": "node --env-file=.env server.js",
-    "build": "vite build",
+    "build": "node scripts/build-subject-pages.js && vite build",
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",

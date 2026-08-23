@@ -1,7 +1,7 @@
 # Scholium
 ### Learn deeper. Remember longer.
 
-[Live Demo](https://scholium-home.vercel.app) | [Report Bug](https://github.com/AaravAgarwal1511/Scholium/issues)
+[Live Demo](https://www.thescholium.com) | [Report Bug](https://github.com/AaravAgarwal1511/Scholium/issues)
 
 ## 💡 The Problem
 
