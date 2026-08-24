@@ -7,6 +7,7 @@ import {
   PAPER_RETENTION_DAYS,
   paperExpiresAt,
   paperPath,
+  sidecarPath,
 } from "./paperRetention";
 
 const DAY = 86_400_000;
@@ -18,6 +19,20 @@ describe("paperPath", () => {
     // so anything else here silently makes uploads unauthorised.
     expect(paperPath("user-1", "attempt-9")).toBe("user-1/attempt-9.pdf");
     expect(paperPath("u", "a").split("/")[0]).toBe("u");
+  });
+});
+
+describe("sidecarPath", () => {
+  it("puts the MCQ answer-key handoff under the same owner folder as the paper", () => {
+    expect(sidecarPath("user-1", "attempt-9")).toBe("user-1/attempt-9.json");
+    expect(sidecarPath("u", "a").split("/")[0]).toBe("u");
+  });
+
+  it("shares the paper's id, differing only in extension", () => {
+    const id = "attempt-9";
+    expect(paperPath("user-1", id).replace(/\.pdf$/, "")).toBe(
+      sidecarPath("user-1", id).replace(/\.json$/, ""),
+    );
   });
 });
 

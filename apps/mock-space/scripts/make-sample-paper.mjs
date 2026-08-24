@@ -90,3 +90,86 @@ QUESTIONS.forEach((questions, pageIndex) => {
 mkdirSync("public", { recursive: true });
 writeFileSync("public/sample-paper.pdf", await doc.save());
 console.log("wrote public/sample-paper.pdf");
+
+// ─────────────────────────────────────────────────────────────────────────
+// public/sample-mcq-paper.pdf — what /demo/mcq opens. Every question is
+// drawn as a FIXED-HEIGHT block (stem + 4 options), so its crop band is
+// plain arithmetic — this is a plain script, run standalone, not something
+// Demo.tsx can import, so MCQ_HEADER_H/MCQ_BLOCK_H/MCQ_GAP and the question
+// list are duplicated by value in Demo.tsx (same pattern as
+// PAPER_RETENTION_DAYS in api/prune-papers.js) and MUST stay in step with
+// the numbers here. This mirrors what a real composed MCQ paper's Questions
+// section looks like (stem + printed A–D options); the answer key a real
+// paper gets from its mark scheme is, here, simply known up front.
+
+const MCQ_HEADER_H = 70;
+const MCQ_BLOCK_H = 110;
+const MCQ_GAP = 10;
+
+const MCQ_QUESTIONS = [
+  {
+    stem: "What is the SI unit of electric current?",
+    options: ["Volt", "Ampere", "Ohm", "Watt"],
+    answer: "B",
+  },
+  {
+    stem: "Which organelle is the site of aerobic respiration in a cell?",
+    options: ["Nucleus", "Ribosome", "Mitochondrion", "Golgi body"],
+    answer: "C",
+  },
+  {
+    stem: "Which gas is most abundant in Earth's atmosphere?",
+    options: ["Nitrogen", "Oxygen", "Carbon dioxide", "Argon"],
+    answer: "A",
+  },
+  {
+    stem: "What is the chemical formula for table salt?",
+    options: ["CaCO3", "KCl", "CO2", "NaCl"],
+    answer: "D",
+  },
+  {
+    stem: "Which planet is known as the Red Planet?",
+    options: ["Venus", "Mars", "Jupiter", "Saturn"],
+    answer: "B",
+  },
+];
+
+const mcqDoc = await PDFDocument.create();
+const mcqFont = await mcqDoc.embedFont(StandardFonts.Helvetica);
+const mcqBold = await mcqDoc.embedFont(StandardFonts.HelveticaBold);
+const mcqPage = mcqDoc.addPage([W, H]);
+
+{
+  let y = H - MARGIN;
+  mcqPage.drawText("Mock Space", { x: MARGIN, y: y - 14, size: 18, font: mcqBold, color: rgb(0.1, 0.1, 0.15) });
+  mcqPage.drawText("Sample Paper - Multiple Choice", { x: MARGIN, y: y - 32, size: 11, font: mcqFont, color: rgb(0.4, 0.4, 0.45) });
+  mcqPage.drawText("Answer all questions. 5 minutes.", { x: MARGIN, y: y - 48, size: 9, font: mcqFont, color: rgb(0.5, 0.5, 0.55) });
+  mcqPage.drawLine({
+    start: { x: MARGIN, y: y - 60 },
+    end: { x: W - MARGIN, y: y - 60 },
+    thickness: 0.75,
+    color: rgb(0.8, 0.8, 0.85),
+  });
+}
+
+MCQ_QUESTIONS.forEach((q, i) => {
+  const blockTop = H - MARGIN - MCQ_HEADER_H - i * (MCQ_BLOCK_H + MCQ_GAP);
+  let y = blockTop - 16;
+
+  mcqPage.drawText(`${i + 1}. ${q.stem}`, { x: MARGIN, y, size: 10, font: mcqBold, color: rgb(0.1, 0.1, 0.15) });
+  y -= 18;
+
+  ["A", "B", "C", "D"].forEach((letter, j) => {
+    mcqPage.drawText(`${letter}.  ${q.options[j]}`, {
+      x: MARGIN + 12,
+      y,
+      size: 10,
+      font: mcqFont,
+      color: rgb(0.15, 0.15, 0.2),
+    });
+    y -= 16;
+  });
+});
+
+writeFileSync("public/sample-mcq-paper.pdf", await mcqDoc.save());
+console.log("wrote public/sample-mcq-paper.pdf");

@@ -260,6 +260,31 @@ interface GeneratePaperOptions {
 // spending a minute on a request that will be refused.
 export const MAX_GENERATED_QUESTIONS = 400;
 
+// One question's placement in the composed PDF — top-origin points on the
+// given 0-based output page, exactly the space mock-space's own PageGeometry
+// already uses (see coords.ts there), so no flip is needed on that end.
+export interface McqBand {
+  page: number;
+  yTopPt: number;
+  yBotPt: number;
+}
+
+export interface McqQuestion {
+  seq: number;
+  label: string;
+  answer: "A" | "B" | "C" | "D";
+  bands: McqBand[];
+}
+
+// The answer key server/compose-pdf.js's composePdf() extracts for a
+// multiple-choice component (see isMcqComponent there) — null for an
+// ordinary paper, or one whose mark-scheme rows didn't extract cleanly.
+export interface McqAnswerKey {
+  subject: string;
+  component: string;
+  questions: McqQuestion[];
+}
+
 // A composed paper comes back inline when it fits in a serverless response body,
 // and as an R2 URL when it doesn't (see server/compose-handler.js). Papers of a
 // dozen chapters routinely land on the second path. `key` is the R2 object key
@@ -267,8 +292,8 @@ export const MAX_GENERATED_QUESTIONS = 400;
 // needs the bytes back (rather than just handing the URL to an anchor click)
 // has to go through /api/proxy-paper?key=... instead of fetching `url` directly.
 export type GeneratedPaper =
-  | { kind: "blob"; blob: Blob }
-  | { kind: "url"; url: string; key: string };
+  | { kind: "blob"; blob: Blob; mcq: McqAnswerKey | null }
+  | { kind: "url"; url: string; key: string; mcq: McqAnswerKey | null };
 
 // Roughly how long composing a paper takes, in seconds, as a function of the
 // question count — used only to drive the progress estimate the user sees while
@@ -324,13 +349,14 @@ export async function generatePaper(
   const text = await response.text();
   if (!text) throw new Error("Empty response from server");
 
-  const { pdfBase64, url, key } = JSON.parse(text);
-  if (url) return { kind: "url", url: url as string, key: key as string };
+  const { pdfBase64, url, key, metadata } = JSON.parse(text);
+  const mcq: McqAnswerKey | null = metadata?.mcq ?? null;
+  if (url) return { kind: "url", url: url as string, key: key as string, mcq };
   if (!pdfBase64) throw new Error("No PDF data in response");
   const binaryString = atob(pdfBase64);
   const bytes = new Uint8Array(binaryString.length);
   for (let i = 0; i < binaryString.length; i++) {
     bytes[i] = binaryString.charCodeAt(i);
   }
-  return { kind: "blob", blob: new Blob([bytes], { type: "application/pdf" }) };
+  return { kind: "blob", blob: new Blob([bytes], { type: "application/pdf" }), mcq };
 }

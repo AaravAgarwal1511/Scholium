@@ -7,6 +7,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
 import { fromRow, toRow } from "./attemptStore";
 import type { Attempt, Timer } from "./model";
+import { createMcqState, type McqState } from "./mcq";
 
 /**
  * The row ↔ model boundary. Postgres speaks ISO timestamps and nullable JSON
@@ -27,9 +28,14 @@ function attempt(over: Partial<Attempt> = {}): Attempt {
     boxes: [],
     strokes: [],
     timer,
+    mcq: null,
     ...over,
   };
 }
+
+const mcqState: McqState = createMcqState([
+  { seq: 1, label: "June 2018 Q1", answer: "A", bands: [{ page: 0, yTopPt: 72, yBotPt: 183 }] },
+]);
 
 describe("toRow", () => {
   it("refuses to serialise an attempt with no account", () => {
@@ -58,6 +64,7 @@ describe("fromRow", () => {
     boxes: [],
     strokes: [],
     timer,
+    mcq: null,
   };
 
   it("parses ISO timestamps back into epoch millis", () => {
@@ -75,8 +82,17 @@ describe("fromRow", () => {
     expect(a.strokes).toEqual([]);
   });
 
-  it("round-trips through toRow unchanged", () => {
+  it("passes mcq through as-is — null for a written attempt", () => {
+    expect(fromRow(baseRow).mcq).toBeNull();
+  });
+
+  it("round-trips a written attempt (mcq: null) through toRow unchanged", () => {
     const original = attempt();
+    expect(fromRow(toRow(original))).toEqual(original);
+  });
+
+  it("round-trips an MCQ attempt's questions and choices unchanged", () => {
+    const original = attempt({ mcq: mcqState });
     expect(fromRow(toRow(original))).toEqual(original);
   });
 });

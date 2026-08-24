@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAttempt } from "@/contexts/AttemptContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { deletePaper, downloadPaper } from "@/lib/paperStorage";
+import { deletePaper, deleteSidecar, downloadPaper, downloadSidecar } from "@/lib/paperStorage";
 import { DEFAULT_MINUTES, clampMinutes, isValidMinutes } from "@/lib/minutes";
 import { parseOpenPaperParams, signInRedirectTarget } from "@/lib/openPaper";
+import { createMcqState, isMcqPayload } from "@/lib/mcq";
 import MinutesPicker from "@/components/MinutesPicker";
 
 function Hero({ subtitle }: { subtitle: string }) {
@@ -19,13 +20,16 @@ function Hero({ subtitle }: { subtitle: string }) {
 }
 
 /**
- * Entry point for a paper handed off from Past Papers: /open?paper=<id>&title=<name>.
+ * Entry point for a paper handed off from Past Papers:
+ * /open?paper=<id>&title=<name>[&mcq=1].
  *
  * `paper` is a Storage object id past-papers already uploaded into this user's
  * mock-space-papers folder (same RLS-scoped {uid}/{id}.pdf shape startAttempt
  * itself uses). This page downloads it back out, wraps it in a File, and starts
  * an attempt exactly the way HomePage's manual upload does — the handoff copy
- * only ever exists to cross the trip between apps.
+ * only ever exists to cross the trip between apps. When `mcq=1` there is also
+ * a sidecar under the same id (see paperStorage.ts's downloadSidecar); it is
+ * re-validated here rather than trusted on the strength of the query param.
  */
 export default function OpenPaperPage() {
   const navigate = useNavigate();
@@ -33,7 +37,7 @@ export default function OpenPaperPage() {
   const { user, loadingAuth } = useAuth();
   const { startAttempt, loading: starting, error: attemptError } = useAttempt();
 
-  const { paperId, title } = parseOpenPaperParams(searchParams);
+  const { paperId, title, mcq: mcqHint } = parseOpenPaperParams(searchParams);
 
   const [minutes, setMinutes] = useState(String(DEFAULT_MINUTES));
   const [working, setWorking] = useState(false);
@@ -85,11 +89,18 @@ export default function OpenPaperPage() {
         return;
       }
       const file = new File([bytes], `${title}.pdf`, { type: "application/pdf" });
-      const ok = await startAttempt(file, Number(minutes) * 60_000, user.id);
+
+      // mcqHint is a hint, not the authority: a missing or malformed sidecar
+      // falls back to an ordinary written attempt rather than failing here.
+      const payload = mcqHint ? await downloadSidecar(user.id, paperId) : null;
+      const mcq = isMcqPayload(payload) ? createMcqState(payload.questions) : null;
+
+      const ok = await startAttempt(file, Number(minutes) * 60_000, user.id, mcq);
       if (!ok) return;
       // Only clear the handoff once the attempt exists under its own copy — if
       // this fails, the handoff stays in place so the user can retry.
       await deletePaper(user.id, paperId);
+      if (mcqHint) await deleteSidecar(user.id, paperId);
       navigate("/attempt");
     } catch {
       setError("Could not open this paper. Check your connection and try again.");

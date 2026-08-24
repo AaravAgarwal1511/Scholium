@@ -1,5 +1,6 @@
 import { addStrike, wordAt, type Range } from "./textLayout";
 import type { PageGeometry } from "./pdfRender";
+import type { McqState } from "./mcq";
 
 export interface AnswerBox {
   id: string;
@@ -48,6 +49,13 @@ export interface Attempt {
   boxes: AnswerBox[];
   strokes: Stroke[];
   timer: Timer;
+  /**
+   * Set only for an MCQ attempt (see openPaper.ts / mcq.ts) — its presence is
+   * the single branch AttemptPage and ExportPage use to choose the
+   * click-through runner and score summary over the ordinary PDF workspace
+   * and export. A written attempt's boxes/strokes are otherwise untouched.
+   */
+  mcq: McqState | null;
 }
 
 // ── The append-only rules ────────────────────────────────────────────────────

@@ -20,6 +20,18 @@ export function paperPath(userId: string, attemptId: string): string {
   return `${userId}/${attemptId}.pdf`;
 }
 
+/**
+ * The MCQ answer-key handoff object past-papers stages next to a generated
+ * paper, under the same id (see mockSpaceHandoff.ts's stageMcqSidecar — that
+ * copy is what mockSpaceHandoff.test.ts reads to guard against drift). It
+ * exists only between generation and `/open` re-uploading the attempt under
+ * its own id; an attempt's `mcq` column is what mock-space actually reads
+ * from thereafter.
+ */
+export function sidecarPath(userId: string, id: string): string {
+  return `${userId}/${id}.json`;
+}
+
 export function paperExpiresAt(createdAt: number): number {
   return createdAt + PAPER_RETENTION_DAYS * DAY_MS;
 }

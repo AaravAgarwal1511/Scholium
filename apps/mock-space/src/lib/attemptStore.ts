@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { AnswerBox, Attempt, Stroke, Timer } from "./model";
 import type { PageGeometry } from "./pdfRender";
+import type { McqState } from "./mcq";
 
 /**
  * Attempts belong to the account, not to the browser.
@@ -28,6 +29,7 @@ interface AttemptRow {
   boxes: AnswerBox[];
   strokes: Stroke[];
   timer: Timer;
+  mcq: McqState | null;
 }
 
 /** Postgres speaks ISO timestamps; the model counts epoch milliseconds. */
@@ -42,6 +44,7 @@ export function fromRow(row: AttemptRow): Attempt {
     boxes: row.boxes ?? [],
     strokes: row.strokes ?? [],
     timer: row.timer,
+    mcq: row.mcq ?? null,
   };
 }
 
@@ -59,6 +62,7 @@ export function toRow(attempt: Attempt): AttemptRow {
     boxes: attempt.boxes,
     strokes: attempt.strokes,
     timer: attempt.timer,
+    mcq: attempt.mcq,
   };
 }
 

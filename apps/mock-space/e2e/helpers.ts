@@ -17,6 +17,13 @@ export async function openDemo(page: Page): Promise<void> {
   await expect(page.locator('[data-page="0"]')).toBeVisible();
 }
 
+/** Opens /demo/mcq — the MCQ counterpart, same ephemeral signed-out pipeline. */
+export async function openDemoMcq(page: Page): Promise<void> {
+  await page.goto('/demo/mcq');
+  await page.waitForURL('**/attempt');
+  await expect(page.getByTestId('mcq-progress')).toBeVisible();
+}
+
 /** Starts the clock. Boxes are inert until the timer runs (`locked`). */
 export async function startClock(page: Page): Promise<void> {
   await page.getByTestId('timer-start').click();

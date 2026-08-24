@@ -6,7 +6,18 @@ describe("parseOpenPaperParams", () => {
     expect(parseOpenPaperParams(new URLSearchParams("paper=abc-123&title=Physics"))).toEqual({
       paperId: "abc-123",
       title: "Physics",
+      mcq: false,
     });
+  });
+
+  it("reads the mcq hint when present and set to 1", () => {
+    expect(parseOpenPaperParams(new URLSearchParams("paper=abc-123&mcq=1")).mcq).toBe(true);
+  });
+
+  it("treats anything other than exactly '1' as not-MCQ", () => {
+    expect(parseOpenPaperParams(new URLSearchParams("paper=abc-123")).mcq).toBe(false);
+    expect(parseOpenPaperParams(new URLSearchParams("paper=abc-123&mcq=true")).mcq).toBe(false);
+    expect(parseOpenPaperParams(new URLSearchParams("paper=abc-123&mcq=0")).mcq).toBe(false);
   });
 
   it("has no paper id when the link is missing one", () => {
