@@ -41,6 +41,13 @@ describe("mockSpaceHandoff agrees with mock-space's paperRetention.ts", () => {
     expect(source).toMatch(/`\$\{userId\}\/\$\{attemptId\}\.pdf`/);
     expect(handoff).toMatch(/`\$\{userId\}\/\$\{id\}\.pdf`/);
   });
+
+  it("stages the MCQ sidecar under the same {userId}/{id}.json shape mock-space downloads from", () => {
+    // mock-space's own sidecarPath in paperRetention.ts — see downloadSidecar
+    // in paperStorage.ts, what /open actually reads.
+    expect(source).toMatch(/`\$\{userId\}\/\$\{id\}\.json`/);
+    expect(handoff).toMatch(/`\$\{userId\}\/\$\{id\}\.json`/);
+  });
 });
 
 describe("MOCK_SPACE_URL", () => {

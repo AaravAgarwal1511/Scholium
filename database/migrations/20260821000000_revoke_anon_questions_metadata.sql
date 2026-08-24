@@ -1,0 +1,34 @@
+-- Close questions_metadata to anon/authenticated. It held a blanket
+-- `FOR SELECT USING (true)` (20260520000000_questions_metadata.sql) so the
+-- browser could query it straight from src/lib/papers.ts — but that made the
+-- whole ~4000-row table, the hand-built chapter/sub-topic classification and
+-- crop coordinates, dumpable in four PostgREST-paged requests with only the
+-- (public-by-construction) anon key.
+--
+-- The browser now reads this data through GET /api/chapter-questions instead
+-- (server/chapter-questions-handler.js), which uses the service role and so
+-- bypasses RLS entirely — this migration does not affect that path, or
+-- /api/chapter-paper / /api/compose-paper, which already used the service role.
+--
+-- Revoking from anon alone is not enough: a free authenticated account could
+-- still dump the table. Both roles must be named explicitly — per CLAUDE.md,
+-- `REVOKE … FROM public` does NOT revoke Supabase's direct grants to `anon`/
+-- `authenticated` (20260724040000 made exactly that mistake against a
+-- function). Verify afterwards with `proacl` rather than assuming: a leading
+-- `=r/postgres` is PUBLIC, `anon=r/postgres` is the direct grant this needs to
+-- be gone.
+--
+-- DEPLOY ORDER: this must run only AFTER the /api/chapter-questions endpoint
+-- and its src/lib/papers.ts caller are deployed and verified working — this is
+-- a live-database change with no deploy gating it, so applying it first breaks
+-- Generate Paper in prod immediately. paper_files stays untouched: it backs
+-- signed-out browsing (listSubjects/listComponents/listChapters), which this
+-- app deliberately supports, and gating it would take down the whole app.
+--
+-- Rollback (one statement, restores prod immediately without a deploy):
+--   grant select on public.questions_metadata to anon, authenticated;
+--   create policy "Enable read access for all users" on public.questions_metadata
+--     for select using (true);
+
+drop policy if exists "Enable read access for all users" on public.questions_metadata;
+revoke select on public.questions_metadata from anon, authenticated;

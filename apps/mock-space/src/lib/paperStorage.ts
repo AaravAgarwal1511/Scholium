@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { PAPER_BUCKET, paperPath } from "./paperRetention";
+import { PAPER_BUCKET, paperPath, sidecarPath } from "./paperRetention";
 
 /**
  * The uploaded question paper, kept in Supabase Storage for `PAPER_RETENTION_DAYS`.
@@ -46,4 +46,24 @@ export async function downloadPaper(
 
 export async function deletePaper(userId: string, attemptId: string): Promise<void> {
   await supabase.storage.from(PAPER_BUCKET).remove([paperPath(userId, attemptId)]);
+}
+
+/**
+ * The MCQ answer-key handoff (see mockSpaceHandoff.ts's stageMcqSidecar).
+ * Returns null both when the object is genuinely absent (an ordinary written
+ * paper never gets one) and on any download error — OpenPaperPage treats
+ * both identically: fall back to a written attempt rather than fail outright.
+ */
+export async function downloadSidecar(userId: string, id: string): Promise<unknown | null> {
+  const { data, error } = await supabase.storage.from(PAPER_BUCKET).download(sidecarPath(userId, id));
+  if (error || !data) return null;
+  try {
+    return JSON.parse(await data.text());
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteSidecar(userId: string, id: string): Promise<void> {
+  await supabase.storage.from(PAPER_BUCKET).remove([sidecarPath(userId, id)]);
 }

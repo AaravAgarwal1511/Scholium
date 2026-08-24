@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { PDFDocument, PDFArray, PDFDict, PDFName, decodePDFRawStream } from "pdf-lib";
+import {
+  PDFDocument,
+  PDFArray,
+  PDFDict,
+  PDFName,
+  decodePDFRawStream,
+  StandardFonts,
+} from "pdf-lib";
 import {
   parsePaperNum,
   makeStem,
@@ -16,6 +23,8 @@ import {
   embedBrandFont,
   BRAND_HEADER,
   CONTENT_TOP,
+  isMcqComponent,
+  PageLayout,
 } from "./compose-pdf.js";
 import { marksInRegion } from "./page-chars.js";
 
@@ -796,5 +805,101 @@ describe("embedBrandFont / stampBrandHeader", () => {
     // (_newPage, sectionHeader, _flushBanner, _draw) works downward from
     // CONTENT_TOP, so a header strictly above it can never collide.
     expect(BRAND_HEADER.y).toBeGreaterThan(CONTENT_TOP);
+  });
+});
+
+describe("isMcqComponent", () => {
+  it("recognises the verified MCQ components", () => {
+    expect(isMcqComponent("0455", 1)).toBe(true); // Economics Paper 1
+    expect(isMcqComponent("0610", 2)).toBe(true); // Biology Paper 2
+    expect(isMcqComponent("0620", 2)).toBe(true); // Chemistry Paper 2
+    expect(isMcqComponent("0625", 2)).toBe(true); // Physics Paper 2
+  });
+
+  it("rejects the structured sibling component of an MCQ subject", () => {
+    expect(isMcqComponent("0455", 2)).toBe(false); // Economics Paper 2 is structured
+  });
+
+  it("rejects a subject with no MCQ component in the corpus at all", () => {
+    expect(isMcqComponent("0478", 1)).toBe(false);
+    expect(isMcqComponent("0606", 1)).toBe(false);
+    expect(isMcqComponent("0607", 2)).toBe(false);
+  });
+
+  it("rejects an unknown subject rather than throwing", () => {
+    expect(isMcqComponent("9999", 1)).toBe(false);
+  });
+});
+
+describe("PageLayout — MCQ placement recording", () => {
+  // A source page narrower than CONTENT_W keeps _measure's scale at 1, so a
+  // band's height equals the crop's requested height exactly — no shrink-to-
+  // fit math to replicate in the expectations below.
+  const SRC_W = 200;
+  const SRC_H = 900;
+  const MARGIN = 841.89 - CONTENT_TOP;
+
+  async function makeLayout() {
+    const srcDoc = await PDFDocument.create();
+    srcDoc.addPage([SRC_W, SRC_H]);
+    srcDoc.addPage([SRC_W, SRC_H]);
+
+    const outDoc = await PDFDocument.create();
+    const font = await outDoc.embedFont(StandardFonts.Helvetica);
+    const boldFont = await outDoc.embedFont(StandardFonts.HelveticaBold);
+    return { srcDoc, layout: new PageLayout(outDoc, font, boldFont) };
+  }
+
+  it("records one band, in top-origin output-page points, for a single crop", async () => {
+    const { srcDoc, layout } = await makeLayout();
+    layout.beginQuestion({ seq: 1, label: "June 2018 Q1", answer: "A" });
+    await layout.addCrop(srcDoc, 0, 50, 90); // a 40pt-tall crop off source page 0
+    const q = layout.endQuestion();
+
+    expect(q.seq).toBe(1);
+    expect(q.label).toBe("June 2018 Q1");
+    expect(q.answer).toBe("A");
+    // Lands at the very top of a fresh page — MARGIN in from PAGE_H, the same
+    // top-origin space mock-space's own PageGeometry already uses.
+    expect(q.bands).toEqual([{ page: 0, yTopPt: MARGIN, yBotPt: MARGIN + 40 }]);
+  });
+
+  it("does not record anything when beginQuestion(null) — the non-MCQ / mark-scheme case", async () => {
+    const { srcDoc, layout } = await makeLayout();
+    layout.beginQuestion(null);
+    await layout.addCrop(srcDoc, 0, 50, 90);
+    expect(layout.endQuestion()).toBeNull();
+  });
+
+  it("records one band per addCrop call for a question placed as several crops", async () => {
+    const { srcDoc, layout } = await makeLayout();
+    layout.beginQuestion({ seq: 1, label: "Q1", answer: "B" });
+    await layout.addCrop(srcDoc, 0, 50, 90); // 40pt
+    await layout.addCrop(srcDoc, 0, 90, 120); // 30pt, placed directly after
+    const q = layout.endQuestion();
+
+    expect(q.bands).toHaveLength(2);
+    expect(q.bands[0]).toEqual({ page: 0, yTopPt: MARGIN, yBotPt: MARGIN + 40 });
+    // _place's trailing `cursor -= 8` between crops shows up as an 8pt gap.
+    expect(q.bands[1].yTopPt).toBeCloseTo(MARGIN + 40 + 8, 5);
+    expect(q.bands[1].yBotPt).toBeCloseTo(MARGIN + 40 + 8 + 30, 5);
+  });
+
+  it("advances pageIndex when a question's crop overflows onto a fresh page", async () => {
+    const { srcDoc, layout } = await makeLayout();
+
+    // An untracked crop (mark-scheme placement, or simply not the question
+    // under test) that fills page 0 almost to CONTENT_BOTTOM.
+    const fillHeight = CONTENT_TOP - MARGIN - 10;
+    layout.beginQuestion(null);
+    await layout.addCrop(srcDoc, 0, 0, fillHeight);
+    layout.endQuestion();
+
+    // This question's own crop no longer fits and starts page 1.
+    layout.beginQuestion({ seq: 2, label: "Q2", answer: "C" });
+    await layout.addCrop(srcDoc, 1, 10, 50); // 40pt
+    const q = layout.endQuestion();
+
+    expect(q.bands).toEqual([{ page: 1, yTopPt: MARGIN, yBotPt: MARGIN + 40 }]);
   });
 });

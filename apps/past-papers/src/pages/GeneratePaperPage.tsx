@@ -469,7 +469,14 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
     try {
       const id = await stageForMockSpace(user.id, result.paper);
       const title = result.fileName.replace(/\.pdf$/i, "");
-      const url = `${MOCK_SPACE_URL}/open?paper=${id}&title=${encodeURIComponent(title)}`;
+      // The flag is a hint, not the authority — stageForMockSpace stages the
+      // sidecar whenever result.paper.mcq is set, and /open falls back to an
+      // ordinary attempt if that sidecar can't be found or doesn't validate.
+      const mcqFlag = result.paper.mcq ? "&mcq=1" : "";
+      const openInMockSpaceLabel = result.paper.mcq
+        ? "Open in Mock Space (in MCQ Mode)"
+        : "Open in Mock Space";
+      const url = `${MOCK_SPACE_URL}/open?paper=${id}&title=${encodeURIComponent(title)}${mcqFlag}`;
       const tab = window.open(url, "_blank");
       if (tab) {
         tab.opener = null;
@@ -477,7 +484,7 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
         toast.error("Your browser blocked the new tab", {
           description: "Your paper is ready — open it in Mock Space when you're set.",
           action: {
-            label: "Open in Mock Space",
+            label: openInMockSpaceLabel,
             onClick: () => {
               const retry = window.open(url, "_blank");
               if (retry) retry.opener = null;
@@ -931,7 +938,11 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
               }}
             >
               <ExternalLink size={18} />
-              {handingOff ? "Opening…" : "Open in Mock Space"}
+              {handingOff
+                ? "Opening…"
+                : result.paper.mcq
+                  ? "Open in Mock Space (in MCQ Mode)"
+                  : "Open in Mock Space"}
             </button>
           </div>
 

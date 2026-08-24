@@ -68,7 +68,10 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["./seed.sql"]
+# Points at database/seed.sql rather than living under supabase/ — migrations are
+# already symlinked the same way (supabase/migrations -> ../database/migrations),
+# so database/ stays the single home for everything schema-related.
+sql_paths = ["../database/seed.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.
@@ -156,11 +159,24 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+# language-hub is the primary app (has_demo=false, no_login=false, first in the
+# nav — see database/seed.sql), so it's the site_url; every other app's dev port
+# is listed in additional_redirect_urls below. Was 127.0.0.1:3000 (no app runs
+# there) with a http/https scheme mismatch against the one redirect URL — neither
+# matched any app.
+site_url = "http://127.0.0.1:8080"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# One per app's Vite dev port (see CLAUDE.md's "Dev server ports" table).
+additional_redirect_urls = [
+  "http://127.0.0.1:8080", # language-hub
+  "http://127.0.0.1:8081", # recall-app
+  "http://127.0.0.1:5173", # poetry-notes
+  "http://127.0.0.1:3030", # scholium-home
+  "http://127.0.0.1:3040", # past-papers
+  "http://127.0.0.1:3050", # mock-space
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.

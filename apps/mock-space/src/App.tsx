@@ -98,6 +98,7 @@ export default function App() {
               }
             />
             <Route path="/demo" element={<Demo />} />
+            <Route path="/demo/mcq" element={<Demo mcq />} />
             <Route path="*" element={<MainRoutes apps={apps} ownDescription={ownDescription} />} />
           </Routes>
         </BrowserRouter>

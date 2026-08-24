@@ -1,0 +1,21 @@
+-- Adds the MCQ interface's state to an attempt.
+--
+-- NULL means an ordinary written attempt — the ONLY branch on this column
+-- anywhere in mock-space (AttemptPage renders the click-through MCQ runner
+-- instead of the PDF workspace when it's set; ExportPage shows a score
+-- summary instead of the PDF download). A written attempt's boxes/strokes
+-- columns are untouched by this migration and stay exactly as they are.
+--
+-- Shape (see apps/mock-space/src/lib/mcq.ts's McqState):
+--   {
+--     questions: [{ seq, label, answer: "A".."D", bands: [{page, yTopPt, yBotPt}] }],
+--     choices: (Letter | null)[]   -- parallel to questions; null = unanswered
+--   }
+--
+-- `questions` (with its answer key) is written once, at attempt creation, from
+-- the sidecar past-papers staged alongside the paper (see
+-- 20260821000000_mock_space_papers_allow_json.sql) — never re-derived. Only
+-- `choices` changes after that, through the same autosave path every other
+-- attempt field already goes through (attemptStore.ts's saveAttempt/upsert).
+
+ALTER TABLE public.mock_attempts ADD COLUMN mcq JSONB;
