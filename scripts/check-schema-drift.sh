@@ -1,54 +1,111 @@
 #!/usr/bin/env bash
 #
-# Contract check: has the live database schema drifted from the committed
-# snapshot? Regenerates the public-schema TypeScript types from the linked
-# Supabase project and diffs them against database/schema-types.snapshot.ts.
+# Contract check: does a target schema match the committed snapshot
+# (database/schema-types.snapshot.ts)? Regenerates TypeScript types from the
+# target and diffs them against the snapshot.
 #
-# A difference means a migration changed the live schema and the snapshot was not
-# updated to match — exactly the class of drift that left `scholium_apps` absent
-# from the apps' generated types and produced the 30-error typecheck baseline.
+# The snapshot's meaning depends on which target last wrote it (pnpm
+# schema:snapshot writes it from prod; pnpm schema:snapshot:local writes it from
+# a local `supabase start` stack). Two callers use this script for two different
+# purposes that happen to share one artifact:
 #
-# This does NOT check the apps' own src/integrations/supabase/types.ts (those are
-# knowingly stale — that IS the baseline). It checks that our recorded picture of
-# the *live* schema stays current, so a new migration can't land silently.
+#   --local            The PR gate (pnpm schema:drift, CI's `reset` job). No
+#                       secrets, runs on fork PRs. Proves the migration set itself
+#                       produces the schema the snapshot claims — this is what
+#                       caught `scholium_apps` having no CREATE TABLE anywhere in
+#                       the migration history (see 20260526020000_scholium_apps_base.sql).
 #
-# Needs the linked Supabase CLI (keychain creds locally, or SUPABASE_ACCESS_TOKEN
-# + a `supabase link` in CI). Run:  ./scripts/check-schema-drift.sh
-# Update the snapshot after an intended schema change:  pnpm schema:snapshot
+#   --project-ref <ref>  The daily prod cron (schema-drift.yml). Proves prod
+#                       still matches what the migrations produce — i.e. nothing
+#                       was hand-applied to prod outside the migration set. Only
+#                       needs SUPABASE_ACCESS_TOKEN (gen types --project-id hits
+#                       the Management API directly; no `supabase link` needed).
+#
+# Both checking the same snapshot is the point: a green --local run on a PR
+# combined with a green --project-ref run on main is what "staging reproduces
+# prod" actually rests on. Update the snapshot after an intended schema change
+# with the matching schema:snapshot / schema:snapshot:local script.
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
 SNAPSHOT="database/schema-types.snapshot.ts"
 HEADER='// AUTO-GENERATED SNAPSHOT of the live public schema types — do not edit by hand.
-// Regenerate with: pnpm schema:snapshot   (see scripts/check-schema-drift.sh)'
+// Regenerate with: pnpm schema:snapshot (prod) or pnpm schema:snapshot:local (local) — see scripts/check-schema-drift.sh'
+
+usage() {
+  echo "Usage: $0 --local | --project-ref <ref>" >&2
+  exit 1
+}
+
+target=""
+case "${1:-}" in
+  --local)
+    target="local"
+    ;;
+  --project-ref)
+    target="project-ref"
+    ref="${2:-}"
+    [ -n "$ref" ] || usage
+    ;;
+  *)
+    usage
+    ;;
+esac
 
 if [ ! -f "$SNAPSHOT" ]; then
-  echo "FAIL: $SNAPSHOT is missing. Create it with: pnpm schema:snapshot"
+  echo "FAIL: $SNAPSHOT is missing. Create it with: pnpm schema:snapshot / schema:snapshot:local"
   exit 1
 fi
 
 current="$(mktemp)"
-trap 'rm -f "$current"' EXIT
+baseline="$(mktemp)"
+trap 'rm -f "$current" "$baseline"' EXIT
 {
   printf '%s\n' "$HEADER"
-  npx supabase gen types typescript --linked --schema public 2>/dev/null
+  if [ "$target" = "local" ]; then
+    npx supabase gen types typescript --local --schema public 2>/dev/null
+  else
+    npx supabase gen types typescript --project-id "$ref" --schema public 2>/dev/null
+  fi
 } > "$current"
 
 if ! grep -q "export type Database" "$current"; then
-  echo "SKIP: could not generate types (no linked project / credentials)."
+  if [ "$target" = "local" ]; then
+    echo "SKIP: could not generate types (is 'supabase start' running?)."
+  else
+    echo "SKIP: could not generate types (no access token / bad project ref)."
+  fi
   exit 0
 fi
 
-if diff -q "$SNAPSHOT" "$current" >/dev/null; then
-  echo "OK: live schema matches the snapshot."
+# Normalise before comparing, so the diff reflects real schema drift rather than
+# noise from whichever CLI version happened to generate each side:
+#   - __InternalSupabase's PostgrestVersion block is stamped by the CLI/postgrest
+#     version, not by the schema — local (whatever's in this checkout's
+#     node_modules) and prod (pinned separately) commonly disagree here even
+#     when the actual tables are identical.
+#   - trailing blank lines vary the same way.
+strip_cli_noise() {
+  sed '/^  \/\/ Allows to automatically instantiate createClient/,/^  }$/d' "$1" \
+    | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'
+}
+strip_cli_noise "$SNAPSHOT" > "$baseline"
+strip_cli_noise "$current" > "$current.stripped" && mv "$current.stripped" "$current"
+
+if diff -q "$baseline" "$current" >/dev/null; then
+  echo "OK: $target schema matches the snapshot."
   exit 0
 fi
 
-echo "DRIFT: the live schema differs from $SNAPSHOT."
-echo "A migration changed the schema without updating the snapshot. Diff:"
+echo "DRIFT: the $target schema differs from $SNAPSHOT."
+echo "Diff:"
 echo "-----------------------------------------------------------------"
-diff "$SNAPSHOT" "$current" | head -80
+diff "$baseline" "$current" | head -80
 echo "-----------------------------------------------------------------"
-echo "If this change is intended, refresh with: pnpm schema:snapshot"
+if [ "$target" = "local" ]; then
+  echo "If this change is intended, refresh with: pnpm schema:snapshot:local"
+else
+  echo "If this change is intended, refresh with: pnpm schema:snapshot"
+fi
 exit 1

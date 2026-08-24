@@ -107,13 +107,174 @@
   border-radius: var(--radius-sm);
 }
 
-/* Persona-based primary colour overrides (scoped to scholium-home).
- * Teacher → emerald green. Parent → rose pink. Set on documentElement
- * by HomePage when a persona button is active. */
-:root[data-persona="teacher"]          { --primary: 142 76% 36%; }
-:root.dark[data-persona="teacher"],
-:root.dark-mode[data-persona="teacher"] { --primary: 142 69% 58%; }
+/* ── Pill buttons (hero, InfoSection, closing CTA share one visual system) ─
+ * `.sch-pill` is the shared shape; the `--variant` modifiers only change
+ * colour, so every combination stays token-based (no literal hex → dark mode
+ * keeps working). `.sch-pill-arrow` is the small circular arrow chip some
+ * variants nest inside the pill. */
+.sch-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 500;
+  font-size: 1rem;
+  line-height: 1;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+.sch-pill:active { transform: scale(0.97); }
 
-:root[data-persona="parent"]           { --primary: 330 81% 51%; }
-:root.dark[data-persona="parent"],
-:root.dark-mode[data-persona="parent"]  { --primary: 331 85% 70%; }
+.sch-pill-arrow {
+  background: hsl(var(--background));
+  border-radius: 9999px;
+  padding: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: hsl(var(--primary));
+}
+.sch-pill-arrow--dark {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.sch-pill--primary {
+  padding: 0.5rem 0.5rem 0.5rem 1.75rem;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+.sch-pill--primary:hover { background: hsl(var(--primary) / 0.88); }
+
+.sch-pill--ghost {
+  padding: 0.75rem 1.5rem;
+  color: hsl(var(--foreground) / 0.8);
+  border-color: var(--color-border);
+}
+.sch-pill--ghost:hover { border-color: hsl(var(--primary)); color: hsl(var(--primary)); }
+
+.sch-pill--dark {
+  padding: 0.5rem 0.5rem 0.5rem 1.75rem;
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
+}
+.sch-pill--dark:hover { background: hsl(var(--foreground) / 0.85); }
+
+/* --light and --ghost-dark are used only on the fixed-dark ClosingCTA panel
+ * (see ClosingCTA.tsx), so — like that panel — they're intentionally NOT
+ * theme-reactive: a token-based light/dark pair would invert to a dark pill
+ * on the dark panel exactly when the site itself goes dark. */
+.sch-pill--light {
+  padding: 0.5rem 0.5rem 0.5rem 1.75rem;
+  background: #ffffff;
+  color: #241f3d;
+}
+.sch-pill--light:hover { background: rgba(255, 255, 255, 0.9); }
+
+.sch-pill--ghost-dark {
+  padding: 0.75rem 1.5rem;
+  color: rgba(255, 255, 255, 0.85);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.sch-pill--ghost-dark:hover { border-color: rgba(255, 255, 255, 0.6); color: #ffffff; }
+
+/* ── Marquees (hero "inside the suite" ticker + citation strip) ─────────── */
+@keyframes sch-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: sch-marquee 22s linear infinite;
+}
+.backers-track {
+  display: flex;
+  width: max-content;
+  animation: sch-marquee 30s linear infinite;
+}
+
+/* ── Hero memory-science scene ───────────────────────────────────────────
+ * Draws the spacing-effect chart in HeroScene.tsx: the review line strokes
+ * itself in, the decay line and its area fade, the review markers pop, and
+ * two flashcards fade in and bob gently in place. */
+@keyframes hero-draw {
+  from { stroke-dashoffset: 1200; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes hero-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes hero-pop {
+  0%   { opacity: 0; transform: scale(0.4); }
+  60%  { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes hero-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-12px); }
+}
+
+.hero-review {
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: hero-draw 2s cubic-bezier(0.4, 0, 0.2, 1) 0.2s forwards;
+}
+.hero-decay {
+  opacity: 0;
+  animation: hero-fade 1.2s ease 1.2s forwards;
+}
+.hero-area {
+  opacity: 0;
+  animation: hero-fade 1.4s ease 1s forwards;
+}
+.hero-marker {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hero-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.hero-card {
+  position: absolute;
+  border-radius: var(--radius-lg);
+  background: hsl(var(--card) / 0.9);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-hover);
+  padding: 1.1rem 1.25rem;
+  opacity: 0;
+  will-change: transform;
+}
+.hero-card--a {
+  top: 20%;
+  right: 8%;
+  width: 200px;
+  animation: hero-fade 0.6s ease 1.4s forwards, hero-bob 6s ease-in-out 1.4s infinite;
+}
+.hero-card--b {
+  top: 50%;
+  right: 20%;
+  width: 190px;
+  animation: hero-fade 0.6s ease 1.7s forwards, hero-bob 7s ease-in-out 2s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track,
+  .backers-track,
+  .hero-review,
+  .hero-decay,
+  .hero-area,
+  .hero-marker,
+  .hero-card {
+    animation: none !important;
+    opacity: 1 !important;
+    stroke-dashoffset: 0 !important;
+  }
+}

@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { ScholiumFooter } from "@repo/ui";
 import type { AppLink } from "@repo/ui";
 import Hero from "@/components/Hero";
-import PersonaSelector from "@/components/PersonaSelector";
-import type { Persona } from "@/components/PersonaSelector";
-import TrustStrip from "@/components/TrustStrip";
 import SubjectPicker from "@/components/SubjectPicker";
 import AppGrid from "@/components/AppGrid";
-import FeaturesSection from "@/components/FeaturesSection";
+import TrustStrip from "@/components/TrustStrip";
+import InfoSection from "@/components/InfoSection";
+import BackedBySection from "@/components/BackedBySection";
 import ClosingCTA from "@/components/ClosingCTA";
-import Footer from "@/components/Footer";
 
 function scrollTo(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -27,43 +26,10 @@ interface SubjectFilter {
 
 export default function HomePage({ apps, loadingApps }: HomePageProps) {
   const [highlightedAppId, setHighlightedAppId] = useState<string | null>(null);
-  const [persona, setPersona] = useState<Persona | null>(null);
-  const [selectorVisible, setSelectorVisible] = useState(true);
   const [subjectFilter, setSubjectFilter] = useState<SubjectFilter | null>(null);
   const clearTimerRef = useRef<number | null>(null);
-  const dismissTimerRef = useRef<number | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const target = searchParams.get("highlight");
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (persona === "teacher" || persona === "parent") {
-      root.setAttribute("data-persona", persona);
-    } else {
-      root.removeAttribute("data-persona");
-    }
-    return () => {
-      root.removeAttribute("data-persona");
-    };
-  }, [persona]);
-
-  const handlePersonaSelect = useCallback((p: Persona | null) => {
-    setPersona(p);
-    if (p) {
-      if (dismissTimerRef.current !== null) window.clearTimeout(dismissTimerRef.current);
-      dismissTimerRef.current = window.setTimeout(() => {
-        setSelectorVisible(false);
-        dismissTimerRef.current = null;
-      }, 380);
-    } else {
-      setSelectorVisible(true);
-    }
-  }, []);
-
-  const handleChangePersona = useCallback(() => {
-    setPersona(null);
-    setSelectorVisible(true);
-  }, []);
 
   const highlight = useCallback((id: string) => {
     setHighlightedAppId(id);
@@ -109,7 +75,6 @@ export default function HomePage({ apps, loadingApps }: HomePageProps) {
   useEffect(() => {
     return () => {
       if (clearTimerRef.current !== null) window.clearTimeout(clearTimerRef.current);
-      if (dismissTimerRef.current !== null) window.clearTimeout(dismissTimerRef.current);
     };
   }, []);
 
@@ -119,26 +84,17 @@ export default function HomePage({ apps, loadingApps }: HomePageProps) {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <main className="flex-1">
-        <Hero
-          onScrollToAbout={() => scrollTo("why")}
-          onExploreTools={() => scrollTo("tools")}
-          apps={apps}
-          persona={persona}
-          onChangePersona={persona ? handleChangePersona : undefined}
-          personaSelector={
-            selectorVisible ? (
-              <PersonaSelector
-                selected={persona}
-                onSelect={handlePersonaSelect}
-                dismissing={persona !== null}
-              />
-            ) : undefined
-          }
-        />
+      <main className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col" style={{ minHeight: "calc(100dvh - 3.5rem)" }}>
+          <Hero
+            onScrollToScience={() => scrollTo("science")}
+            onExploreTools={() => scrollTo("tools")}
+            apps={apps}
+          />
+        </div>
         {/* Subject-intent lead: the first question a revising visitor asks is
             "do you cover my subject?" — so the picker + suite come first, and
-            the manifesto (trust strip + principles) is demoted below them. */}
+            the memory-science manifesto is demoted below them. */}
         <SubjectPicker apps={apps} onPick={handleSubjectPick} />
         <AppGrid
           apps={filteredApps}
@@ -146,11 +102,12 @@ export default function HomePage({ apps, loadingApps }: HomePageProps) {
           highlightedAppId={highlightedAppId}
           subject={subjectFilter?.subject ?? null}
         />
-        <TrustStrip />
-        <FeaturesSection persona={persona} />
-        <ClosingCTA />
+        <TrustStrip apps={apps} />
+        <InfoSection />
+        <BackedBySection />
+        <ClosingCTA apps={apps} />
       </main>
-      <Footer apps={apps} />
+      <ScholiumFooter homeUrl="/" />
     </div>
   );
 }

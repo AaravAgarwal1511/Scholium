@@ -124,10 +124,14 @@ describe.skipIf(!available)("RLS is switched on at all", () => {
   });
 
   it("every table with RLS has at least one policy, or is deny-all on purpose", () => {
-    // RLS on + zero policies denies everyone (bar the owner and service_role),
-    // which is correct for analytics_daily — it is only ever read through the
-    // SECURITY DEFINER admin_analytics_* RPCs, which bypass RLS. Any *other*
-    // table in that state is far more likely to be an oversight.
+    // RLS on + zero policies denies everyone (bar the owner and service_role).
+    // analytics_daily: only ever read through the SECURITY DEFINER
+    // admin_analytics_* RPCs, which bypass RLS. questions_metadata: closed to
+    // anon/authenticated by 20260821000000_revoke_anon_questions_metadata.sql,
+    // which dropped its public-read policy along with the grant — the browser
+    // now reads this data via the service-role-backed
+    // GET /api/chapter-questions instead. Any *other* table in this state is
+    // far more likely to be an oversight.
     const denyAll = dbQuery<{ relname: string }>(
       `select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
        where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity
@@ -136,7 +140,7 @@ describe.skipIf(!available)("RLS is switched on at all", () => {
        order by c.relname`,
     ).map((r) => r.relname);
 
-    expect(denyAll).toEqual(["analytics_daily"]);
+    expect(denyAll).toEqual(["analytics_daily", "questions_metadata"]);
   });
 });
 

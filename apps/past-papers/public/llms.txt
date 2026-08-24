@@ -1,0 +1,11 @@
+# Past Papers · Scholium
+
+> Assemble custom topical IGCSE past-paper practice sets by subject, component, and
+> chapter, with mark schemes, for exam revision. Covers IGCSE Economics (0455), Computer
+> Science (0478), Additional Mathematics (0606), International Mathematics (0607),
+> Biology (0610), Chemistry (0620), and Physics (0625).
+
+- [Past Papers tool](https://pastpapers.thescholium.com/): pick a subject, component, and
+  chapters to generate a custom topical practice paper with its mark scheme.
+- [Terms of Service](https://pastpapers.thescholium.com/terms)
+- [Privacy Policy](https://pastpapers.thescholium.com/privacy)
