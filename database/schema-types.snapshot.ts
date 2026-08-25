@@ -413,6 +413,45 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_papers: {
+        Row: {
+          component: string
+          created_at: string
+          file_name: string
+          id: string
+          include_mark_scheme: boolean
+          question_ids: string[]
+          r2_key: string | null
+          randomize: boolean
+          subject: string
+          user_id: string
+        }
+        Insert: {
+          component: string
+          created_at?: string
+          file_name: string
+          id?: string
+          include_mark_scheme: boolean
+          question_ids: string[]
+          r2_key?: string | null
+          randomize: boolean
+          subject: string
+          user_id: string
+        }
+        Update: {
+          component?: string
+          created_at?: string
+          file_name?: string
+          id?: string
+          include_mark_scheme?: boolean
+          question_ids?: string[]
+          r2_key?: string | null
+          randomize?: boolean
+          subject?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       scholium_apps: {
         Row: {
           created_at: string | null
