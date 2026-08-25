@@ -205,7 +205,7 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
     const recipe = loadGeneratorSession()?.resultRecipe;
     if (!recipe?.r2) return null;
     return {
-      paper: { kind: "url", url: recipe.r2.url, key: recipe.r2.key },
+      paper: { kind: "url", url: recipe.r2.url, key: recipe.r2.key, mcq: null },
       fileName: recipe.fileName,
       subject: recipe.subject,
       questionIds: recipe.questionIds,

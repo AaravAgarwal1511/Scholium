@@ -111,7 +111,7 @@ export async function deleteSavedPaper(id: string): Promise<void> {
 export async function resolveSavedPaper(paper: SavedPaper): Promise<GeneratedPaper> {
   if (paper.r2Key) {
     try {
-      return { kind: "blob", blob: await fetchPaperBytes(paper.r2Key) };
+      return { kind: "blob", blob: await fetchPaperBytes(paper.r2Key), mcq: null };
     } catch {
       // Fall through to recomposing below.
     }
