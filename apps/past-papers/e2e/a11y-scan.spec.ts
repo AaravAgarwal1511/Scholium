@@ -65,16 +65,16 @@ test('the generator has no serious/critical a11y violations', async ({ page, con
   expect(blocking, `serious/critical a11y on /:\n${report(blocking)}`).toEqual([]);
 });
 
-// The disabled "Open in Mock Space" button and its sign-in hint are new surface
-// this feature adds — a bare disabled control with no explanation is exactly
-// the kind of thing this gate exists to catch, so scan it explicitly rather
-// than trusting the initial-view scan above to cover it.
+// The signed-out "Open in Mock Space" CTA is live (not disabled) and its
+// accessible name changes to state the outcome of clicking it — new surface
+// this feature adds, so scan it explicitly rather than trusting the
+// initial-view scan above to cover it.
 test('the signed-out result step has no serious/critical a11y violations', async ({
   page,
   context,
 }) => {
   // Signed out on purpose: seedAuth is not called, so useAuth().user stays null
-  // and the mock-space button renders in its disabled state.
+  // and the mock-space button renders its "sign in" label.
   await stubPaperTree(context);
   // rest/v1 catch-all for whatever the navbar's scholium_apps read (and
   // anything else PostgREST) asks for. stubChapterQuestions doesn't need to
@@ -98,10 +98,45 @@ test('the signed-out result step has no serious/critical a11y violations', async
   await page.getByRole('button', { name: 'Paper 2' }).click();
   await page.getByRole('checkbox', { name: 'Select Number and Algebra' }).check();
   await page.getByRole('button', { name: 'Generate Paper' }).click();
-  await expect(page.getByRole('button', { name: 'Open in Mock Space' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Sign in to open in Mock Space' })).toBeEnabled();
 
   const blocking = await scan(page);
   expect(blocking, `serious/critical a11y on the result step, signed out:\n${report(blocking)}`).toEqual(
+    [],
+  );
+});
+
+// The history panel's Download/Delete controls are icon-only — exactly the
+// kind of control this gate exists to catch if it ships without an accessible
+// name. The signed-in scan above never exercises this: without an explicit
+// saved_papers stub it sees the empty state, which has no icon buttons at all.
+test('the populated saved-papers list has no serious/critical a11y violations', async ({
+  page,
+  context,
+}) => {
+  await seedAuth(context, {
+    saved_papers: [
+      {
+        id: '11111111-1111-4111-8111-111111111111',
+        user_id: '00000000-0000-4000-8000-00000000e2e5',
+        created_at: '2026-08-20T00:00:00.000Z',
+        subject: '0607',
+        component: 'Paper 2',
+        file_name: 'International-Mathematics-Paper-2-2026-08-20.pdf',
+        question_ids: ['P2-001', 'P2-002'],
+        include_mark_scheme: true,
+        randomize: true,
+        r2_key: null,
+      },
+    ],
+  });
+  await stubPaperTree(context);
+  await stubChapterQuestions(context);
+  await page.goto('/');
+  await expect(page.getByText('International Mathematics · Paper 2')).toBeVisible();
+
+  const blocking = await scan(page);
+  expect(blocking, `serious/critical a11y on the populated history panel:\n${report(blocking)}`).toEqual(
     [],
   );
 });

@@ -37,16 +37,22 @@ async function loadScholiumApps(): Promise<AppLink[]> {
 
 function NavbarWired({ apps }: { apps: AppLink[] }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, signOut } = useAuth();
   const { track } = useAnalytics();
+  // Return here after signing in — matters beyond "/" since /settings is also
+  // reachable while signed out. See Auth.tsx's `next` handling.
+  const next = encodeURIComponent(location.pathname + location.search);
   return (
     <ScholiumNavbar
       apps={apps}
       onAppClick={(id) => track("nav_app_click", { to_app_id: id })}
       homeUrl={SCHOLIUM_HOME_URL}
       user={user ? { email: user.email ?? "" } : null}
-      onSignIn={() => navigate("/signin")}
-      onSignUp={() => navigate("/signup")}
+      onSignInClick={() => track("signin_click", { source: "navbar" })}
+      onSignUpClick={() => track("signup_click", { source: "navbar" })}
+      onSignIn={() => navigate(`/signin?next=${next}`)}
+      onSignUp={() => navigate(`/signup?next=${next}`)}
       onSignOut={async () => {
         await signOut();
         navigate("/");
