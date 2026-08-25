@@ -1,5 +1,5 @@
 // AUTO-GENERATED SNAPSHOT of the live public schema types — do not edit by hand.
-// Regenerate with: pnpm schema:snapshot   (see scripts/check-schema-drift.sh)
+// Regenerate with: pnpm schema:snapshot (prod) or pnpm schema:snapshot:local (local) — see scripts/check-schema-drift.sh
 export type Json =
   | string
   | number
@@ -9,11 +9,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.1"
-  }
   public: {
     Tables: {
       active_sessions: {
@@ -132,6 +127,7 @@ export type Database = {
           boxes: Json
           created_at: string
           id: string
+          mcq: Json | null
           pages: Json
           strokes: Json
           timer: Json
@@ -143,6 +139,7 @@ export type Database = {
           boxes?: Json
           created_at?: string
           id: string
+          mcq?: Json | null
           pages?: Json
           strokes?: Json
           timer: Json
@@ -154,6 +151,7 @@ export type Database = {
           boxes?: Json
           created_at?: string
           id?: string
+          mcq?: Json | null
           pages?: Json
           strokes?: Json
           timer?: Json
@@ -194,7 +192,7 @@ export type Database = {
           created_at: string | null
           id: string
           paper: string
-          question_number: number
+          question_number: string
           sub_topic: string
           subject: string
         }
@@ -204,7 +202,7 @@ export type Database = {
           created_at?: string | null
           id: string
           paper: string
-          question_number: number
+          question_number: string
           sub_topic: string
           subject: string
         }
@@ -214,7 +212,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           paper?: string
-          question_number?: number
+          question_number?: string
           sub_topic?: string
           subject?: string
         }
@@ -883,3 +881,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

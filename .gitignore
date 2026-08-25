@@ -3,6 +3,7 @@ dist
 .turbo
 .env
 .env.local
+.env*.local
 *.log
 *.tsbuildinfo
 .DS_Store
@@ -28,3 +29,9 @@ reports/
 # Local Claude Code conversation archive (session transcripts — may hold sensitive context)
 /Claude/
 .claude/
+
+# past-papers: scripts/build-subject-pages.js regenerates these subject/
+# component pages from the live paper_files table on every build (see the
+# script's header comment) — pure build output, like dist/. papers.css next
+# to them is hand-authored source and stays tracked.
+apps/past-papers/public/papers/*/

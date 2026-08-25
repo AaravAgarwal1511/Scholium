@@ -6,6 +6,8 @@ import { useAnalytics } from "@repo/analytics";
 import { downloadPdf, exportAttempt } from "@/lib/exportPdf";
 import { answerFontBytes } from "@/lib/answerFont";
 import { formatClock } from "@/lib/useTimer";
+import { score } from "@/lib/mcq";
+import McqResults from "@/components/McqResults";
 
 export default function ExportPage() {
   const navigate = useNavigate();
@@ -22,13 +24,20 @@ export default function ExportPage() {
   const attemptId = attempt?.id;
   useEffect(() => {
     if (!attempt) return;
+    const duration_ms = attempt.timer.durationMs - attempt.timer.remainingMs;
+    if (attempt.mcq) {
+      const { correct, answered, total } = score(attempt.mcq);
+      track("attempt_submit", { duration_ms, mcq: true, correct, answered, total });
+      return;
+    }
     const answeredBoxes = attempt.boxes.filter((b) => b.text.length > 0);
     const wordCount = answeredBoxes.reduce(
       (n, b) => n + b.text.split(/\s+/).filter((w) => w && !/^\s*$/.test(w)).length,
       0,
     );
     track("attempt_submit", {
-      duration_ms: attempt.timer.durationMs - attempt.timer.remainingMs,
+      duration_ms,
+      mcq: false,
       boxes: answeredBoxes.length,
       words: wordCount,
     });
@@ -36,6 +45,20 @@ export default function ExportPage() {
   }, [attemptId, track]);
 
   if (restoring || !attempt) return null;
+
+  if (attempt.mcq) {
+    return (
+      <McqResults
+        title={attempt.title}
+        timer={attempt.timer}
+        mcq={attempt.mcq}
+        onRestart={() => {
+          clearAttempt();
+          navigate("/");
+        }}
+      />
+    );
+  }
 
   const answered = attempt.boxes.filter((b) => b.text.length > 0);
   const words = answered.reduce(

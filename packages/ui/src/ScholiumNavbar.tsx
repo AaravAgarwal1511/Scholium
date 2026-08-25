@@ -185,8 +185,9 @@ export function ScholiumNavbar({
             onClick={() => { setToolsOpen(o => !o); setAccountOpen(false); setSearchOpen(false); }}
             aria-haspopup="true"
             aria-expanded={toolsOpen}
+            aria-label="Study tools"
           >
-            Study tools
+            <span className="rui-navbar-tools-btn-label">Study tools</span>
             <svg
               width="10" height="10" viewBox="0 0 10 10" fill="none"
               stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"

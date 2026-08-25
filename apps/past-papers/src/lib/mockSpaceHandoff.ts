@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { GeneratedPaper } from "@/lib/papers";
+import type { GeneratedPaper, McqAnswerKey } from "@/lib/papers";
 
 export { MOCK_SPACE_URL } from "@/lib/mockSpaceUrl";
 
@@ -14,6 +14,13 @@ function paperPath(userId: string, id: string): string {
   return `${userId}/${id}.pdf`;
 }
 
+// The MCQ answer key's handoff object, staged next to the paper under the
+// same id — mirrors mock-space's own sidecarPath in paperRetention.ts, which
+// is what /open downloads from.
+function sidecarPath(userId: string, id: string): string {
+  return `${userId}/${id}.json`;
+}
+
 async function paperBlob(paper: GeneratedPaper): Promise<Blob> {
   if (paper.kind === "blob") return paper.blob;
   // The public R2 URL has no CORS headers configured, so a direct fetch(paper.url)
@@ -26,11 +33,29 @@ async function paperBlob(paper: GeneratedPaper): Promise<Blob> {
   return response.blob();
 }
 
+// Non-fatal by design: OpenPaperPage falls back to an ordinary written attempt
+// whenever it can't find (or can't validate) a sidecar, so a failed sidecar
+// upload should cost the MCQ interface, not the whole handoff — the paper
+// itself is already safely staged by the time this runs.
+async function stageMcqSidecar(userId: string, id: string, mcq: McqAnswerKey): Promise<void> {
+  const blob = new Blob([JSON.stringify(mcq)], { type: "application/json" });
+  const { error } = await supabase.storage
+    .from(PAPER_BUCKET)
+    .upload(sidecarPath(userId, id), blob, { contentType: "application/json", upsert: true });
+  if (error) console.warn("Could not stage the MCQ answer key:", error.message);
+}
+
 /**
  * Uploads a generated paper into the caller's own mock-space-papers folder under
  * a fresh id, so mock-space's `/open` route can pick it up and start an attempt.
  * The object is a handoff, not the attempt's permanent copy — `/open` deletes it
  * once `startAttempt` has re-uploaded the paper under its own attempt id.
+ *
+ * When `paper.mcq` is set, also stages the answer key as a JSON sidecar under
+ * the same id (see stageMcqSidecar) — the caller signals this happened by
+ * appending `&mcq=1` to the /open URL itself (see GeneratePaperPage.tsx),
+ * since that's the one piece of information this function's `string` return
+ * can't carry without breaking every existing caller.
  */
 export async function stageForMockSpace(userId: string, paper: GeneratedPaper): Promise<string> {
   const blob = await paperBlob(paper);
@@ -41,6 +66,8 @@ export async function stageForMockSpace(userId: string, paper: GeneratedPaper): 
     upsert: true,
   });
   if (error) throw new Error(error.message);
+
+  if (paper.mcq) await stageMcqSidecar(userId, id, paper.mcq);
 
   return id;
 }

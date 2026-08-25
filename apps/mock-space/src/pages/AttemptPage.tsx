@@ -9,6 +9,7 @@ import PauseCurtain from "@/components/PauseCurtain";
 import Toolbar from "@/components/Toolbar";
 import SymbolPalette from "@/components/SymbolPalette";
 import DrawLayer from "@/components/DrawLayer";
+import McqRunner from "@/components/McqRunner";
 import { answerMetrics } from "@/lib/answerFont";
 import type { Metrics } from "@/lib/metrics";
 import { toModel } from "@/lib/coords";
@@ -30,6 +31,7 @@ export default function AttemptPage() {
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   const scale = ZOOM_STEPS[zoomIndex];
+  const isMcq = Boolean(attempt?.mcq);
 
   const onTimerChange = useCallback(
     (next: Timer) => updateAttempt((a) => ({ ...a, timer: next })),
@@ -150,43 +152,47 @@ export default function AttemptPage() {
           <TimerBar timer={timer} />
         </div>
 
-        <div className="relative ml-4">
-          <Toolbar
-            tool={tool}
-            disabled={locked}
-            paletteOpen={paletteOpen}
-            onToolChange={(t) => {
-              setTool(t);
-              setPaletteOpen(false);
-            }}
-            onTogglePalette={() => setPaletteOpen((v) => !v)}
-          />
-          {paletteOpen && !locked && (
-            <SymbolPalette disabled={!focusedBox} onInsert={insertSymbol} />
-          )}
-        </div>
+        {!isMcq && (
+          <>
+            <div className="relative ml-4">
+              <Toolbar
+                tool={tool}
+                disabled={locked}
+                paletteOpen={paletteOpen}
+                onToolChange={(t) => {
+                  setTool(t);
+                  setPaletteOpen(false);
+                }}
+                onTogglePalette={() => setPaletteOpen((v) => !v)}
+              />
+              {paletteOpen && !locked && (
+                <SymbolPalette disabled={!focusedBox} onInsert={insertSymbol} />
+              )}
+            </div>
 
-        <div className="ml-auto flex items-center gap-1">
-          <button
-            aria-label="Zoom out"
-            disabled={zoomIndex === 0}
-            onClick={() => setZoomIndex((i) => Math.max(0, i - 1))}
-            className="rounded p-1.5 hover:bg-muted disabled:opacity-40"
-          >
-            <ZoomOut size={16} />
-          </button>
-          <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">
-            {Math.round(scale * 100)}%
-          </span>
-          <button
-            aria-label="Zoom in"
-            disabled={zoomIndex === ZOOM_STEPS.length - 1}
-            onClick={() => setZoomIndex((i) => Math.min(ZOOM_STEPS.length - 1, i + 1))}
-            className="rounded p-1.5 hover:bg-muted disabled:opacity-40"
-          >
-            <ZoomIn size={16} />
-          </button>
-        </div>
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                aria-label="Zoom out"
+                disabled={zoomIndex === 0}
+                onClick={() => setZoomIndex((i) => Math.max(0, i - 1))}
+                className="rounded p-1.5 hover:bg-muted disabled:opacity-40"
+              >
+                <ZoomOut size={16} />
+              </button>
+              <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">
+                {Math.round(scale * 100)}%
+              </span>
+              <button
+                aria-label="Zoom in"
+                disabled={zoomIndex === ZOOM_STEPS.length - 1}
+                onClick={() => setZoomIndex((i) => Math.min(ZOOM_STEPS.length - 1, i + 1))}
+                className="rounded p-1.5 hover:bg-muted disabled:opacity-40"
+              >
+                <ZoomIn size={16} />
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {timer.state === "idle" && (
@@ -201,6 +207,14 @@ export default function AttemptPage() {
         // in the DOM for anyone willing to open devtools, and blurring the boxes
         // on the way out is exactly what should happen when you stop the clock.
         <PauseCurtain remainingMs={timer.remainingMs} onResume={timer.resume} />
+      ) : isMcq ? (
+        <McqRunner
+          doc={doc}
+          pages={attempt.pages}
+          mcq={attempt.mcq!}
+          locked={locked}
+          onChange={updateAttempt}
+        />
       ) : (
         <div className="flex flex-col items-center gap-6 py-6">
           {attempt.pages.map((geometry, i) => (

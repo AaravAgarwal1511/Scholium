@@ -22,6 +22,7 @@ import {
   hasBlankPageBanner,
   marksInRegion,
 } from './page-chars.js';
+import { answerInRegion } from './mcqAnswers.js';
 
 // Lazily create the Supabase client so merely importing this module never throws
 // (env is present at runtime in both the dev server and the serverless function).
@@ -170,6 +171,30 @@ const SUBJECT_GEOMETRY = {
 
 export function geometryFor(subject) {
   return SUBJECT_GEOMETRY[subject] ?? DEFAULT_GEOMETRY;
+}
+
+// Components whose questions are multiple-choice — verified against the live
+// R2 corpus (May/June 2018 mark schemes), not guessed from the syllabus: for
+// each entry below, every question's mark-scheme row reads "<label> <letter>
+// <marks>" (e.g. "1 A 1"), the shape answerInRegion looks for. The sciences
+// (0610/0620/0625) index only their Extended-tier components in this corpus —
+// Paper 2 (MCQ), Paper 4 (Theory) and Paper 6 (Alternative to Practical) —
+// there is no indexed Paper 1/3/5 Core tier to include. 0455 Economics
+// indexes both Paper 1 and Paper 2; only Paper 1 is MCQ, Paper 2 is
+// structured. 0478, 0606 and 0607 have no MCQ component in the corpus at all.
+//
+// Extraction below is still the authority, not this map: getting an entry
+// wrong here only means a real MCQ paper composes as an ordinary one (or vice
+// versa gets probed and silently falls back) — see extractMcqAnswers.
+const MCQ_COMPONENTS = {
+  '0455': [1], // Economics — Paper 1
+  '0610': [2], // Biology — Paper 2
+  '0620': [2], // Chemistry — Paper 2
+  '0625': [2], // Physics — Paper 2
+};
+
+export function isMcqComponent(subject, paperNum) {
+  return (MCQ_COMPONENTS[subject] ?? []).includes(paperNum);
 }
 
 // Mirrors SUBJECT_DISPLAY_NAMES in src/lib/papers.ts — that copy is what the
@@ -1188,7 +1213,11 @@ export function stampBrandHeader(doc, brandFont) {
 }
 
 // Vertical-flow layout on A4 — mirrors PageLayout in _build_topicals.py.
-class PageLayout {
+// Exported for compose-pdf.test.js's MCQ placement-recording coverage, which
+// drives it directly against a small real pdf-lib fixture rather than the
+// full composePdf() pipeline — see that file's own note on why composePdf()
+// itself stays out of the unit suite.
+export class PageLayout {
   constructor(outDoc, font, boldFont) {
     this.out = outDoc;
     this.font = font;
@@ -1196,11 +1225,39 @@ class PageLayout {
     this.page = null;
     this.cursor = CONTENT_TOP;
     this.pendingBanner = null;
+    // 0-based index of `this.page` within the output document, kept in step
+    // with `_newPage()` so MCQ band recording (see beginQuestion/_place) can
+    // say which output page a question landed on without asking pdf-lib.
+    this.pageIndex = -1;
+    // The question currently being placed, or null when renderSection isn't
+    // tracking MCQ placement (the default — most compositions never call
+    // beginQuestion at all) or while placing a Mark Scheme crop, which MCQ
+    // mode never shows. Set by beginQuestion(), read and appended to by
+    // _place(), read back by endQuestion().
+    this._question = null;
   }
 
   _newPage() {
     this.page = this.out.addPage([PAGE_W, PAGE_H]);
     this.cursor = CONTENT_TOP;
+    this.pageIndex += 1;
+  }
+
+  // Starts tracking where the next question's crop(s) land, for an MCQ paper's
+  // answer-key metadata. `meta` is `{ seq, label, answer }` — or null, meaning
+  // "don't track this one" (a non-MCQ composition, or the Mark Scheme
+  // section). renderSection calls this once per question, wrapping every
+  // addCrop/addGroup call that question makes.
+  beginQuestion(meta) {
+    this._question = meta ? { ...meta, bands: [] } : null;
+  }
+
+  // Ends tracking and hands back the finished record (or null), so the
+  // caller — not PageLayout — decides whether the composition is MCQ at all.
+  endQuestion() {
+    const q = this._question;
+    this._question = null;
+    return q;
   }
 
   // Queue a banner; only drawn when an actual crop follows (matches queue_banner).
@@ -1403,11 +1460,26 @@ class PageLayout {
     }
     this._flushBanner();
 
+    // Top of this block, in top-origin points (mock-space's model space) —
+    // captured after the page break and banner are resolved, so a question
+    // that starts a fresh page or immediately follows a paper banner records
+    // where its own crop actually begins, not where the page started.
+    const bandTop = this.cursor;
+
     for (let i = 0; i < measured.length; i++) {
       if (i) this.cursor -= INTRA_GROUP_GAP;
       const y = await this._draw(measured[i], scales[i]);
       this.cursor = y;
     }
+
+    if (this._question) {
+      this._question.bands.push({
+        page: this.pageIndex,
+        yTopPt: PAGE_H - bandTop,
+        yBotPt: PAGE_H - this.cursor,
+      });
+    }
+
     this.cursor -= 8;
   }
 
@@ -1459,7 +1531,94 @@ export function collectQuestionMarks(cache, srcDoc, specs, collector) {
   collector.total += total || 1;
 }
 
-async function renderSection(layout, cache, items, kind, loader, order, geom, marksCollector = null) {
+// Builds a `{paperNum}/{stem}/{qNum} -> "A".."D"` answer key by reading each
+// item's mark-scheme row directly — the same source material the Mark Scheme
+// section itself would render, whether or not this composition is actually
+// including one (`includeMarkScheme` only controls what gets PRINTED; MCQ
+// extraction always needs the mark scheme, because that's the only place the
+// answer exists as data anywhere in this app — see mcqAnswers.js).
+//
+// Mirrors renderSection's own (paperNum, stem) grouping and pageSpecs/
+// nextRecord derivation for kind: 'mark_schemes', so the keys this produces
+// are exactly the keys renderSection looks up while placing the Questions
+// section (see beginQuestion's caller below).
+//
+// Returns null — never a partial map — the instant any item fails to
+// resolve: a missing index, a missing record, or a row that doesn't read as
+// a lone A–D. isMcqComponent() is an editorial hint, not ground truth, and
+// this is where that gets checked: composePdf treats null exactly like "this
+// paper isn't MCQ" and composes it as an ordinary one.
+async function extractMcqAnswers(cache, loader, items, geom) {
+  const grouped = new Map();
+  for (const it of items) {
+    const stem = makeStem(it.paper, it.paperNum);
+    const key = `${it.paperNum}/${stem}`;
+    if (!grouped.has(key)) grouped.set(key, { paperNum: it.paperNum, stem, qNums: [] });
+    grouped.get(key).qNums.push(it.qNum);
+  }
+
+  const answers = new Map();
+  for (const { paperNum, stem, qNums } of grouped.values()) {
+    let idx;
+    try {
+      idx = await loadIndex(cache, loader, paperNum, 'mark_schemes');
+    } catch (err) {
+      console.warn(`  ⚠️  MCQ: mark-scheme index unavailable for paper ${paperNum}: ${err.message}`);
+      return null;
+    }
+    const entry = idx.get(stem);
+    if (!entry) return null;
+
+    let srcDoc;
+    try {
+      srcDoc = await loadSourcePdf(cache, loader, paperNum, 'mark_schemes', stem);
+    } catch (err) {
+      console.warn(`  ⚠️  MCQ: mark-scheme PDF unavailable for ${stem}: ${err.message}`);
+      return null;
+    }
+    const pageCount = srcDoc.getPageCount();
+    const skippable = new Set(entry.meta.preamble_pages ?? []);
+
+    for (const q of qNums) {
+      const qKey = String(q);
+      const record = entry.byQ.get(qKey);
+      if (!record) return null;
+
+      const pos = entry.posOf.get(qKey);
+      const nextRecord = pos === undefined ? null : entry.questions[pos + 1] ?? null;
+      const specs = pageSpecs(record, nextRecord, skippable, geom, 'mark_schemes', pageCount).filter(
+        (s) => s.page - 1 >= 0 && s.page - 1 < pageCount,
+      );
+
+      let answer = null;
+      for (const s of specs) {
+        const page = pageMarkLines(cache, srcDoc, s.page - 1);
+        answer = answerInRegion(page, s.yTop, s.yBot, qKey);
+        if (answer) break;
+      }
+      if (!answer) return null;
+
+      answers.set(`${paperNum}/${stem}/${qKey}`, answer);
+    }
+  }
+  return answers;
+}
+
+// `mcqCollector`, when given, is `{ answers: Map<"paperNum/stem/qNum", letter>,
+// questions: [] }` — see extractMcqAnswers. Only consulted for kind ===
+// 'questions': an MCQ attempt in mock-space never shows the Mark Scheme
+// section, so there is nothing to record while rendering it.
+async function renderSection(
+  layout,
+  cache,
+  items,
+  kind,
+  loader,
+  order,
+  geom,
+  marksCollector = null,
+  mcqCollector = null,
+) {
   // Group by (paperNum, stem).
   const grouped = new Map();
   for (const it of items) {
@@ -1564,10 +1723,38 @@ async function renderSection(layout, cache, items, kind, loader, order, geom, ma
         collectQuestionMarks(cache, srcDoc, keptSpecs, marksCollector);
       }
 
+      let mcqMeta = null;
+      if (mcqCollector && kind === 'questions') {
+        const answer = mcqCollector.answers.get(`${paperNum}/${stem}/${key}`);
+        // extractMcqAnswers already required every item to resolve before
+        // mcqCollector was ever built, so a miss here would mean this
+        // question wasn't part of that extraction pass at all — composePdf
+        // checks question/band counts match afterwards and drops the whole
+        // answer key rather than publish a partial one.
+        if (answer) {
+          mcqMeta = {
+            seq: mcqCollector.questions.length + 1,
+            label: `${meta.month} ${meta.year} Q${q}`,
+            answer,
+          };
+        }
+      }
+      layout.beginQuestion(mcqMeta);
+
       if (withStems) {
         await layout.addGroup(crops);
       } else {
         for (const c of crops) await layout.addCrop(c.doc, c.pageIndex, c.yTop, c.yBot);
+      }
+
+      // A question can in principle end up with zero bands (every crop it
+      // produced got dropped as an empty continuation) — that would leave
+      // mock-space nothing to show for it, so it does not count as placed.
+      // The items.length check in composePdf then sees the shortfall and
+      // discards the whole answer key, the same as any other extraction gap.
+      const finishedQuestion = layout.endQuestion();
+      if (finishedQuestion && finishedQuestion.bands.length > 0) {
+        mcqCollector.questions.push(finishedQuestion);
       }
     }
   }
@@ -1662,16 +1849,44 @@ export async function composePdf(questionIds, subject, loader, options = {}) {
   }
   const willDrawTotal = !markSchemeOnly && includeMarkScheme && msItems.length > 0;
 
+  // MCQ answer-key extraction — independent of includeMarkScheme/msItems
+  // above: mock-space's MCQ mode needs the answer regardless of whether the
+  // *composed PDF* prints a Mark Scheme section, and a markSchemeOnly request
+  // (the chapter "MS" download) has no Questions section to attach bands to
+  // in the first place. `mcqAnswers` is null unless every item resolved.
+  const mcqAnswers =
+    !markSchemeOnly && isMcqComponent(subject, items[0].paperNum)
+      ? await extractMcqAnswers(cache, loader, items, geom)
+      : null;
+  const mcqCollector = mcqAnswers ? { answers: mcqAnswers, questions: [] } : null;
+
   // Section 1 — Questions
   const marksCollector = willDrawTotal ? { total: 0, seen: new Map(), unreadable: false } : null;
   if (!markSchemeOnly) {
     layout.sectionHeader('Questions', coverTitle);
     coverDrawn = true;
-    await renderSection(layout, cache, items, 'questions', loader, order, geom, marksCollector);
+    await renderSection(
+      layout,
+      cache,
+      items,
+      'questions',
+      loader,
+      order,
+      geom,
+      marksCollector,
+      mcqCollector,
+    );
     if (willDrawTotal && !marksCollector.unreadable) {
       layout.totalMarks(marksCollector.total);
     }
   }
+
+  // Every extracted answer must have found a home in the rendered output, or
+  // the placement data mock-space would receive doesn't cover every question
+  // it thinks it can show. A mismatch here would mean a question rendering
+  // dropped an item extraction kept (or vice versa) — treat that exactly like
+  // extraction failing outright, rather than publish a partial answer key.
+  const mcqComplete = Boolean(mcqCollector) && mcqCollector.questions.length === items.length;
 
   // Section 2 — Mark Scheme
   let msCount = 0;
@@ -1699,6 +1914,17 @@ export async function composePdf(questionIds, subject, loader, options = {}) {
       includeMarkScheme,
       markSchemeOnly,
       order,
+      // null for an ordinary (or extraction-incomplete) composition. Bands are
+      // top-origin PDF points into the OUTPUT document — exactly mock-space's
+      // own model space (see pdfRender.ts / coords.ts) — so no flip is needed
+      // on the receiving end.
+      mcq: mcqComplete
+        ? {
+            subject,
+            component: `Paper ${items[0].paperNum}`,
+            questions: mcqCollector.questions,
+          }
+        : null,
     },
   };
 }

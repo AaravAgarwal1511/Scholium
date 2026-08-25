@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAnalytics } from "@repo/analytics";
 import { Zap, Download, AlertCircle, CheckCircle2, ExternalLink } from "lucide-react";
@@ -320,6 +320,24 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
     []
   );
 
+  // The static /papers/<code> pages (scripts/build-subject-pages.js) link back
+  // here as "Generate a custom paper" with `?subject=<code>` — honor it once
+  // the real subject list has loaded, so the deep link actually preselects
+  // instead of landing on an empty picker. Applied at most once per page load:
+  // a ref, not a dependency-array check, since `subjects` and `searchParams`
+  // are new objects on every render and would otherwise re-fire this forever.
+  const [searchParams] = useSearchParams();
+  const appliedSubjectFromUrl = useRef(false);
+  useEffect(() => {
+    if (appliedSubjectFromUrl.current || !subjects) return;
+    appliedSubjectFromUrl.current = true;
+    const requested = searchParams.get("subject");
+    if (requested && subjects.includes(requested)) {
+      setSelectedSubject(requested);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subjects]);
+
   // Load components for selected subject
   const { data: components, loading: loadingComponents } = useAsync(
     () =>
@@ -603,7 +621,14 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
     try {
       const id = await stageForMockSpace(user.id, result.paper);
       const title = result.fileName.replace(/\.pdf$/i, "");
-      const url = `${MOCK_SPACE_URL}/open?paper=${id}&title=${encodeURIComponent(title)}`;
+      // The flag is a hint, not the authority — stageForMockSpace stages the
+      // sidecar whenever result.paper.mcq is set, and /open falls back to an
+      // ordinary attempt if that sidecar can't be found or doesn't validate.
+      const mcqFlag = result.paper.mcq ? "&mcq=1" : "";
+      const openInMockSpaceLabel = result.paper.mcq
+        ? "Open in Mock Space (in MCQ Mode)"
+        : "Open in Mock Space";
+      const url = `${MOCK_SPACE_URL}/open?paper=${id}&title=${encodeURIComponent(title)}${mcqFlag}`;
       const tab = window.open(url, "_blank");
       if (tab) {
         tab.opener = null;
@@ -611,7 +636,7 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
         toast.error("Your browser blocked the new tab", {
           description: "Your paper is ready — open it in Mock Space when you're set.",
           action: {
-            label: "Open in Mock Space",
+            label: openInMockSpaceLabel,
             onClick: () => {
               const retry = window.open(url, "_blank");
               if (retry) retry.opener = null;
@@ -642,6 +667,38 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
         <p className="text-muted-foreground text-sm">
           Select chapters and the number of questions you want from each. Questions are picked at random.
         </p>
+        <details className="mt-4 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+          <summary className="cursor-pointer font-medium text-foreground">
+            How this is put together
+          </summary>
+          <div className="mt-2 space-y-2">
+            <p>
+              Every question here is a real Cambridge IGCSE past-paper question, cropped straight from
+              the original exam PDF — not retyped or rewritten, so what you see is exactly what was
+              printed.
+            </p>
+            <p>
+              Each question is matched to its syllabus topic by an AI model (Claude Haiku 4.5) that's
+              shown the question and constrained to Cambridge's own official topic list for that
+              subject — it can only pick a real syllabus topic, never invent one. Mark schemes are
+              matched to their question automatically by position and question number, not
+              reclassified separately, so the answer you get always belongs to the question you're
+              practising.
+            </p>
+            <p>
+              These papers are sourced from publicly available past-paper archives. Scholium is an
+              independent project and isn't affiliated with, endorsed by, or connected to Cambridge
+              Assessment International Education.
+            </p>
+            <p>
+              Spot a question filed under the wrong topic?{" "}
+              <a href="mailto:admin@thescholium.com" className="underline hover:text-foreground">
+                Let us know
+              </a>
+              .
+            </p>
+          </div>
+        </details>
       </div>
 
       <SavedPapersPanel user={user} loadingAuth={loadingAuth} refreshSignal={savedPapersRefresh} />
@@ -1078,9 +1135,11 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
               <ExternalLink size={18} />
               {handingOff
                 ? "Opening…"
-                : !user && !loadingAuth
-                  ? "Sign in to open in Mock Space"
-                  : "Open in Mock Space"}
+                  : !user && !loadingAuth
+                    ? "Sign in to open in Mock Space"
+                    : result.paper.mcq
+                      ? "Open in Mock Space (in MCQ Mode)"
+                      : "Open in Mock Space"}
             </button>
           </div>
         </section>

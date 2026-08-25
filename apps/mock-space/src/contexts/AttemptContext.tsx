@@ -4,6 +4,7 @@ import type { PDFDocumentProxy } from "pdfjs-dist";
 import { loadPdf, UnsupportedPdfError, type PageGeometry } from "@/lib/pdfRender";
 import { reviveTimer } from "@/lib/useTimer";
 import type { Attempt } from "@/lib/model";
+import type { McqState } from "@/lib/mcq";
 import { isPaperExpired, PAPER_RETENTION_DAYS } from "@/lib/paperRetention";
 import { downloadPaper, uploadPaper } from "@/lib/paperStorage";
 import {
@@ -34,7 +35,12 @@ interface AttemptContextType {
   error: string | null;
   /** The last autosave failed. The attempt is safe in memory but not yet in the account. */
   saveFailed: boolean;
-  startAttempt(file: File, durationMs: number, userId: string | null): Promise<boolean>;
+  startAttempt(
+    file: File,
+    durationMs: number,
+    userId: string | null,
+    mcq?: McqState | null,
+  ): Promise<boolean>;
   resumeAttempt(id: string): Promise<boolean>;
   /**
    * Takes an updater, not a value. Several of these fire in one tick — adding a box
@@ -121,7 +127,7 @@ export function AttemptProvider({ children }: { children: ReactNode }) {
   }, [flush]);
 
   const startAttempt = useCallback(
-    async (file: File, durationMs: number, userId: string | null) => {
+    async (file: File, durationMs: number, userId: string | null, mcq: McqState | null = null) => {
       setLoading(true);
       setError(null);
       try {
@@ -137,6 +143,7 @@ export function AttemptProvider({ children }: { children: ReactNode }) {
           boxes: [],
           strokes: [],
           timer: { durationMs, deadlineAt: null, remainingMs: durationMs, state: "idle" },
+          mcq,
         };
 
         // Parse first: an unreadable PDF should be rejected before anything is stored.

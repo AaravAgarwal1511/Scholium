@@ -10,10 +10,21 @@ Claude Code stores a project's **memory (notes)** and **conversation transcripts
 - `Claude/transcripts/` — archived session transcripts (`.jsonl` + per-session subdirs).
 
 The bridge is `.claude/claude-sync.sh`, wired to two hooks in `.claude/settings.local.json`:
-- **SessionStart** — symlinks `…/projects/<current-path>/memory` → `Claude/memory` and restores archived transcripts (so notes work and past conversations `--resume` at whatever path the repo lives).
+- **SessionStart** — symlinks `…/projects/<current-path>/memory` → `Claude/memory`, restores archived transcripts (so notes work and past conversations `--resume` at whatever path the repo lives), and re-links `.claude/` into every git worktree.
 - **SessionEnd** — archives the finished transcript(s) into `Claude/transcripts/`.
 
 Both derive the project dir from the event's `transcript_path`, so nothing is hardcoded. **To move the repo:** move the whole directory — `Claude/` and the hooks travel with it, and the next launch re-links everything automatically. Never commit `Claude/` (transcripts can hold sensitive context). Because `Claude/` and `.claude/settings.local.json` are git-ignored, a fresh *clone* (unlike a move) won't carry the notes or hook wiring.
+
+**Git worktrees** get the same bridge. A worktree is a second checkout at its own absolute path, so
+Claude Code gives it its own `…/projects/<path>/` dir — and because `.claude/` is git-ignored, the
+checkout `git worktree add` creates has no hook wiring and no copy of the script at all (its
+SessionEnd hook used to die with *No such file or directory*). Two things close that gap:
+`claude-sync.sh` resolves `Claude/` through `git rev-parse --git-common-dir`, so **every worktree
+shares the main checkout's memory and transcript store**, and SessionStart symlinks
+`<worktree>/.claude/{claude-sync.sh,settings.local.json}` back to main's copies. The hook command
+itself also falls back to that git lookup, so a session started in a brand-new worktree — before any
+SessionStart has run there — still finds the script. Only the main checkout gets the archived
+transcripts restored into its project dir; a worktree resumes the sessions it actually ran.
 
 ## Commands
 

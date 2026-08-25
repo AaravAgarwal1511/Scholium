@@ -6,11 +6,12 @@ DROP POLICY IF EXISTS "Users can create their own progress" ON public.set_progre
 DROP POLICY IF EXISTS "Users can delete their own progress" ON public.set_progress;
 DROP POLICY IF EXISTS "Users can update their own progress" ON public.set_progress;
 DROP POLICY IF EXISTS "Users can view their own progress" ON public.set_progress;
-DROP POLICY IF EXISTS "Anyone can view folders" ON public.folders;
-DROP POLICY IF EXISTS "Users can create their own folders" ON public.folders;
-DROP POLICY IF EXISTS "Users can delete their own folders" ON public.folders;
-DROP POLICY IF EXISTS "Users can update their own folders" ON public.folders;
-DROP POLICY IF EXISTS "Users can view their own roles" ON public.user_roles;
+-- folders/user_roles policies are NOT dropped individually here (unlike above):
+-- on a fresh replay neither table exists yet at this point in history (they were
+-- created out-of-band in the dashboard, same as scholium_apps — see
+-- 20260526020000_scholium_apps_base.sql), and `DROP POLICY ... ON <table>`
+-- errors on a missing relation even with IF EXISTS on the policy, unlike
+-- `DROP TABLE IF EXISTS`. The CASCADE below drops their policies regardless.
 
 -- Drop the folders table
 DROP TABLE IF EXISTS public.folders CASCADE;
@@ -32,6 +33,16 @@ ALTER TABLE public.set_progress DROP COLUMN IF EXISTS user_id;
 DROP TYPE IF EXISTS public.app_role;
 
 -- Create simple open RLS policies for vocabulary_sets
+--
+-- Dropped first (unlike the set_progress block below): on a fresh replay these
+-- three exact names already exist from 20251203142017_...sql and were never
+-- dropped in between, unlike on prod where an out-of-band dashboard edit had
+-- already replaced them with the "Admins and owners can ..." policies dropped
+-- above by the time this migration ran.
+DROP POLICY IF EXISTS "Anyone can create vocabulary sets" ON public.vocabulary_sets;
+DROP POLICY IF EXISTS "Anyone can update vocabulary sets" ON public.vocabulary_sets;
+DROP POLICY IF EXISTS "Anyone can delete vocabulary sets" ON public.vocabulary_sets;
+
 CREATE POLICY "Anyone can create vocabulary sets"
 ON public.vocabulary_sets FOR INSERT
 WITH CHECK (true);

@@ -36,6 +36,7 @@ function attemptWith(boxes: AnswerBox[]): Attempt {
     boxes,
     strokes: [],
     timer: { durationMs: 60_000, deadlineAt: null, remainingMs: 0, state: "expired" },
+    mcq: null,
   };
 }
 
