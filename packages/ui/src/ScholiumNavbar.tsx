@@ -39,6 +39,13 @@ export interface ScholiumNavbarProps {
    *  Optional so `@repo/ui` stays free of analytics — the app injects an emitter
    *  (e.g. `(id) => track('nav_app_click', { to_app_id: id })`). */
   onAppClick?: (appId: string) => void;
+  /** Fired when the Login button is clicked, before onSignIn navigates (or the
+   *  ${homeUrl}/signin anchor is followed). Same analytics-injection pattern as
+   *  onAppClick — optional so @repo/ui stays free of analytics. */
+  onSignInClick?: () => void;
+  /** Fired when the "Join now" button is clicked, before onSignUp navigates (or
+   *  the ${homeUrl}/signup anchor is followed). */
+  onSignUpClick?: () => void;
 }
 
 function sameOrigin(url: string, origin: string): boolean {
@@ -57,6 +64,8 @@ export function ScholiumNavbar({
   onSignIn,
   onSignUp,
   onAppClick,
+  onSignInClick,
+  onSignUpClick,
 }: ScholiumNavbarProps) {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -346,14 +355,26 @@ export function ScholiumNavbar({
           ) : (
             <>
               {onSignIn ? (
-                <button type="button" onClick={onSignIn} className="rui-navbar-btn rui-navbar-btn--ghost">Login</button>
+                <button
+                  type="button"
+                  onClick={() => { onSignInClick?.(); onSignIn(); }}
+                  className="rui-navbar-btn rui-navbar-btn--ghost"
+                >
+                  Login
+                </button>
               ) : (
-                <a href={signinHref} className="rui-navbar-btn rui-navbar-btn--ghost">Login</a>
+                <a href={signinHref} onClick={() => onSignInClick?.()} className="rui-navbar-btn rui-navbar-btn--ghost">Login</a>
               )}
               {onSignUp ? (
-                <button type="button" onClick={onSignUp} className="rui-navbar-btn rui-navbar-btn--primary">Join now</button>
+                <button
+                  type="button"
+                  onClick={() => { onSignUpClick?.(); onSignUp(); }}
+                  className="rui-navbar-btn rui-navbar-btn--primary"
+                >
+                  Join now
+                </button>
               ) : (
-                <a href={signupHref} className="rui-navbar-btn rui-navbar-btn--primary">Join now</a>
+                <a href={signupHref} onClick={() => onSignUpClick?.()} className="rui-navbar-btn rui-navbar-btn--primary">Join now</a>
               )}
             </>
           )}

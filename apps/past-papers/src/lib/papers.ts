@@ -295,6 +295,32 @@ export type GeneratedPaper =
   | { kind: "blob"; blob: Blob; mcq: McqAnswerKey | null }
   | { kind: "url"; url: string; key: string; mcq: McqAnswerKey | null };
 
+// Reads a composed paper's bytes back out by its R2 key, for a caller that
+// needs the bytes themselves rather than just an anchor-click download (see
+// the comment above). Also the re-download path for a saved paper's `r2Key`
+// (@/lib/savedPapers) — that `_cache/` object can be pruned, so callers should
+// fall back to `generatePaper` with the paper's recipe if this 404s.
+export async function fetchPaperBytes(key: string): Promise<Blob> {
+  const response = await fetch(`/api/proxy-paper?key=${encodeURIComponent(key)}`);
+  if (!response.ok) throw new Error(`Could not fetch the paper (${response.status})`);
+  return response.blob();
+}
+
+// The paper arrives inline as a blob when it is small enough for a serverless
+// response body, and as an R2 URL when it isn't. Either way it is one anchor
+// click: the R2 object is stored with an attachment disposition, so the browser
+// saves it rather than navigating away from the app.
+export function downloadPaper(paper: GeneratedPaper, fileName: string): void {
+  const href = paper.kind === "blob" ? URL.createObjectURL(paper.blob) : paper.url;
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  if (paper.kind === "blob") URL.revokeObjectURL(href);
+}
+
 // Roughly how long composing a paper takes, in seconds, as a function of the
 // question count — used only to drive the progress estimate the user sees while
 // waiting. Now that composition always reads source PDFs from R2 over HTTP, the

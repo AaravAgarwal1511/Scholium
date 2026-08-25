@@ -25,13 +25,33 @@ type DailyRow = {
   signed_out_events: number;
 };
 
+type FunnelRow = {
+  step_index: number;
+  step_name: string;
+  visitors: number;
+};
+
 const DAY_OPTIONS = [7, 30, 90];
+
+// admin_analytics_funnel matches on event `name` only (no path/props filter), so
+// each step here must be a distinct event name — page_view can't serve as a step.
+// gated_click and sso_session_adopted only start populating once the corresponding
+// UI change (leak fix / SSO) ships; they read as 0 visitors until then, not an error.
+const PAST_PAPERS_FUNNEL_STEPS = [
+  "app_open",
+  "generate_complete",
+  "signin_click",
+  "gated_click",
+  "sign_in",
+  "sign_up",
+];
 
 export default function Analytics() {
   const [days, setDays] = useState(30);
   const [overview, setOverview] = useState<OverviewRow[] | null>(null);
   const [events, setEvents] = useState<EventRow[] | null>(null);
   const [daily, setDaily] = useState<DailyRow[] | null>(null);
+  const [pastPapersFunnel, setPastPapersFunnel] = useState<FunnelRow[] | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
@@ -40,18 +60,26 @@ export default function Analytics() {
     setOverview(null);
     setEvents(null);
     setDaily(null);
+    setPastPapersFunnel(null);
     Promise.all([
       supabase.rpc("admin_analytics_overview", { p_days: days }),
       supabase.rpc("admin_analytics_events", { p_days: days, p_app_key: null }),
       supabase.rpc("admin_analytics_daily", { p_app_key: null, p_days: days }),
-    ]).then(([ov, ev, dy]) => {
+      supabase.rpc("admin_analytics_funnel", {
+        p_app_key: "past-papers",
+        p_steps: PAST_PAPERS_FUNNEL_STEPS,
+        p_days: days,
+      }),
+    ]).then(([ov, ev, dy, fn]) => {
       if (cancelled) return;
       if (ov.error) return setErr(ov.error.message);
       if (ev.error) return setErr(ev.error.message);
       if (dy.error) return setErr(dy.error.message);
+      if (fn.error) return setErr(fn.error.message);
       setOverview((ov.data as OverviewRow[]) ?? []);
       setEvents((ev.data as EventRow[]) ?? []);
       setDaily((dy.data as DailyRow[]) ?? []);
+      setPastPapersFunnel((fn.data as FunnelRow[]) ?? []);
     });
     return () => {
       cancelled = true;
@@ -92,7 +120,7 @@ export default function Analytics() {
         </div>
       </div>
 
-      {!overview || !events || !daily ? (
+      {!overview || !events || !daily || !pastPapersFunnel ? (
         <div className="text-slate-500">Loading analytics…</div>
       ) : overview.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-slate-500">
@@ -165,6 +193,40 @@ export default function Analytics() {
                     <td className="px-4 py-2 text-right text-slate-500">{r.visitors}</td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2 mt-8">
+            Past Papers sign-in funnel ({days}d)
+          </h2>
+          <p className="text-xs text-slate-400 mb-2">
+            Distinct visitors per step, independently counted (not a strict ordered
+            drop-off). gated_click and sso_session_adopted read 0 until their features ship.
+          </p>
+          <div className="bg-white rounded-xl shadow overflow-hidden mb-8">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-100 text-left text-slate-600">
+                <tr>
+                  <th className="px-4 py-2">Step</th>
+                  <th className="px-4 py-2 text-right">Visitors</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pastPapersFunnel.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-3 text-slate-400" colSpan={2}>
+                      No events for past-papers yet.
+                    </td>
+                  </tr>
+                ) : (
+                  pastPapersFunnel.map((r) => (
+                    <tr key={r.step_index} className="border-t">
+                      <td className="px-4 py-2 font-mono text-slate-700">{r.step_name}</td>
+                      <td className="px-4 py-2 text-right">{r.visitors}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

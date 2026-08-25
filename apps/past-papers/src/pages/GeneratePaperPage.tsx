@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAnalytics } from "@repo/analytics";
 import { Zap, Download, AlertCircle, CheckCircle2, ExternalLink } from "lucide-react";
@@ -7,21 +7,29 @@ import Layout from "@/components/Layout";
 import Tetris from "@/components/Tetris";
 import CalculatorAlert from "@/components/CalculatorAlert";
 import { EmptyState } from "@/components/StateViews";
+import SavedPapersPanel from "@/components/SavedPapersPanel";
 import { useAsync } from "@/hooks/useAsync";
 import { useAuth } from "@/contexts/AuthContext";
 import { stageForMockSpace, MOCK_SPACE_URL } from "@/lib/mockSpaceHandoff";
+import { savePaper } from "@/lib/savedPapers";
+import {
+  loadGeneratorSession,
+  saveGeneratorSession,
+  resultToRecipe,
+  type GeneratorResult,
+} from "@/lib/generatorSession";
 import {
   listSubjects,
   listComponents,
   listChapters,
   getChapterQuestions,
   generatePaper,
+  downloadPaper,
   paperNumOf,
   subjectDisplayName,
   estimateGenerationSeconds,
   MAX_GENERATED_QUESTIONS,
   type ChapterQuestion,
-  type GeneratedPaper,
 } from "@/lib/papers";
 
 type SelectionMap = {
@@ -29,21 +37,6 @@ type SelectionMap = {
 };
 
 type ChapterInfo = { number: number; name: string; questions: ChapterQuestion[] };
-
-// The paper arrives inline as a blob when it is small enough for a serverless
-// response body, and as an R2 URL when it isn't. Either way it is one anchor
-// click: the R2 object is stored with an attachment disposition, so the browser
-// saves it rather than navigating away from the app.
-function downloadPaper(paper: GeneratedPaper, fileName: string) {
-  const href = paper.kind === "blob" ? URL.createObjectURL(paper.blob) : paper.url;
-  const link = document.createElement("a");
-  link.href = href;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  if (paper.kind === "blob") URL.revokeObjectURL(href);
-}
 
 const selectClass =
   "rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm font-medium text-foreground focus:outline-none focus:border-primary";
@@ -171,27 +164,131 @@ interface GeneratePaperPageProps {
 export default function GeneratePaperPage({ description }: GeneratePaperPageProps = {}) {
   const { track } = useAnalytics();
   const { user, loadingAuth } = useAuth();
-  const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
-  const [selectedComponent, setSelectedComponent] = useState<string | null>(
-    null
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Every field below hydrates from the last-saved generator session on first
+  // render, so a remount — most importantly the /signin round trip, since
+  // Auth.tsx always navigates away from and back to this page — doesn't lose
+  // the user's selections. See the persistence effect further down and
+  // `@/lib/generatorSession` for what's actually stored and why.
+  const [selectedSubject, setSelectedSubject] = useState<string | null>(
+    () => loadGeneratorSession()?.selectedSubject ?? null
   );
-  const [selections, setSelections] = useState<SelectionMap>({});
+  const [selectedComponent, setSelectedComponent] = useState<string | null>(
+    () => loadGeneratorSession()?.selectedComponent ?? null
+  );
+  const [selections, setSelections] = useState<SelectionMap>(
+    () => loadGeneratorSession()?.selections ?? {}
+  );
   const [chapters, setChapters] = useState<ChapterInfo[]>([]);
   const [loadingChapters, setLoadingChapters] = useState(false);
-  const [pickedFrom, setPickedFrom] = useState<number | null>(null);
-  const [pickedTo, setPickedTo] = useState<number | null>(null);
-  const [includeMarkScheme, setIncludeMarkScheme] = useState(true);
-  const [randomize, setRandomize] = useState(true);
+  const [pickedFrom, setPickedFrom] = useState<number | null>(
+    () => loadGeneratorSession()?.pickedFrom ?? null
+  );
+  const [pickedTo, setPickedTo] = useState<number | null>(
+    () => loadGeneratorSession()?.pickedTo ?? null
+  );
+  const [includeMarkScheme, setIncludeMarkScheme] = useState(
+    () => loadGeneratorSession()?.includeMarkScheme ?? true
+  );
+  const [randomize, setRandomize] = useState(() => loadGeneratorSession()?.randomize ?? true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [estimate, setEstimate] = useState(0);
   const [generateError, setGenerateError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ paper: GeneratedPaper; fileName: string } | null>(null);
+  // The blob variant can't be restored directly (a Blob doesn't survive
+  // sessionStorage's JSON serialisation) — only the r2-backed variant hydrates
+  // here. The mount-time restore effect below recomposes a pending blob
+  // result from its recipe instead.
+  const [result, setResult] = useState<GeneratorResult | null>(() => {
+    const recipe = loadGeneratorSession()?.resultRecipe;
+    if (!recipe?.r2) return null;
+    return {
+      paper: { kind: "url", url: recipe.r2.url, key: recipe.r2.key, mcq: null },
+      fileName: recipe.fileName,
+      subject: recipe.subject,
+      questionIds: recipe.questionIds,
+      includeMarkScheme: recipe.includeMarkScheme,
+      randomize: recipe.randomize,
+    };
+  });
   const [handingOff, setHandingOff] = useState(false);
+  // Bumped after a successful save so SavedPapersPanel re-fetches its list —
+  // simpler than lifting the panel's own list state up into this component.
+  const [savedPapersRefresh, setSavedPapersRefresh] = useState(0);
   // True for a few seconds right after a paper finishes generating, driving the
   // one-shot attention ring on the primary action below (see the effect below).
   const [justGenerated, setJustGenerated] = useState(false);
   const resultSectionRef = useRef<HTMLElement>(null);
+
+  // Recomposes a pending `{kind:"blob"}` result on mount — the one case the
+  // lazy `result` initializer above can't restore directly, since a Blob
+  // doesn't survive sessionStorage's JSON serialisation. Same questionIds and
+  // options as the original generation, so this reproduces the identical PDF
+  // rather than re-sampling a different one. Mount-only: this restores
+  // whatever was pending when the page last unmounted, not a live sync.
+  useEffect(() => {
+    const recipe = loadGeneratorSession()?.resultRecipe;
+    if (!recipe || recipe.r2) return;
+    let cancelled = false;
+    setEstimate(estimateGenerationSeconds(recipe.questionIds.length));
+    setIsGenerating(true);
+    generatePaper(recipe.subject, recipe.questionIds, {
+      includeMarkScheme: recipe.includeMarkScheme,
+      randomize: recipe.randomize,
+      fileName: recipe.fileName,
+    })
+      .then((paper) => {
+        if (cancelled) return;
+        setResult({
+          paper,
+          fileName: recipe.fileName,
+          subject: recipe.subject,
+          questionIds: recipe.questionIds,
+          includeMarkScheme: recipe.includeMarkScheme,
+          randomize: recipe.randomize,
+        });
+      })
+      .catch(() => {
+        // The paper genuinely can't be reconstructed (e.g. a source PDF
+        // moved). Drop it quietly rather than surface an error for a page
+        // the user didn't just act on — they can just generate again.
+      })
+      .finally(() => {
+        if (!cancelled) setIsGenerating(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Write-through: keeps the saved session in sync with every change, so
+  // whichever value is current is what a remount restores. Cheap (a few KB of
+  // JSON, sessionStorage is synchronous) and safe to run on every change —
+  // the very first run just re-saves the values the state above already
+  // hydrated from, so nothing is lost between hydration and this effect.
+  useEffect(() => {
+    saveGeneratorSession({
+      selectedSubject,
+      selectedComponent,
+      selections,
+      pickedFrom,
+      pickedTo,
+      includeMarkScheme,
+      randomize,
+      resultRecipe: resultToRecipe(result),
+    });
+  }, [
+    selectedSubject,
+    selectedComponent,
+    selections,
+    pickedFrom,
+    pickedTo,
+    includeMarkScheme,
+    randomize,
+    result,
+  ]);
 
   // Count up while a paper is composing, so the overlay can show elapsed time and
   // advance the progress bar against the estimate.
@@ -318,10 +415,21 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
 
   const availableIn = (chapter: number) => idsInRange.get(chapter)?.length ?? 0;
 
+  // True for the render(s) between picking (or restoring) a subject/component
+  // and the chapters actually arriving — `idsInRange` is an empty Map for that
+  // whole window, indistinguishable from "nothing is available" to the effect
+  // below. Computed synchronously from render state rather than `loadingChapters`:
+  // that state flag doesn't flip to true until a render after this one, which
+  // is one render too late to guard the very first pass — the case that
+  // matters when selections are restored from a saved session on mount, with
+  // `selectedSubject`/`selectedComponent` already set and `chapters` still [].
+  const chaptersPending = !!selectedSubject && !!selectedComponent && chapters.length === 0;
+
   // Narrowing the years can leave a chapter with fewer questions than the user
   // already asked for — or with none at all. Bring the counts back inside what
   // the range can supply instead of letting generation fail on them later.
   useEffect(() => {
+    if (chaptersPending) return;
     setSelections((prev) => {
       const next: SelectionMap = {};
       let changed = false;
@@ -336,7 +444,7 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
       }
       return changed ? next : prev;
     });
-  }, [idsInRange]);
+  }, [idsInRange, chaptersPending]);
 
   const resetSelection = () => {
     setSelections({});
@@ -453,7 +561,32 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
         questions: selectedQuestionIds.length,
       });
 
-      setResult({ paper, fileName });
+      setResult({
+        paper,
+        fileName,
+        subject: selectedSubject,
+        questionIds: selectedQuestionIds,
+        includeMarkScheme,
+        randomize,
+      });
+
+      // Signed-out users generate exactly as they always could — this is the
+      // one thing an account adds. Best-effort: the paper is already in hand
+      // regardless of whether the history write succeeds, and "Generate Paper"
+      // is right there to try again.
+      if (user) {
+        savePaper(user.id, {
+          subject: selectedSubject,
+          component: selectedComponent ?? "",
+          fileName,
+          questionIds: selectedQuestionIds,
+          includeMarkScheme,
+          randomize,
+          r2Key: paper.kind === "url" ? paper.key : null,
+        })
+          .then(() => setSavedPapersRefresh((n) => n + 1))
+          .catch(() => {});
+      }
     } catch (error) {
       track("generate_failed", {
         reason: error instanceof Error ? error.message.slice(0, 64) : "unknown",
@@ -469,8 +602,9 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
 
   // Uploads the generated paper into the user's mock-space-papers folder and
   // deep-links to mock-space's /open route, which downloads it back out, starts
-  // an attempt, and deletes this handoff copy. Disabled entirely when signed out
-  // — see the button below — so `user` is always set here.
+  // an attempt, and deletes this handoff copy. The button below only calls this
+  // when signed in — a signed-out click routes to /signin?next=... instead —
+  // so `user` is always set here.
   //
   // Deliberately does NOT open a blank tab up front and fill it in later: that
   // leaves an "about:blank" tab sitting there for however long the upload takes,
@@ -566,6 +700,8 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
           </div>
         </details>
       </div>
+
+      <SavedPapersPanel user={user} loadingAuth={loadingAuth} refreshSignal={savedPapersRefresh} />
 
       {/* Step 1: Subject Selection */}
       <section className="mb-8">
@@ -962,7 +1098,10 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
                 />
               )}
               <button
-                onClick={() => downloadPaper(result.paper, result.fileName)}
+                onClick={() => {
+                  track("paper_download", { signed_in: Boolean(user) });
+                  downloadPaper(result.paper, result.fileName);
+                }}
                 className="relative w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all"
                 style={{
                   backgroundColor: "hsl(var(--primary))",
@@ -975,35 +1114,34 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
             </div>
 
             <button
-              onClick={handleOpenInMockSpace}
-              disabled={!user || handingOff}
-              aria-describedby={!user && !loadingAuth ? "mock-space-signin-hint" : undefined}
+              onClick={() => {
+                if (!user) {
+                  track("gated_click", { feature: "mock_space" });
+                  const next = encodeURIComponent(location.pathname + location.search);
+                  navigate(`/signin?next=${next}&hint=mock_space`);
+                  return;
+                }
+                handleOpenInMockSpace();
+              }}
+              disabled={handingOff}
               className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all"
               style={{
-                backgroundColor:
-                  !user || handingOff ? "hsl(var(--muted))" : "hsl(var(--accent) / 0.1)",
-                color: !user || handingOff ? "hsl(var(--muted-foreground))" : "hsl(var(--accent))",
-                cursor: !user || handingOff ? "not-allowed" : "pointer",
-                opacity: !user || handingOff ? 0.6 : 1,
+                backgroundColor: handingOff ? "hsl(var(--muted))" : "hsl(var(--accent) / 0.1)",
+                color: handingOff ? "hsl(var(--muted-foreground))" : "hsl(var(--accent))",
+                cursor: handingOff ? "not-allowed" : "pointer",
+                opacity: handingOff ? 0.6 : 1,
               }}
             >
               <ExternalLink size={18} />
               {handingOff
                 ? "Opening…"
-                : result.paper.mcq
-                  ? "Open in Mock Space (in MCQ Mode)"
-                  : "Open in Mock Space"}
+                  : !user && !loadingAuth
+                    ? "Sign in to open in Mock Space"
+                    : result.paper.mcq
+                      ? "Open in Mock Space (in MCQ Mode)"
+                      : "Open in Mock Space"}
             </button>
           </div>
-
-          {!user && !loadingAuth && (
-            <p id="mock-space-signin-hint" className="mt-3 text-xs text-muted-foreground">
-              <Link to="/signin" className="underline hover:text-foreground">
-                Sign in
-              </Link>{" "}
-              to open this paper in Mock Space.
-            </p>
-          )}
         </section>
       )}
     </Layout>
