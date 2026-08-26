@@ -1,18 +1,17 @@
 import { LegalPage } from './LegalPage';
 import type { LegalDocProps } from './TermsOfService';
 
-const DEFAULT_UPDATED = '5 July 2026';
+const DEFAULT_UPDATED = '26 August 2026';
 
-/** Suite-wide Privacy Policy, shared across every Scholium app. Placeholders in
- *  [brackets] are finalised at incorporation. */
+/** Suite-wide Privacy Policy, shared across every Scholium app. */
 export function PrivacyPolicy({ lastUpdated = DEFAULT_UPDATED, homeUrl }: LegalDocProps) {
   return (
     <LegalPage title="Privacy Policy" lastUpdated={lastUpdated} homeUrl={homeUrl}>
       <p>
         This Privacy Policy explains how Vivek Agarwal (“Scholium”, “we”, “us”) handles
         personal data across the Scholium suite — Language Hub, Recall, Poetry Notes, Past
-        Papers, and the Scholium home site (the “Service”). We are the data controller. For
-        privacy questions, contact admin@thescholium.com.
+        Papers, Mock Space, and the Scholium home site (the “Service”). We are the data
+        controller. For privacy questions, contact admin@thescholium.com.
       </p>
 
       <h2>1. Data we collect</h2>
@@ -22,8 +21,9 @@ export function PrivacyPolicy({ lastUpdated = DEFAULT_UPDATED, homeUrl }: LegalD
           when signing up.
         </li>
         <li>
-          <strong>Your content</strong> — flashcards, notes, poems, study progress, and similar
-          data you create in the tools. This is stored privately to your account.
+          <strong>Your content</strong> — flashcards, notes, poems, study progress, exam papers
+          you upload to Mock Space, and similar data you create in the tools. This is stored
+          privately to your account.
         </li>
         <li>
           <strong>Usage &amp; device data</strong> — basic logs, device/browser information, and
@@ -38,16 +38,14 @@ export function PrivacyPolicy({ lastUpdated = DEFAULT_UPDATED, homeUrl }: LegalD
       <h2>2. Why we use it (legal bases)</h2>
       <p>
         We process data to provide the Service and your account (performance of a contract), to
-        keep it secure and prevent abuse (legitimate interests), to take payment for paid plans
-        (contract), and to comply with law. Where required, we rely on consent — including
-        parental consent for younger users (see §7).
+        keep it secure and prevent abuse (legitimate interests), and to comply with law. Where
+        required, we rely on consent — including parental consent for younger users (see §7).
       </p>
 
       <h2>3. Who we share it with (processors)</h2>
       <p>We do not sell your personal data. We share it only with service providers who process it on our behalf:</p>
       <ul>
         <li><strong>Supabase</strong> — database, authentication, and storage.</li>
-        <li><strong>Lemon Squeezy</strong> — our merchant of record; processes payments, billing, and applicable sales tax/VAT/GST for paid plans.</li>
         <li><strong>Google Cloud (Text-to-Speech)</strong> — generating audio in Language Hub from the text you submit.</li>
         <li><strong>Vercel</strong> — hosting, content delivery, and privacy-friendly, cookieless traffic analytics (Vercel Web Analytics).</li>
       </ul>
@@ -67,7 +65,9 @@ export function PrivacyPolicy({ lastUpdated = DEFAULT_UPDATED, homeUrl }: LegalD
       <p>
         We keep your data while your account is active. After you delete your account, we remove
         or anonymise personal data within a reasonable period, except where we must retain
-        records to meet legal obligations.
+        records to meet legal obligations. Mock Space is the exception: uploaded question papers
+        and the associated attempt are deleted automatically 15 days after upload, regardless of
+        account status.
       </p>
 
       <h2>6. Your rights</h2>
