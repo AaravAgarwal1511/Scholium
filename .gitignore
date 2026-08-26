@@ -31,7 +31,14 @@ reports/
 .claude/
 
 # past-papers: scripts/build-subject-pages.js regenerates these subject/
-# component pages from the live paper_files table on every build (see the
-# script's header comment) — pure build output, like dist/. papers.css next
-# to them is hand-authored source and stays tracked.
+# component/topic pages from the committed scripts/seo-catalog.json snapshot
+# on every build (see that script's header comment) — pure build output, like
+# dist/. papers.css next to them is hand-authored source and stays tracked.
 apps/past-papers/public/papers/*/
+
+# past-papers: build-only scratch output — the homepage-fallback fragment
+# vite.config.ts splices into index.html, and the SSR bundle
+# scripts/prerender-legal.mjs renders /terms and /privacy through. Neither is
+# shipped itself; only their output (index.html, dist/terms, dist/privacy) is.
+apps/past-papers/.seo-build/
+apps/past-papers/dist-ssr/

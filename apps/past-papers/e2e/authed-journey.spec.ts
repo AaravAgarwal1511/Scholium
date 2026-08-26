@@ -82,7 +82,7 @@ test('the generator renders at / and walks subject -> component -> chapter', asy
   await expect(page.getByText('Chapter 3: Number and Algebra')).toBeVisible();
 });
 
-test('/generate redirects to the generator, and an unknown path redirects home', async ({
+test('/generate redirects to the generator, and an unknown path shows a real 404', async ({
   page,
   context,
 }) => {
@@ -92,9 +92,14 @@ test('/generate redirects to the generator, and an unknown path redirects home',
   await expect(page).toHaveURL(/\/$/);
 
   // /:subject no longer exists — the browsing routes were removed with this
-  // feature, so a bare "/0607" now falls through to the catch-all redirect.
+  // feature. It used to fall through to a catch-all redirect to "/", which is
+  // exactly the site-wide soft-404 the SEO audit flagged (every invalid URL
+  // returned 200 with the homepage). The client route now renders a real
+  // NotFound page instead of redirecting — the URL stays put, matching what
+  // vercel.json's rewrites + public/404.html do server-side in production.
   await page.goto('/0607');
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/0607$/);
+  await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
 });
 
 test('generating a paper shows a result step instead of downloading automatically', async ({

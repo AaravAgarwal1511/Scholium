@@ -320,12 +320,14 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
     []
   );
 
-  // The static /papers/<code> pages (scripts/build-subject-pages.js) link back
-  // here as "Generate a custom paper" with `?subject=<code>` — honor it once
-  // the real subject list has loaded, so the deep link actually preselects
-  // instead of landing on an empty picker. Applied at most once per page load:
-  // a ref, not a dependency-array check, since `subjects` and `searchParams`
-  // are new objects on every render and would otherwise re-fire this forever.
+  // The static /papers/<code>[/<component>[/topics/<slug>]] pages
+  // (scripts/build-subject-pages.js) link back here with `?subject=<code>`,
+  // optionally plus `&component=<slug>&chapter=<n>` — honor each once the
+  // data it needs has loaded, so the deep link actually preselects instead of
+  // landing on an empty picker. Each is applied at most once per page load: a
+  // ref, not a dependency-array check, since `searchParams` and the loaded
+  // arrays are new objects on every render and would otherwise re-fire this
+  // forever.
   const [searchParams] = useSearchParams();
   const appliedSubjectFromUrl = useRef(false);
   useEffect(() => {
@@ -344,6 +346,22 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
       selectedSubject ? listComponents(selectedSubject) : Promise.resolve([]),
     [selectedSubject]
   );
+
+  // `component` is a URL-friendly slug ("paper-1"); components load as their
+  // raw label ("Paper 1"). paperNumOf() already extracts the number from
+  // either shape, so matching on that number sidesteps needing a slugify()
+  // here too.
+  const appliedComponentFromUrl = useRef(false);
+  useEffect(() => {
+    if (appliedComponentFromUrl.current || !selectedSubject || !components) return;
+    appliedComponentFromUrl.current = true;
+    const requested = searchParams.get("component");
+    if (!requested) return;
+    const requestedNum = paperNumOf(requested);
+    const match = components.find((c) => paperNumOf(c) === requestedNum);
+    if (match) setSelectedComponent(match);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [components]);
 
   // Load chapters (with their questions and exam years) for the selected subject
   // + paper. Questions are restricted to the chosen paper via the P<n>- id
@@ -385,6 +403,26 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
       cancelled = true;
     };
   }, [selectedSubject, selectedComponent]);
+
+  // `chapter` selects a default question count once its chapter has loaded.
+  // Reads `match.questions.length` directly rather than the year-filtered
+  // `idsInRange` (defined below): a fresh deep link lands before the year
+  // pickers have been touched, so the range already defaults to "everything"
+  // and the two counts agree — this just avoids depending on a value defined
+  // later in the component purely for this one-shot read.
+  const appliedChapterFromUrl = useRef(false);
+  useEffect(() => {
+    if (appliedChapterFromUrl.current || !selectedComponent || chapters.length === 0) return;
+    appliedChapterFromUrl.current = true;
+    const requestedRaw = searchParams.get("chapter");
+    const requested = requestedRaw ? Number(requestedRaw) : null;
+    if (!Number.isFinite(requested)) return;
+    const match = chapters.find((c) => c.number === requested);
+    if (match && match.questions.length > 0) {
+      handleChapterToggle(match.number, Math.min(5, match.questions.length));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapters]);
 
   // Every year this component has, across all its chapters. Derived rather than
   // held in state, so it can't fall out of step with the loaded chapters.
@@ -662,7 +700,7 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
           <div className="p-2 rounded-lg bg-accent/10">
             <Zap size={20} className="text-accent" />
           </div>
-          <h1 className="font-display font-bold text-3xl">Generate Paper</h1>
+          <h2 className="font-display font-bold text-3xl">Generate Paper</h2>
         </div>
         <p className="text-muted-foreground text-sm">
           Select chapters and the number of questions you want from each. Questions are picked at random.

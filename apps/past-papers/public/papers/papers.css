@@ -115,9 +115,21 @@ h1 {
   margin: 0 0 1rem;
 }
 
+.pp-lead {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
 .pp-intro {
   color: var(--pp-fg-muted);
   margin: 0 0 1.5rem;
+}
+
+.pp-freshness {
+  color: var(--pp-fg-muted);
+  font-size: 0.85rem;
+  margin: 1.5rem 0 0;
 }
 
 .pp-component-list,
@@ -130,24 +142,77 @@ h1 {
   gap: 0.5rem;
 }
 
-.pp-chapter-list {
-  list-style: decimal inside;
-}
-
 .pp-component-list li,
 .pp-chapter-list li {
-  padding: 0.75rem 1rem;
+  padding: 0;
   background: var(--pp-card);
   border: 1px solid var(--pp-border);
   border-radius: var(--pp-radius);
+  overflow: hidden;
 }
 
-.pp-component-list a {
+/* Whole-card link: earlier versions of these pages wrapped only the label in
+ * <a>, leaving a small real tap target inside a visually full-width card —
+ * the anchor now wraps the entire <li> content, so the whole card is
+ * clickable/tappable, not just the text. */
+.pp-card-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
   text-decoration: none;
+  color: var(--pp-fg);
+}
+
+.pp-card-link:hover {
+  background: var(--pp-bg);
+}
+
+.pp-card-meta,
+.pp-chapter-meta {
+  color: var(--pp-fg-muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pp-subtopics-label {
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.pp-subtopics-list {
+  margin: 0 0 1.5rem;
+  padding-left: 1.25rem;
+  color: var(--pp-fg-muted);
+}
+
+.pp-subtopics-list li {
+  margin-bottom: 0.25rem;
 }
 
 .pp-cta {
+  display: inline-block;
   font-size: 1.05rem;
+}
+
+.pp-cta-top {
+  margin-bottom: 1.5rem;
+}
+
+.pp-notfound {
+  text-align: center;
+  padding: 3rem 0;
+}
+
+.pp-notfound h1 {
+  margin-bottom: 1rem;
+}
+
+.pp-notfound .pp-intro {
+  margin: 0 auto 1.5rem;
+  max-width: 32rem;
 }
 
 .pp-footer {
