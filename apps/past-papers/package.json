@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"vite\" \"node --env-file=.env server.js\"",
+    "dev": "concurrently \"vite\" \"node --env-file=.env --env-file-if-exists=.env.development server.js\"",
     "dev:client": "vite",
-    "dev:server": "node --env-file=.env server.js",
+    "dev:server": "node --env-file=.env --env-file-if-exists=.env.development server.js",
     "build": "node scripts/build-subject-pages.js && vite build && node scripts/prerender-legal.mjs",
     "lint": "eslint .",
     "test": "vitest run",

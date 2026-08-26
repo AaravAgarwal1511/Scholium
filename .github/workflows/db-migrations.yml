@@ -1,0 +1,117 @@
+name: DB migrations
+
+# The only path a migration takes to production. Two jobs, each gating the
+# next: a fresh-database rehearsal (no secrets, runs on every PR — this is what
+# caught scholium_apps having no CREATE TABLE anywhere in the migration
+# history, and get_user_stats() depending on a set_progress.user_id column an
+# earlier migration dropped — see 20260526020000_scholium_apps_base.sql and
+# 20260822000000_reconcile_language_hub_schema_drift.sql), then production —
+# behind a required-reviewer approval on the `production` GitHub Environment.
+#
+# No separate staging *project*: the org's free tier caps active projects at 2
+# (already spent on prod + an unrelated project), so "staging" is a fresh
+# Docker Supabase started inside the CI job itself — real Postgres, real RLS,
+# same mechanism `supabase start` uses locally, torn down when the job ends. It
+# would have caught the get_user_stats() bug above just as well as a persistent
+# project would. The tradeoff: no long-lived URL, so Vercel Preview deploys
+# still point at prod (RLS-scoped anon key only, same exposure as any signed-in
+# user — not a migration risk). Revisit with a real staging project, or
+# self-hosting, if that tradeoff stops being acceptable.
+#
+# Nobody runs `supabase db push` against production from a laptop. See
+# database/README.md's "Applying" section.
+on:
+  pull_request:
+    paths:
+      - "database/**"
+      - "supabase/**"
+      - ".github/workflows/db-migrations.yml"
+  push:
+    branches: [main]
+    paths:
+      - "database/**"
+      - "supabase/**"
+      - ".github/workflows/db-migrations.yml"
+
+concurrency:
+  group: db-migrations-${{ github.ref }}
+  cancel-in-progress: false # never abandon a half-applied push
+
+jobs:
+  rehearse:
+    name: Rehearse (fresh Docker Supabase)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Docker is preinstalled on the ubuntu-latest runner, which is all
+      # `supabase start` needs — no credentials, so this runs on fork PRs too.
+      - name: Start local Supabase
+        run: pnpm exec supabase start
+
+      # Proves every migration plus seed.sql applies cleanly to an empty
+      # database, in order, with no manual intervention.
+      - name: Reset (apply every migration + seed.sql)
+        run: pnpm exec supabase db reset
+
+      - name: Lint migrations
+        run: pnpm exec supabase db lint
+
+      # Fails if a migration changed the schema without database/schema-types.snapshot.ts
+      # being refreshed in the same commit (pnpm schema:snapshot:local).
+      - name: Check schema drift (local vs. snapshot)
+        run: ./scripts/check-schema-drift.sh --local
+
+      # anon-access.test.ts runs for real against this job's fresh stack.
+      # rls-isolation.test.ts needs a *linked* project (a real cloud one — see
+      # the file header) and skips gracefully without one, same as it already
+      # does in CI today. The URL/key below are the Supabase CLI's fixed local
+      # demo values, identical on every machine — not secrets.
+      - name: Run DB security suite
+        env:
+          VITE_SUPABASE_URL: http://127.0.0.1:54321
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH
+        run: pnpm test:db
+
+  production:
+    name: Apply to production
+    needs: rehearse
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production # required reviewer — configure this in repo Settings > Environments
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Check production credentials are configured
+        id: creds
+        run: |
+          if [ -n "${{ secrets.SUPABASE_PROJECT_REF }}" ] && [ -n "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SUPABASE_PROJECT_REF / SUPABASE_ACCESS_TOKEN not set — production push skipped."
+          fi
+
+      - name: Link production project
+        if: steps.creds.outputs.present == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: pnpm exec supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+
+      - name: Push migrations to production
+        if: steps.creds.outputs.present == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: pnpm exec supabase db push
