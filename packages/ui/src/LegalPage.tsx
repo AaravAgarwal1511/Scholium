@@ -26,12 +26,6 @@ export function LegalPage({ title, lastUpdated, homeUrl = '/', children }: Legal
           <p className="rui-legal-updated">Last updated: {lastUpdated}</p>
         </header>
 
-        <aside className="rui-legal-draft" role="note">
-          <strong>Draft template — not yet legal advice.</strong> This document is a
-          starting point and must be reviewed by qualified counsel before launch.
-          Bracketed values like <code>[Legal Entity]</code> are placeholders.
-        </aside>
-
         <article className="rui-legal-prose">{children}</article>
       </div>
     </div>
