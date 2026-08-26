@@ -9,6 +9,8 @@ name: Lighthouse
 # - scholium-home: the public marketing site (/, /about, /memory-science).
 # - recall-app: a gated app's PUBLIC pages (/signin, /demo) — /signin renders the
 #   shared AuthCard before any auth, so Lighthouse can reach it without a session.
+# - past-papers: NOT auth-gated at all (browsing is public) — covers /, a subject
+#   page, a component page, a topic page, and /terms, all added by the SEO pass.
 #
 # Own workflow rather than a job in ci.yml: it needs Chrome and runs Lighthouse
 # many times, so it is heavier and only worth running when an app or its budgets
@@ -19,11 +21,13 @@ on:
     paths:
       - 'apps/scholium-home/**'
       - 'apps/recall-app/**'
+      - 'apps/past-papers/**'
       - '.github/workflows/lighthouse.yml'
   pull_request:
     paths:
       - 'apps/scholium-home/**'
       - 'apps/recall-app/**'
+      - 'apps/past-papers/**'
       - '.github/workflows/lighthouse.yml'
   workflow_dispatch:
 
@@ -34,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [scholium-home, recall-app]
+        app: [scholium-home, recall-app, past-papers]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

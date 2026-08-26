@@ -18,6 +18,7 @@ import GeneratePaperPage from "@/pages/GeneratePaperPage";
 const SettingsPage = lazy(() => import("@/pages/Settings"));
 const Auth = lazy(() => import("@/pages/Auth"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
+const NotFound = lazy(() => import("@/pages/NotFound"));
 
 function RouteFallback() {
   return (
@@ -103,7 +104,7 @@ function MainRoutes({ apps, ownDescription }: { apps: AppLink[]; ownDescription:
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/terms" element={<TermsOfService homeUrl={SCHOLIUM_HOME_URL} />} />
           <Route path="/privacy" element={<PrivacyPolicy homeUrl={SCHOLIUM_HOME_URL} />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
       <ScholiumFooter homeUrl={SCHOLIUM_HOME_URL} />

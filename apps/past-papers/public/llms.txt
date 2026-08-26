@@ -5,7 +5,51 @@
 > Science (0478), Additional Mathematics (0606), International Mathematics (0607),
 > Biology (0610), Chemistry (0620), and Physics (0625).
 
-- [Past Papers tool](https://pastpapers.thescholium.com/): pick a subject, component, and
-  chapters to generate a custom topical practice paper with its mark scheme.
+- [Past Papers tool](https://pastpapers.thescholium.com/): pick a subject, component, and chapters to generate a
+  custom topical practice paper with its mark scheme.
+- [IGCSE Economics (0455)](https://pastpapers.thescholium.com/papers/0455): topical past papers and mark schemes.
+  - [Paper 1](https://pastpapers.thescholium.com/papers/0455/paper-1): 39 chapters.
+  - [Paper 2](https://pastpapers.thescholium.com/papers/0455/paper-2): 39 chapters.
+  - [Firms' Costs, Revenue and Objectives](https://pastpapers.thescholium.com/papers/0455/topics/firms-costs-revenue-and-objectives): 166 questions.
+  - [Fiscal Policy](https://pastpapers.thescholium.com/papers/0455/topics/fiscal-policy): 148 questions.
+  - [Globalisation, Free Trade and Protection](https://pastpapers.thescholium.com/papers/0455/topics/globalisation-free-trade-and-protection): 144 questions.
+  - [Inflation and Deflation](https://pastpapers.thescholium.com/papers/0455/topics/inflation-and-deflation): 111 questions.
+  - [Current Account of Balance of Payments](https://pastpapers.thescholium.com/papers/0455/topics/current-account-of-balance-of-payments): 105 questions.
+  - [Population](https://pastpapers.thescholium.com/papers/0455/topics/population): 98 questions.
+  - [Employment and Unemployment](https://pastpapers.thescholium.com/papers/0455/topics/employment-and-unemployment): 95 questions.
+  - [Economic Growth](https://pastpapers.thescholium.com/papers/0455/topics/economic-growth): 94 questions.
+  - [Workers](https://pastpapers.thescholium.com/papers/0455/topics/workers): 93 questions.
+  - [Market Failure](https://pastpapers.thescholium.com/papers/0455/topics/market-failure): 86 questions.
+  - [Money and Banking](https://pastpapers.thescholium.com/papers/0455/topics/money-and-banking): 80 questions.
+  - [Supply-Side Policy](https://pastpapers.thescholium.com/papers/0455/topics/supply-side-policy): 80 questions.
+- [IGCSE Computer Science (0478)](https://pastpapers.thescholium.com/papers/0478): topical past papers and mark schemes.
+  - [Paper 1](https://pastpapers.thescholium.com/papers/0478/paper-1): 7 chapters.
+  - [Paper 2](https://pastpapers.thescholium.com/papers/0478/paper-2): 4 chapters.
+- [IGCSE Additional Mathematics (0606)](https://pastpapers.thescholium.com/papers/0606): topical past papers and mark schemes.
+  - [Paper 1](https://pastpapers.thescholium.com/papers/0606/paper-1): 16 chapters.
+  - [Paper 2](https://pastpapers.thescholium.com/papers/0606/paper-2): 16 chapters.
+- [IGCSE International Mathematics (0607)](https://pastpapers.thescholium.com/papers/0607): topical past papers and mark schemes.
+  - [Paper 2](https://pastpapers.thescholium.com/papers/0607/paper-2): 23 chapters.
+  - [Paper 4](https://pastpapers.thescholium.com/papers/0607/paper-4): 23 chapters.
+- [IGCSE Biology (0610)](https://pastpapers.thescholium.com/papers/0610): topical past papers and mark schemes.
+  - [Paper 2](https://pastpapers.thescholium.com/papers/0610/paper-2): 21 chapters.
+  - [Paper 4](https://pastpapers.thescholium.com/papers/0610/paper-4): 21 chapters.
+  - [Paper 6](https://pastpapers.thescholium.com/papers/0610/paper-6): 15 chapters.
+  - [Coordination and Response](https://pastpapers.thescholium.com/papers/0610/topics/coordination-and-response): 212 questions.
+  - [Inheritance](https://pastpapers.thescholium.com/papers/0610/topics/inheritance): 195 questions.
+  - [Reproduction](https://pastpapers.thescholium.com/papers/0610/topics/reproduction): 187 questions.
+  - [Characteristics and Classification of Living Organisms](https://pastpapers.thescholium.com/papers/0610/topics/characteristics-and-classification-of-living-organisms): 170 questions.
+  - [Human Nutrition](https://pastpapers.thescholium.com/papers/0610/topics/human-nutrition): 164 questions.
+  - [Organisms and Their Environment](https://pastpapers.thescholium.com/papers/0610/topics/organisms-and-their-environment): 151 questions.
+  - [Organisation of the Organism](https://pastpapers.thescholium.com/papers/0610/topics/organisation-of-the-organism): 148 questions.
+  - [Plant Nutrition](https://pastpapers.thescholium.com/papers/0610/topics/plant-nutrition): 147 questions.
+- [IGCSE Chemistry (0620)](https://pastpapers.thescholium.com/papers/0620): topical past papers and mark schemes.
+  - [Paper 2](https://pastpapers.thescholium.com/papers/0620/paper-2): 12 chapters.
+  - [Paper 4](https://pastpapers.thescholium.com/papers/0620/paper-4): 12 chapters.
+  - [Paper 6](https://pastpapers.thescholium.com/papers/0620/paper-6): 10 chapters.
+- [IGCSE Physics (0625)](https://pastpapers.thescholium.com/papers/0625): topical past papers and mark schemes.
+  - [Paper 2](https://pastpapers.thescholium.com/papers/0625/paper-2): 24 chapters.
+  - [Paper 4](https://pastpapers.thescholium.com/papers/0625/paper-4): 24 chapters.
+  - [Paper 6](https://pastpapers.thescholium.com/papers/0625/paper-6): 13 chapters.
 - [Terms of Service](https://pastpapers.thescholium.com/terms)
 - [Privacy Policy](https://pastpapers.thescholium.com/privacy)
