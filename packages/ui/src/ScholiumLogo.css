@@ -1,4 +1,7 @@
-/* Color is inherited from the parent via `color`. */
+/* Wordmark color is inherited from the parent via `color`. The mark itself
+   carries fixed brand colors (traced from the source artwork), with the
+   accent triangle swapping to a brighter shade in dark mode for contrast —
+   same .dark/.dark-mode convention as tokens.css. */
 
 .rui-scholium-logo {
   display: inline-flex;
@@ -12,10 +15,25 @@
 .rui-scholium-mark {
   display: inline-flex;
   flex-shrink: 0;
+  --rui-scholium-mark-accent: #dc7b14;
+}
+
+:root.dark .rui-scholium-mark,
+:root.dark-mode .rui-scholium-mark {
+  --rui-scholium-mark-accent: #ee9b0d;
 }
 
 .rui-scholium-mark svg {
   display: block;
+  width: auto;
+}
+
+.rui-scholium-mark-cap {
+  fill: #6666f0;
+}
+
+.rui-scholium-mark-face {
+  fill: var(--rui-scholium-mark-accent);
 }
 
 .rui-scholium-wordmark {
@@ -28,7 +46,6 @@
   font-size: 0.95rem;
 }
 .rui-scholium-logo--sm .rui-scholium-mark svg {
-  width: 1.1rem;
   height: 1.1rem;
 }
 
@@ -36,7 +53,6 @@
   font-size: 1.15rem;
 }
 .rui-scholium-logo--md .rui-scholium-mark svg {
-  width: 1.4rem;
   height: 1.4rem;
 }
 
@@ -44,6 +60,5 @@
   font-size: 1.5rem;
 }
 .rui-scholium-logo--lg .rui-scholium-mark svg {
-  width: 1.9rem;
   height: 1.9rem;
 }
