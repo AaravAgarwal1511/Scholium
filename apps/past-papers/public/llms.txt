@@ -25,6 +25,9 @@
 - [IGCSE Computer Science (0478)](https://pastpapers.thescholium.com/papers/0478): topical past papers and mark schemes.
   - [Paper 1](https://pastpapers.thescholium.com/papers/0478/paper-1): 7 chapters.
   - [Paper 2](https://pastpapers.thescholium.com/papers/0478/paper-2): 4 chapters.
+- [IGCSE Mathematics (0580)](https://pastpapers.thescholium.com/papers/0580): topical past papers and mark schemes.
+  - [Paper 2](https://pastpapers.thescholium.com/papers/0580/paper-2): 24 chapters.
+  - [Paper 4](https://pastpapers.thescholium.com/papers/0580/paper-4): 24 chapters.
 - [IGCSE Additional Mathematics (0606)](https://pastpapers.thescholium.com/papers/0606): topical past papers and mark schemes.
   - [Paper 1](https://pastpapers.thescholium.com/papers/0606/paper-1): 16 chapters.
   - [Paper 2](https://pastpapers.thescholium.com/papers/0606/paper-2): 16 chapters.
