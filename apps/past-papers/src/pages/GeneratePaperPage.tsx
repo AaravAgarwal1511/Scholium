@@ -530,11 +530,18 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
     setResult(null);
   };
 
-  // Additional Mathematics (0606) Paper 1 — flags the pre-2025 calculator
-  // policy change wherever a generated paper could pull questions from those
-  // years (see CalculatorAlert).
-  const isAddMathPaper1 =
-    selectedSubject === "0606" && !!selectedComponent && paperNumOf(selectedComponent) === 1;
+  // Components that became non-calculator with the 2025 syllabus, keyed by
+  // subject code -> paper number: Additional Mathematics (0606) Paper 1, and
+  // Mathematics (0580) Paper 2 (the reform split 0580 into non-calculator
+  // Paper 2 / calculator Paper 4). A generated paper spanning that boundary can
+  // pull pre-2025 questions that assume a calculator (see CalculatorAlert).
+  const NON_CALCULATOR_2025: Record<string, number> = { "0606": 1, "0580": 2 };
+  const nonCalcPaperNum =
+    selectedSubject != null ? NON_CALCULATOR_2025[selectedSubject] : undefined;
+  const showCalculatorAlert =
+    nonCalcPaperNum !== undefined &&
+    !!selectedComponent &&
+    paperNumOf(selectedComponent) === nonCalcPaperNum;
 
   const selectedChapters = Object.keys(selections).map(Number);
   const totalQuestions = Object.values(selections).reduce((a, b) => a + b, 0);
@@ -849,7 +856,7 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
             Choose Years, Chapters & Question Counts
           </h2>
 
-          {isAddMathPaper1 && <CalculatorAlert />}
+          {showCalculatorAlert && <CalculatorAlert paperLabel={`Paper ${nonCalcPaperNum}`} />}
 
           {allYears.length > 0 && (
             <YearRangeBar

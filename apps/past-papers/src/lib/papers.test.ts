@@ -85,10 +85,11 @@ describe("subjectDisplayName", () => {
   it("maps a known subject code to its friendly name", () => {
     expect(subjectDisplayName("0607")).toBe("International Mathematics");
     expect(subjectDisplayName("0606")).toBe("Additional Mathematics");
+    expect(subjectDisplayName("0580")).toBe("Mathematics");
   });
 
   it("passes an unknown code straight through, so a new subject still renders", () => {
-    expect(subjectDisplayName("0580")).toBe("0580");
+    expect(subjectDisplayName("9999")).toBe("9999");
   });
 });
 

@@ -11,7 +11,7 @@ import { subjectDisplayName, isSubjectDisabled, parseFileName, paperNumOf } from
 // apps/mock-space/src/lib/paperRetention.test.ts for api/prune-papers.js.
 import * as buildScript from "../../scripts/build-subject-pages.js";
 
-const KNOWN_SUBJECT_CODES = ["0455", "0478", "0606", "0607", "0610", "0620", "0625"];
+const KNOWN_SUBJECT_CODES = ["0455", "0478", "0580", "0606", "0607", "0610", "0620", "0625"];
 
 describe("build-subject-pages.js agrees with src/lib/papers.ts", () => {
   it("resolves the same display name for every known subject, and the same unknown-code fallback", () => {

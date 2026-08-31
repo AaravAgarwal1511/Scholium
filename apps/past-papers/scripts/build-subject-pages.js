@@ -66,6 +66,7 @@ const SEO_BUILD_DIR = path.join(APP_DIR, ".seo-build");
 export const SUBJECT_DISPLAY_NAMES = {
   "0455": "Economics",
   "0478": "Computer Science",
+  "0580": "Mathematics",
   "0606": "Additional Mathematics",
   "0607": "International Mathematics",
   "0610": "Biology",
