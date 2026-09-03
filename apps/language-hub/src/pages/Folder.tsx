@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { SetCard } from "@/components/SetCard";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { ArrowLeft, Dumbbell, FolderOpen, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -77,6 +78,7 @@ const enrichSets = async (rawSets: RawVocabularySet[]): Promise<VocabularySet[]>
 const FolderPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [folder, setFolder] = useState<Folder | null>(null);
   const [sets, setSets] = useState<VocabularySet[]>([]);
@@ -91,6 +93,7 @@ const FolderPage = () => {
   const [selectedSetIds, setSelectedSetIds] = useState<Set<string>>(new Set());
 
   const fetchData = useCallback(async () => {
+    if (!user) return;
     try {
       const { data: folderData, error: folderError } = await supabase
         .from("folders")
@@ -103,10 +106,12 @@ const FolderPage = () => {
       setEditName(folderData.name);
       setEditDescription(folderData.description || "");
 
+      // Own sets plus legacy null-owner ones — see the note in Index's fetchAll.
       const { data: setsData, error: setsError } = await supabase
         .from("vocabulary_sets")
         .select("*")
         .eq("folder_id", id)
+        .or(`user_id.eq.${user.id},user_id.is.null`)
         .order("created_at", { ascending: false });
 
       if (setsError) throw setsError;
@@ -118,17 +123,19 @@ const FolderPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [id, navigate]);
+  }, [id, navigate, user]);
 
   useEffect(() => {
     if (id) fetchData();
   }, [id, fetchData]);
 
   const fetchAvailableSets = async () => {
+    if (!user) return;
     const { data, error } = await supabase
       .from("vocabulary_sets")
       .select("*")
       .is("folder_id", null)
+      .or(`user_id.eq.${user.id},user_id.is.null`)
       .order("created_at", { ascending: false });
 
     if (error) {

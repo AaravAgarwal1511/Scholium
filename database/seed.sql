@@ -122,6 +122,47 @@ insert into public.recall_progress (user_id, chapter_id, pass) values
   ('11111111-1111-1111-1111-111111111111', 'ph-kinematics', 3),
   ('11111111-1111-1111-1111-111111111111', 'eco-demand', 2);
 
+-- ── language-hub vocabulary (per-user scoping fixtures) ───────────────────────
+-- Three sets: one owned by each seed user, plus one legacy row with a NULL
+-- user_id (from before language-hub had per-user ownership). The dashboard and
+-- folder reads in Index.tsx / Folder.tsx now filter
+-- `.or(user_id.eq.<me>,user_id.is.null)`, so seed-user-1 should see its own set
+-- and the legacy one but never seed-user-2's, and vice versa.
+--
+-- database/tests/local/language-hub-scoping.test.ts asserts exactly that against
+-- this data, and also that an UNfiltered read still crosses users (RLS is still
+-- USING(true) — the scope is a UX filter, not a security boundary), and that
+-- practice_sample / practice_sample_folder (scoped by
+-- 20260901000000_practice_sample_user_scope.sql) never hand one user another
+-- user's mastered items.
+insert into public.folders (id, name, description) values
+  ('f0000000-0000-0000-0000-000000000001', 'Seed Folder', 'Holds seed-user-2''s set, for practice_sample_folder scoping');
+
+insert into public.vocabulary_sets (id, user_id, folder_id, name, description, language) values
+  ('a1111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', null,
+     'User One — French Food', 'Owned by seed-user-1', 'french'),
+  ('a2222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222', 'f0000000-0000-0000-0000-000000000001',
+     'User Two — Spanish Food', 'Owned by seed-user-2', 'spanish'),
+  ('a0000000-0000-0000-0000-000000000000', null, null,
+     'Legacy Shared Set', 'No owner — visible to every user', 'french');
+
+insert into public.vocabulary_items (id, set_id, term, definition) values
+  ('b1111111-1111-1111-1111-111111111101', 'a1111111-1111-1111-1111-111111111111', 'le pain',    'bread'),
+  ('b1111111-1111-1111-1111-111111111102', 'a1111111-1111-1111-1111-111111111111', 'le fromage', 'cheese'),
+  ('b1111111-1111-1111-1111-111111111103', 'a1111111-1111-1111-1111-111111111111', 'la pomme',   'apple'),
+  ('b2222222-2222-2222-2222-222222222201', 'a2222222-2222-2222-2222-222222222222', 'el pan',     'bread'),
+  ('b2222222-2222-2222-2222-222222222202', 'a2222222-2222-2222-2222-222222222222', 'el queso',   'cheese'),
+  ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000000', 'bonjour',    'hello');
+
+-- Mastered rows so the practice_sample RPCs have something to draw. The RPCs key
+-- on the SET owner (s.user_id), not set_progress.user_id, so what matters here is
+-- which set each mastered item belongs to.
+insert into public.set_progress (set_id, item_id, user_id, mastered, correct_count) values
+  ('a1111111-1111-1111-1111-111111111111', 'b1111111-1111-1111-1111-111111111101', '11111111-1111-1111-1111-111111111111', true, 3),
+  ('a1111111-1111-1111-1111-111111111111', 'b1111111-1111-1111-1111-111111111102', '11111111-1111-1111-1111-111111111111', true, 3),
+  ('a2222222-2222-2222-2222-222222222222', 'b2222222-2222-2222-2222-222222222201', '22222222-2222-2222-2222-222222222222', true, 3),
+  ('a0000000-0000-0000-0000-000000000000', 'b0000000-0000-0000-0000-000000000001', null,                                   true, 1);
+
 -- ── questions_metadata ───────────────────────────────────────────────────────
 -- A handful of rows so Past Papers has something to index and browse locally.
 -- No y_start/y_end/ms_y_start/ms_y_end — 20260709000000_questions_metadata_drop_coords.sql

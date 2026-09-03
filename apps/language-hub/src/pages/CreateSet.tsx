@@ -7,8 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { createSetWithItems } from "@/lib/sets";
 import { ArrowLeft, Upload, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
@@ -65,21 +65,13 @@ const CreateSet = () => {
     setLoading(true);
 
     try {
-      // Create the vocabulary set
-      const { data: setData, error: setError } = await supabase
-        .from("vocabulary_sets")
-        .insert({ name: name.trim(), description: description.trim() || null, language, user_id: user?.id })
-        .select()
-        .single();
-
-      if (setError) throw setError;
-
-      // Create vocabulary items
-      const { error: itemsError } = await supabase
-        .from("vocabulary_items")
-        .insert(items.map((item) => ({ set_id: setData.id, term: item.term, definition: item.definition })));
-
-      if (itemsError) throw itemsError;
+      await createSetWithItems({
+        name: name.trim(),
+        description: description.trim() || null,
+        language,
+        userId: user?.id ?? null,
+        items,
+      });
 
       track("set_created", { cards: items.length });
       toast.success(`Created "${name}" with ${items.length} terms!`);

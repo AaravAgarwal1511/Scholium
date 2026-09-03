@@ -15,7 +15,10 @@ interface AuthContextType {
     signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Exported so Storybook can wrap page stories in a stub provider without pulling
+// in the real AuthProvider (which opens Supabase auth + a Realtime channel).
+// eslint-disable-next-line react-refresh/only-export-components
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {

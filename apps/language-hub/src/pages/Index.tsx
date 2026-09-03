@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, BookOpen, Trash2, Dumbbell, FolderOpen, FolderPlus } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Plus, BookOpen, Trash2, Dumbbell, FolderOpen, FolderPlus, Sparkles } from "lucide-react";
 import { SetCard } from "@/components/SetCard";
 import { useTourStyles } from "@repo/hooks";
 import { useTour } from "@/hooks/useTour";
@@ -85,6 +86,7 @@ interface Folder {
 }
 
 const Index = () => {
+  const { user } = useAuth();
   const [sets, setSets] = useState<VocabularySet[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,15 +101,16 @@ const Index = () => {
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderDescription, setNewFolderDescription] = useState("");
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
-
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
+    if (!user) return;
     try {
+      // Scoped to the signed-in user, but legacy rows with a null user_id stay
+      // visible to everyone — this app predates per-user ownership. RLS is still
+      // USING(true); this is a UX filter, not an access boundary.
       const { data: setsData, error: setsError } = await supabase
         .from("vocabulary_sets")
         .select("*")
+        .or(`user_id.eq.${user.id},user_id.is.null`)
         .order("created_at", { ascending: false });
 
       if (setsError) throw setsError;
@@ -154,7 +157,11 @@ const Index = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   const deleteSet = async (id: string) => {
     try {
@@ -236,6 +243,12 @@ const Index = () => {
           <Button variant="accent" size="lg">
             <Dumbbell className="mr-2 h-5 w-5" />
             Practice
+          </Button>
+        </Link>
+        <Link to="/starter-sets">
+          <Button variant="outline" size="lg">
+            <Sparkles className="mr-2 h-5 w-5" />
+            Starter Sets
           </Button>
         </Link>
       </div>
@@ -400,15 +413,25 @@ const Index = () => {
                 </h3>
                 <p className="text-muted-foreground mb-6">
                   {sets.length === 0
-                    ? "Create your first set to start learning!"
+                    ? "Create your first set, or import a ready-made one to start learning!"
                     : "Open a folder above to see your sets."}
                 </p>
-                <Link to="/create">
-                  <Button variant="hero" size="lg">
-                    <Plus className="mr-2 h-5 w-5" />
-                    Create {sets.length === 0 ? "Your First Set" : "New Set"}
-                  </Button>
-                </Link>
+                <div className="flex flex-wrap gap-3 justify-center">
+                  <Link to="/create">
+                    <Button variant="hero" size="lg">
+                      <Plus className="mr-2 h-5 w-5" />
+                      Create {sets.length === 0 ? "Your First Set" : "New Set"}
+                    </Button>
+                  </Link>
+                  {sets.length === 0 && (
+                    <Link to="/starter-sets">
+                      <Button variant="outline" size="lg">
+                        <Sparkles className="mr-2 h-5 w-5" />
+                        Browse starter sets
+                      </Button>
+                    </Link>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ) : (
