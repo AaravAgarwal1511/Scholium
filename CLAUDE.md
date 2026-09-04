@@ -36,9 +36,9 @@ pnpm lint         # Lint all packages
 pnpm check-types  # Typecheck all packages (see "Type checking" below)
 pnpm boundaries   # Verify no undeclared cross-package imports
 pnpm preview      # Preview all built apps
-pnpm test         # Vitest — browser tests (language-hub, recall-app, poetry-notes, @repo/ui) + node tests (mock-space)
-pnpm test:e2e     # Playwright real journeys — all 6 apps. mock-space rides signed-out /demo;
-                  #   the four gated apps seed a fake session + stub Supabase at the network layer
+pnpm test         # Vitest — browser tests (language-hub, recall-app, poetry-notes, @repo/ui) + node tests (mock-space, notes)
+pnpm test:e2e     # Playwright real journeys — all 7 apps. mock-space rides signed-out /demo;
+                  #   the five gated apps seed a fake session + stub Supabase at the network layer
 pnpm test:db      # Security suite against the DEPLOYED Supabase project (see below)
 pnpm lint:db      # Lint database/ — turbo cannot, it is not a workspace package
 pnpm check-types:db  # Typecheck database/tests against its own tsconfig
@@ -62,6 +62,7 @@ Running bare `pnpm dev` starts every app at once.
 | scholium-home | 3030 | — |
 | past-papers | 3040 | 3002 (`SERVER_PORT`) |
 | mock-space | 3050 | — |
+| notes | 3060 | — |
 
 Storybook runs on 6006 for the apps and 6007 for `@repo/ui`.
 
@@ -102,6 +103,9 @@ Each app runs its tests through vitest projects rather than a bare `include`:
 | `server` | `server/**` and `api/**` in past-papers | node |
 | `storybook` | `*.stories.tsx` in language-hub, recall-app, poetry-notes, `@repo/ui` | chromium via Playwright |
 
+`notes` uses a single top-level vitest config (jsdom, `src/**/*.test.{ts,tsx}`) — no
+projects, no browser tests.
+
 **A `projects` array replaces the root-level `include`.** Before this existed, the four Storybook
 packages defined only a `storybook` project, so any `src/**/*.test.ts` was collected by nothing and
 passed silently. If you add a test file and vitest reports "No test files found", check that the
@@ -110,15 +114,15 @@ package declares a project whose `include` covers it.
 `mock-space`, `@repo/analytics`, `@repo/hooks` and `@repo/session` have no browser tests and so use a
 single top-level config instead of projects.
 
-### Auth-seeded e2e (all four gated apps)
+### Auth-seeded e2e (all five gated apps)
 
-recall-app, language-hub, poetry-notes and past-papers each drive the real app with **no account and
-no backend** — the session is seeded into localStorage and every Supabase request is stubbed at the
-network layer. Each app carries its own copy of `e2e/support/auth.ts` (the fixture is app-agnostic;
-the per-app stubs live in the specs). This is the complement to `pnpm test:db`: that proves the real
-RLS, this proves the UI journeys. The CI `e2e` job is a matrix over all five test-bearing apps; every
-one runs its dev server with `pnpm exec vite --mode test` so the committed `.env.test` supplies a
-dummy URL and no secrets are needed.
+recall-app, language-hub, poetry-notes, past-papers and notes each drive the real app with **no
+account and no backend** — the session is seeded into localStorage and every Supabase request is
+stubbed at the network layer. Each app carries its own copy of `e2e/support/auth.ts` (the fixture is
+app-agnostic; the per-app stubs live in the specs). This is the complement to `pnpm test:db`: that
+proves the real RLS, this proves the UI journeys. The CI `e2e` job is a matrix over all six
+test-bearing apps; every one runs its dev server with `pnpm exec vite --mode test` so the committed
+`.env.test` supplies a dummy URL and no secrets are needed.
 
 Per-app surfaces the specs stub, so you know what to copy:
 - **recall-app / language-hub** — REST tables. Watch the single-vs-list split (`recall_chapters` and
@@ -128,6 +132,9 @@ Per-app surfaces the specs stub, so you know what to copy:
 - **past-papers** — browsing is NOT auth-gated; with `VITE_R2_PUBLIC_URL` unset (the .env.test
   default) papers.ts lists from Storage, so the spec stubs the `object/list` endpoint and branches on
   the `prefix` in the POST body to fake the subject/component/chapter tree.
+- **notes** — every route IS auth-gated. `stubNotesStorage()` (added to its `auth.ts` copy) fakes the
+  private `notes` bucket's `object/list` (the flat PDF list) and `object/sign` (the signed URL the
+  `<iframe>` loads) endpoints.
 
 The five seeding gotchas — storage-key hostname derivation, loadEnv in the config, route registration
 order, single-vs-list on the `accept` header, and (meta) that a `rest/v1` glob inside a block comment
@@ -139,7 +146,7 @@ Every app has an axe scan (`@axe-core/playwright`) on its primary page(s), reusi
 fixture. The gate is **zero serious/critical WCAG 2.1 A/AA violations**, with `color-contrast`
 disabled — that rule is design-token-dependent (brand-tint badges, hover states) and belongs to a
 separate design pass; the gate targets unambiguous semantic defects (missing accessible names,
-invalid ARIA, roles). All six apps currently pass, so the bar is zero, not a baseline. Standing up
+invalid ARIA, roles). All seven apps currently pass, so the bar is zero, not a baseline. Standing up
 these gates surfaced and fixed real bugs: the shared `ScholiumNavbar` search input carried
 `aria-expanded`/`aria-autocomplete` without `role="combobox"` (invalid ARIA on **every** page of every
 app — fixed in `@repo/ui` as a proper combobox with `aria-controls`/`aria-activedescendant`), and
@@ -149,7 +156,7 @@ When adding a page or an icon-only control, run the app's a11y scan; a bare icon
 
 ### Visual regression (`pnpm --filter <app> test:visual`)
 
-Five apps have full-page screenshot baselines (`toHaveScreenshot`) of their primary HTML pages, driven
+Six apps have full-page screenshot baselines (`toHaveScreenshot`) of their primary HTML pages, driven
 through the same stubbed seeding so the render is deterministic. Kept **separate from the default e2e
 run**: the specs are `e2e-visual/*.visual.ts` (not `.spec.ts`) under their own
 `playwright.visual.config.ts`, so `playwright test` never collects them — only `test:visual` does.
@@ -274,7 +281,7 @@ both repos via the dual push URLs.
 
 ## Architecture
 
-This is a **pnpm monorepo** managed by **Turborepo** with six Vite+React apps and three shared packages.
+This is a **pnpm monorepo** managed by **Turborepo** with seven Vite+React apps and three shared packages.
 
 ```
 apps/
@@ -284,6 +291,7 @@ apps/
   past-papers/    — Past-paper browser/generator (R2-backed PDFs, Express server)
   scholium-home/  — Suite landing page
   mock-space/     — Sit a past paper under exam conditions (pdf.js + append-only editor)
+  notes/          — Login-gated reader for study-note PDFs (private Supabase bucket, native <iframe> viewer)
 packages/
   ui/             — @repo/ui      presentational components only (React 18/19 compatible)
   hooks/          — @repo/hooks   client-state hooks (localStorage/DOM, no server)
@@ -320,7 +328,7 @@ belong in `@repo/ui`.
 
 ### Backend & Database
 
-All five apps share a single **Supabase** instance. The `database/` directory contains all migrations (run in order) and PostgreSQL RPC functions. Each app creates its own schema but reads from shared tables (e.g., recall chapters/cards/progress). `language-hub` runs a local Express 5 server (`server.js`) proxied at `/api` → `localhost:3000`; `past-papers` runs its own on `localhost:3002` (`SERVER_PORT`).
+All seven apps share a single **Supabase** instance. The `database/` directory contains all migrations (run in order) and PostgreSQL RPC functions. Each app creates its own schema but reads from shared tables (e.g., recall chapters/cards/progress). `language-hub` runs a local Express 5 server (`server.js`) proxied at `/api` → `localhost:3000`; `past-papers` runs its own on `localhost:3002` (`SERVER_PORT`).
 
 ### Routing & State
 
@@ -408,6 +416,34 @@ All apps use **Tailwind CSS** with **shadcn/ui** (Radix UI primitives + CVA). De
      write to `sink.value` mid-word: it destroys the selection the accent menu is relying on.
      `REFUSED_INPUT_TYPES` is the whole list of edits still preventDefaulted — paste, drop, undo,
      word-at-a-time deletes.
+
+- **notes**: the newest app and the smallest — scaffolded from mock-space (no shadcn, no Radix,
+  strict tsconfig, untyped Supabase client). A signed-in student sees a flat list of note PDFs and
+  opens one in a browser-native `<iframe>`; there is no subject/topic hierarchy and no in-app PDF
+  renderer (deliberately — the native viewer gives text search/print/zoom for free).
+
+  **Every route is auth-gated** (`RequireAuth` in `App.tsx`), unlike mock-space / past-papers. But
+  the real gate is the **private `notes` Storage bucket**: its RLS policy is `FOR SELECT TO
+  authenticated` only (`database/migrations/20260903000000_notes_storage.sql`), so `anon` cannot
+  list or sign a single object — a logged-out visitor with a direct link gets nothing. The route
+  guard is only a convenience. `database/tests/anon-access.test.ts` has the regression probe for
+  the bucket failing open.
+
+  **No index table.** `src/lib/notes.ts` lists the bucket directly with
+  `supabase.storage.from('notes').list()` (possible only because it is Supabase, not R2 — R2 has no
+  client-safe listing, which is why past-papers needs `paper_files`). Everything the reader sees is
+  derived from the object name: an optional leading `"{n}-"` sets the display order, the rest is the
+  title. Renaming a file in the Supabase dashboard is the whole way to retitle or reorder a note.
+  PDFs reach the browser as 1-hour signed URLs (`createSignedUrl`); the bucket has no public URL.
+
+  **Publishing = dragging a PDF into the `notes` bucket in the Supabase dashboard.** No ingestion
+  script, no service-role key in any `.env`, no `pnpm index:*`. In prod the `scholium_apps` row
+  (`url = https://notes.thescholium.com`) is inserted by hand — that table has no write policy.
+
+  For local dev, `pnpm seed:notes --filter=notes` (`scripts/seed-notes.mjs`) uploads four sample
+  PDFs it generates on the fly into the **local** bucket, so `pnpm dev` has something to list. It
+  refuses any non-`127.0.0.1`/`localhost` target and uses the CLI's fixed local demo service-role
+  key. Re-run it after a `supabase db reset` (which drops the bucket until the migration re-applies).
 
 ### Storybook
 

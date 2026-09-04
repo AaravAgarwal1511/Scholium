@@ -16,9 +16,10 @@ export function TermsOfService({ lastUpdated = DEFAULT_UPDATED, homeUrl }: Legal
     <LegalPage title="Terms of Service" lastUpdated={lastUpdated} homeUrl={homeUrl}>
       <p>
         These Terms of Service (“Terms”) govern your use of the Scholium suite of study
-        tools — including Language Hub, Recall, Poetry Notes, Past Papers, Mock Space, and the
-        Scholium home site (together, the “Service”), operated by Vivek Agarwal (“Scholium”,
-        “we”, “us”). By creating an account or using the Service you agree to these Terms.
+        tools — including Language Hub, Recall, Poetry Notes, Past Papers, Mock Space, Notes,
+        and the Scholium home site (together, the “Service”), operated by Vivek Agarwal
+        (“Scholium”, “we”, “us”). By creating an account or using the Service you agree to
+        these Terms.
       </p>
 
       <h2>1. Who may use the Service</h2>

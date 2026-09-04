@@ -10,7 +10,7 @@ export function PrivacyPolicy({ lastUpdated = DEFAULT_UPDATED, homeUrl }: LegalD
       <p>
         This Privacy Policy explains how Vivek Agarwal (“Scholium”, “we”, “us”) handles
         personal data across the Scholium suite — Language Hub, Recall, Poetry Notes, Past
-        Papers, Mock Space, and the Scholium home site (the “Service”). We are the data
+        Papers, Mock Space, Notes, and the Scholium home site (the “Service”). We are the data
         controller. For privacy questions, contact admin@thescholium.com.
       </p>
 

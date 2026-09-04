@@ -99,7 +99,7 @@ insert into auth.identities (
 -- ── scholium_apps ────────────────────────────────────────────────────────────
 -- Every app's navbar reads this for the cross-app switcher, and scholium-home's
 -- SubjectPicker reads it signed out — so a local/staging environment with an
--- empty table renders a broken nav on every page. Six rows, one per app. ids
+-- empty table renders a broken nav on every page. Seven rows, one per app. ids
 -- match the slugs 20260613000000_scholium_apps_tags.sql filters on
 -- ('language-hub', 'recall-app', 'poetry-notes').
 insert into public.scholium_apps (id, title, url, icon, description, subjects, has_demo, no_login, sort_order) values
@@ -108,7 +108,8 @@ insert into public.scholium_apps (id, title, url, icon, description, subjects, h
   ('poetry-notes',  'Poetry Notes',  'http://127.0.0.1:5173', '📓', 'Rich-text notes for poetry study.',              '{"English Literature"}',    false, false, 3),
   ('past-papers',   'Past Papers',   'http://127.0.0.1:3040', '📄', 'Browse and generate past exam papers.',          '{"Mathematics"}',           false, true,  4),
   ('mock-space',    'Mock Space',    'http://127.0.0.1:3050', '⏱️', 'Sit a past paper under timed exam conditions.',  '{"Mathematics"}',           true,  false, 5),
-  ('scholium-home', 'Scholium Home', 'http://127.0.0.1:3030', '🏠', 'The Scholium suite landing page.',               '{}',                        false, true,  6);
+  ('scholium-home', 'Scholium Home', 'http://127.0.0.1:3030', '🏠', 'The Scholium suite landing page.',               '{}',                        false, true,  6),
+  ('notes',         'Notes',         'http://127.0.0.1:3060', '📝', 'Study notes for a range of subjects, as PDFs.',  '{}',                        false, false, 7);
 
 -- ── user_prefs ───────────────────────────────────────────────────────────────
 insert into public.user_prefs (user_id, analytics_opt_out) values

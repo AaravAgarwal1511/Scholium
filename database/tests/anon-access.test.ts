@@ -73,6 +73,24 @@ async function selectFrom(table: string): Promise<{ status: number; rows: unknow
   return { status: res.status, rows };
 }
 
+/** List a Storage bucket as an anonymous caller. */
+async function listBucket(bucket: string): Promise<{ status: number; objects: unknown[] }> {
+  const res = await fetch(`${URL_}/storage/v1/object/list/${bucket}`, {
+    method: "POST",
+    headers: { apikey: ANON!, Authorization: `Bearer ${ANON}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ prefix: "", limit: 100, offset: 0 }),
+  });
+  const text = await res.text();
+  let objects: unknown[] = [];
+  try {
+    const parsed = JSON.parse(text);
+    objects = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    /* an error body is not an object list */
+  }
+  return { status: res.status, objects };
+}
+
 /** Every admin RPC must fail closed for an anonymous caller. */
 function expectRejected(result: RpcResult, name: string) {
   expect(
@@ -203,5 +221,37 @@ describe("RLS keeps user-scoped tables closed to anonymous readers", () => {
   it.each(userScoped)("%s exposes no rows to anon", async (table) => {
     const { rows } = await selectFrom(table);
     expect(rows, `${table} returned rows to an anonymous reader`).toHaveLength(0);
+  });
+});
+
+describe("the Notes bucket is closed to anonymous callers", () => {
+  /**
+   * apps/notes serves study-note PDFs from the private `notes` bucket, whose
+   * SELECT policy is `TO authenticated` only (20260903000000_notes_storage.sql).
+   * That policy is the ONLY thing enforcing the app's "login required" promise —
+   * the client route guard is a convenience. If a blanket `USING (true)` SELECT
+   * policy is ever added, or the bucket is flipped to `public`, an anon caller
+   * can list and read every note. This is the regression net for that.
+   *
+   * `_assert_admin`'s `NULL <> 'x'` bug shipped once already; a bucket policy
+   * failing open is the same class of mistake.
+   */
+  it("list returns no objects to anon", async () => {
+    const { objects } = await listBucket("notes");
+    expect(objects, "the notes bucket listed objects to an anonymous caller").toHaveLength(0);
+  });
+
+  it("createSignedUrl is refused for anon", async () => {
+    const res = await fetch(`${URL_}/storage/v1/object/sign/notes/__security_probe__.pdf`, {
+      method: "POST",
+      headers: { apikey: ANON!, Authorization: `Bearer ${ANON}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: 60 }),
+    });
+    const body = (await res.json().catch(() => null)) as { signedURL?: string } | null;
+    expect(
+      res.status,
+      "anon was able to mint a signed URL for the notes bucket",
+    ).toBeGreaterThanOrEqual(400);
+    expect(body?.signedURL, "anon received a signed URL for a note").toBeUndefined();
   });
 });

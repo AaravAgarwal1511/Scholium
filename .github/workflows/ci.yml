@@ -139,8 +139,9 @@ jobs:
         # secrets are needed. mock-space rides the signed-out /demo route; the
         # rest seed a fake session and stub Supabase at the network layer
         # (each app's e2e/support/auth.ts). past-papers additionally stubs the
-        # Storage list endpoint for its paper tree.
-        app: [mock-space, recall-app, language-hub, poetry-notes, past-papers]
+        # Storage list endpoint for its paper tree; notes stubs the Storage
+        # list + sign endpoints for its private notes bucket.
+        app: [mock-space, recall-app, language-hub, poetry-notes, past-papers, notes]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
