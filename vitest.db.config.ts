@@ -39,7 +39,9 @@ export default defineConfig({
   test: {
     name: "db-security",
     environment: "node",
-    include: ["database/tests/**/*.test.ts"],
+    // Top level only — database/tests/local/ is the local-stack suite, run by
+    // `pnpm test:db:local` (vitest.db.local.config.ts), and must never probe prod.
+    include: ["database/tests/*.test.ts"],
     env,
     // Every assertion is a network round trip to the project's region.
     testTimeout: 30_000,

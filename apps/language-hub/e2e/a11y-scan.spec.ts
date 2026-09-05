@@ -47,3 +47,8 @@ test('first-pass study has no serious/critical a11y violations', async ({ page, 
   await seedAuth(context, stub);
   await assertClean(page, `/first-pass/${SET_ID}`);
 });
+
+test('starter sets has no serious/critical a11y violations', async ({ page, context }) => {
+  await seedAuth(context, stub);
+  await assertClean(page, '/starter-sets');
+});

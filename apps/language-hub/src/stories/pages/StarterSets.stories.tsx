@@ -2,10 +2,10 @@ import type { ContextType } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthContext } from '@/contexts/AuthContext';
-import Index from '@/pages/Index';
+import StarterSets from '@/pages/StarterSets';
 
-// Stub auth: Index reads the signed-in user id to scope its set list. The real
-// AuthProvider would open a Supabase auth session + Realtime channel.
+// Stub auth: a signed-in user, no real Supabase session. The page's own Supabase
+// reads go through the client mock aliased in .storybook/main.ts.
 const MOCK_AUTH = {
   user: { id: 'mock-user-id', email: 'test@example.com' },
   session: null,
@@ -13,16 +13,16 @@ const MOCK_AUTH = {
   signOut: async () => {},
 } as unknown as ContextType<typeof AuthContext>;
 
-const meta: Meta<typeof Index> = {
-  title: 'Pages/Dashboard',
-  component: Index,
+const meta: Meta<typeof StarterSets> = {
+  title: 'Pages/StarterSets',
+  component: StarterSets,
   parameters: { layout: 'fullscreen' },
   decorators: [
     (Story) => (
       <AuthContext.Provider value={MOCK_AUTH}>
-        <MemoryRouter initialEntries={['/']}>
+        <MemoryRouter initialEntries={['/starter-sets']}>
           <Routes>
-            <Route path="/" element={<Story />} />
+            <Route path="/starter-sets" element={<Story />} />
           </Routes>
         </MemoryRouter>
       </AuthContext.Provider>
@@ -30,6 +30,6 @@ const meta: Meta<typeof Index> = {
   ],
 };
 export default meta;
-type Story = StoryObj<typeof Index>;
+type Story = StoryObj<typeof StarterSets>;
 
 export const Default: Story = {};

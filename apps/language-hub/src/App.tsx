@@ -15,6 +15,7 @@ import { usePageView, useAnalytics } from "@repo/analytics";
 import Index from "./pages/Index";
 import Demo from "./pages/Demo";
 import CreateSet from "./pages/CreateSet";
+import StarterSets from "./pages/StarterSets";
 import Study from "./pages/Study";
 import FirstPass from "./pages/FirstPass";
 import Practice from "./pages/Practice";
@@ -72,6 +73,7 @@ function FadeRoutes({ description }: { description?: string | null }) {
       <Routes>
         <Route path="/" element={<Index description={description} />} />
         <Route path="/create" element={<CreateSet />} />
+        <Route path="/starter-sets" element={<StarterSets />} />
         <Route path="/edit/:id" element={<EditSet />} />
         <Route path="/folder/:id" element={<Folder />} />
         <Route path="/study/:id" element={<Study />} />

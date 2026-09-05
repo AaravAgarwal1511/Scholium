@@ -12,6 +12,7 @@
     "test": "turbo run test",
     "test:e2e": "turbo run test:e2e",
     "test:db": "vitest run --config vitest.db.config.ts",
+    "test:db:local": "./scripts/test-db-local.sh",
     "lint:db": "eslint database",
     "check-types:db": "tsc -p database/tests/tsconfig.json",
     "db:start": "supabase start",
