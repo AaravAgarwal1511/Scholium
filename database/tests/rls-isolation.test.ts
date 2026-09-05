@@ -31,13 +31,18 @@ import path from "node:path";
  * unavailable — CI included.
  */
 
-// Tables carrying a direct owner column. vocabulary_items and folders are
-// scoped transitively through vocabulary_sets and so are covered by that
-// table's policies rather than one of their own.
+// Tables carrying a direct owner column. vocabulary_items is scoped
+// transitively through vocabulary_sets (an EXISTS policy joining back to
+// vocabulary_sets.user_id) and so is covered by that table's policies rather
+// than one of its own. folders used to be transitive too, in theory — in
+// practice it had no owner column and no scoping at all until
+// 20260905000000_folders_user_scope.sql gave it a direct user_id, which is
+// why it belongs here now rather than being left out like vocabulary_items.
 //
 // Readable back by their owner, and by nobody else.
 const OWNER_READABLE = [
   "active_sessions",
+  "folders",
   "mock_attempts",
   "recall_progress",
   "set_progress",

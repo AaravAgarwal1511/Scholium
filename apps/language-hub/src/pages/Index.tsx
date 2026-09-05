@@ -10,6 +10,7 @@ import { Plus, BookOpen, Trash2, Dumbbell, FolderOpen, FolderPlus, Sparkles } fr
 import { SetCard } from "@/components/SetCard";
 import { useTourStyles } from "@repo/hooks";
 import { useTour } from "@/hooks/useTour";
+import { useAuth } from "@/contexts/AuthContext";
 import { Joyride, type EventData, STATUS } from "react-joyride";
 
 const TOUR_STEPS = [
@@ -196,6 +197,7 @@ const Index = () => {
       const { error } = await supabase.from("folders").insert({
         name: newFolderName.trim(),
         description: newFolderDescription.trim() || null,
+        user_id: user?.id,
       });
       if (error) throw error;
       toast.success("Folder created");
