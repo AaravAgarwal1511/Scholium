@@ -768,7 +768,7 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
               <button
                 key={subject}
                 onClick={() => handleSubjectSelect(subject)}
-                className="px-4 py-3 rounded-lg border-2 font-medium transition-all text-left"
+                className="flex items-baseline gap-2 px-4 py-3 rounded-lg border-2 font-medium transition-all text-left"
                 style={{
                   borderColor:
                     selectedSubject === subject
@@ -784,7 +784,12 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
                       : "hsl(var(--foreground))",
                 }}
               >
-                {subjectDisplayName(subject)}
+                <span>{subjectDisplayName(subject)}</span>
+                {subjectDisplayName(subject) !== subject && (
+                  <span className="text-xs font-normal tabular-nums opacity-60">
+                    {subject}
+                  </span>
+                )}
               </button>
             ))}
           </div>
