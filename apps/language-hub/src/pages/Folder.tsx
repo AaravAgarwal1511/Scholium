@@ -106,12 +106,11 @@ const FolderPage = () => {
       setEditName(folderData.name);
       setEditDescription(folderData.description || "");
 
-      // Own sets plus legacy null-owner ones — see the note in Index's fetchAll.
+      // RLS scopes vocabulary_sets to the owner — see the note in Index's fetchAll.
       const { data: setsData, error: setsError } = await supabase
         .from("vocabulary_sets")
         .select("*")
         .eq("folder_id", id)
-        .or(`user_id.eq.${user.id},user_id.is.null`)
         .order("created_at", { ascending: false });
 
       if (setsError) throw setsError;
@@ -135,7 +134,6 @@ const FolderPage = () => {
       .from("vocabulary_sets")
       .select("*")
       .is("folder_id", null)
-      .or(`user_id.eq.${user.id},user_id.is.null`)
       .order("created_at", { ascending: false });
 
     if (error) {

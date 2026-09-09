@@ -123,20 +123,23 @@ insert into public.recall_progress (user_id, chapter_id, pass) values
   ('11111111-1111-1111-1111-111111111111', 'eco-demand', 2);
 
 -- ── language-hub vocabulary (per-user scoping fixtures) ───────────────────────
--- Three sets: one owned by each seed user, plus one legacy row with a NULL
--- user_id (from before language-hub had per-user ownership). The dashboard and
--- folder reads in Index.tsx / Folder.tsx now filter
--- `.or(user_id.eq.<me>,user_id.is.null)`, so seed-user-1 should see its own set
--- and the legacy one but never seed-user-2's, and vice versa.
+-- vocabulary_sets / vocabulary_items / set_progress / folders are all
+-- owner-scoped by RLS (auth.uid() = user_id, or transitively via the parent
+-- set) — see 20260905000000_folders_user_scope.sql and
+-- 20260909000000_language_hub_owner_scoped_rls.sql. The reads in Index.tsx /
+-- Folder.tsx carry no user_id filter; RLS does the scoping.
 --
--- database/tests/local/language-hub-scoping.test.ts asserts exactly that against
--- this data, and also that an UNfiltered read still crosses users (RLS is still
--- USING(true) — the scope is a UX filter, not a security boundary), and that
--- practice_sample / practice_sample_folder (scoped by
--- 20260901000000_practice_sample_user_scope.sql) never hand one user another
--- user's mastered items.
-insert into public.folders (id, name, description) values
-  ('f0000000-0000-0000-0000-000000000001', 'Seed Folder', 'Holds seed-user-2''s set, for practice_sample_folder scoping');
+-- Fixtures: one set + folder per seed user, plus one orphaned row with a NULL
+-- user_id (data from before per-user ownership). Under the owner-scoped
+-- policies the orphan is now reachable by NOBODY —
+-- database/tests/local/language-hub-scoping.test.ts asserts exactly that
+-- (each user sees only its own, an unfiltered read never crosses users, and
+-- the orphan is invisible to everyone), plus that practice_sample /
+-- practice_sample_folder (20260901000000) never hand one user another user's
+-- mastered items.
+insert into public.folders (id, user_id, name, description) values
+  ('f0000000-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222',
+     'Seed Folder', 'Holds seed-user-2''s set, for practice_sample_folder scoping');
 
 insert into public.vocabulary_sets (id, user_id, folder_id, name, description, language) values
   ('a1111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', null,
@@ -144,7 +147,7 @@ insert into public.vocabulary_sets (id, user_id, folder_id, name, description, l
   ('a2222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222', 'f0000000-0000-0000-0000-000000000001',
      'User Two — Spanish Food', 'Owned by seed-user-2', 'spanish'),
   ('a0000000-0000-0000-0000-000000000000', null, null,
-     'Legacy Shared Set', 'No owner — visible to every user', 'french');
+     'Orphaned Set', 'No owner — unreachable under owner-scoped RLS', 'french');
 
 insert into public.vocabulary_items (id, set_id, term, definition) values
   ('b1111111-1111-1111-1111-111111111101', 'a1111111-1111-1111-1111-111111111111', 'le pain',    'bread'),

@@ -104,13 +104,12 @@ const Index = () => {
   const fetchAll = useCallback(async () => {
     if (!user) return;
     try {
-      // Scoped to the signed-in user, but legacy rows with a null user_id stay
-      // visible to everyone — this app predates per-user ownership. RLS is still
-      // USING(true); this is a UX filter, not an access boundary.
+      // RLS scopes vocabulary_sets to auth.uid() = user_id
+      // (20260909000000_language_hub_owner_scoped_rls.sql), so a plain read only
+      // ever returns the signed-in user's own sets.
       const { data: setsData, error: setsError } = await supabase
         .from("vocabulary_sets")
         .select("*")
-        .or(`user_id.eq.${user.id},user_id.is.null`)
         .order("created_at", { ascending: false });
 
       if (setsError) throw setsError;
@@ -196,6 +195,7 @@ const Index = () => {
       const { error } = await supabase.from("folders").insert({
         name: newFolderName.trim(),
         description: newFolderDescription.trim() || null,
+        user_id: user?.id,
       });
       if (error) throw error;
       toast.success("Folder created");

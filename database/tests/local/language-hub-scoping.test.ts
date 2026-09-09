@@ -10,29 +10,29 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
  * inserts a set, then cleans up.
  *
  * What it proves:
- *   1. The Index/Folder `.or(user_id.eq.<me>,user_id.is.null)` read shows a user
- *      its own sets + legacy null-owner sets, and never another user's.
- *   2. RLS is still USING(true): an UNfiltered read as user 1 still returns
- *      user 2's set. The scope is a UX filter, not a security boundary.
+ *   1. vocabulary_sets is owner-scoped by RLS
+ *      (20260909000000_language_hub_owner_scoped_rls.sql): a read as user 1
+ *      returns its own sets and never user 2's — with or without a client-side
+ *      user_id filter, because the boundary is in the database.
+ *   2. The orphaned NULL-owner set is reachable by nobody.
  *   3. A starter-set import (a set + its items, owned by the importer) shows up
  *      for the importer and not for anyone else.
  *   4. practice_sample / practice_sample_folder (migration 20260901000000) only
- *      ever sample the caller's own + legacy sets.
+ *      ever sample the caller's own sets.
  *
  * Seed fixtures (database/seed.sql):
  *   seed-user-1  owns  a1111111…  ("User One — French Food")
  *   seed-user-2  owns  a2222222…  ("User Two — Spanish Food"), inside folder f0000000…
- *   no owner           a0000000…  ("Legacy Shared Set")
+ *   no owner           a0000000…  ("Orphaned Set") — unreachable under RLS
  */
 
 const URL_ = process.env.VITE_SUPABASE_URL ?? "";
 const ANON = process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
 
 const U1 = "11111111-1111-1111-1111-111111111111";
-const U2 = "22222222-2222-2222-2222-222222222222";
 const SET_U1 = "a1111111-1111-1111-1111-111111111111";
 const SET_U2 = "a2222222-2222-2222-2222-222222222222";
-const SET_LEGACY = "a0000000-0000-0000-0000-000000000000";
+const SET_ORPHAN = "a0000000-0000-0000-0000-000000000000";
 const FOLDER = "f0000000-0000-0000-0000-000000000001";
 
 const SEED_USERS = {
@@ -115,10 +115,8 @@ async function rpc<T = Record<string, unknown>>(
   return JSON.parse(text) as T[];
 }
 
-/** The exact read Index.tsx / Folder.tsx now issue for the signed-in user. */
-function scopedSetsQuery(userId: string): string {
-  return `select=id,name,user_id&or=(user_id.eq.${userId},user_id.is.null)&order=created_at.desc`;
-}
+/** The plain read Index.tsx / Folder.tsx issue — RLS alone does the scoping. */
+const SETS_QUERY = "select=id,name,user_id&order=created_at.desc";
 
 beforeAll(async () => {
   if (!URL_ || !ANON) {
@@ -128,24 +126,26 @@ beforeAll(async () => {
     );
   }
 
-  let seededSets: { id: string }[];
   try {
-    seededSets = await selectRows<{ id: string }>("vocabulary_sets", "select=id");
+    token1 = await signIn(SEED_USERS.one.email, SEED_USERS.one.password);
+    token2 = await signIn(SEED_USERS.two.email, SEED_USERS.two.password);
   } catch (e) {
     throw new Error(
-      `Local Supabase not reachable at ${URL_}. Start it with \`pnpm db:start\` (needs Docker), then ` +
-        `\`pnpm db:reset\`. Original error: ${(e as Error).message}`,
+      `Local Supabase not reachable / seed users missing at ${URL_}. Start it with \`pnpm db:start\` ` +
+        `(needs Docker), then \`pnpm db:reset\`. Original error: ${(e as Error).message}`,
     );
   }
-  const ids = new Set(seededSets.map((s) => s.id));
-  if (!ids.has(SET_U1) || !ids.has(SET_U2) || !ids.has(SET_LEGACY)) {
+
+  // Owner-scoped RLS means each user can only confirm its OWN seed set.
+  const [ownedByOne, ownedByTwo] = await Promise.all([
+    selectRows<{ id: string }>("vocabulary_sets", SETS_QUERY, token1),
+    selectRows<{ id: string }>("vocabulary_sets", SETS_QUERY, token2),
+  ]);
+  if (!ownedByOne.some((s) => s.id === SET_U1) || !ownedByTwo.some((s) => s.id === SET_U2)) {
     throw new Error(
       "Seed fixtures missing from vocabulary_sets — run `pnpm db:reset` to re-apply database/seed.sql.",
     );
   }
-
-  token1 = await signIn(SEED_USERS.one.email, SEED_USERS.one.password);
-  token2 = await signIn(SEED_USERS.two.email, SEED_USERS.two.password);
 });
 
 afterAll(async () => {
@@ -159,28 +159,26 @@ afterAll(async () => {
   }
 });
 
-describe("per-user set scoping (the Index/Folder .or filter)", () => {
-  it("shows seed-user-1 its own set + the legacy set, never seed-user-2's", async () => {
-    const rows = await selectRows<{ id: string }>("vocabulary_sets", scopedSetsQuery(U1), token1);
-    const ids = rows.map((r) => r.id);
+describe("vocabulary_sets is owner-scoped by RLS", () => {
+  it("a read as seed-user-1 returns its own set, never seed-user-2's or the orphan", async () => {
+    const ids = (await selectRows<{ id: string }>("vocabulary_sets", SETS_QUERY, token1)).map((r) => r.id);
     expect(ids).toContain(SET_U1);
-    expect(ids).toContain(SET_LEGACY);
     expect(ids).not.toContain(SET_U2);
+    expect(ids).not.toContain(SET_ORPHAN);
   });
 
-  it("shows seed-user-2 its own set + the legacy set, never seed-user-1's", async () => {
-    const rows = await selectRows<{ id: string }>("vocabulary_sets", scopedSetsQuery(U2), token2);
-    const ids = rows.map((r) => r.id);
+  it("a read as seed-user-2 returns its own set, never seed-user-1's or the orphan", async () => {
+    const ids = (await selectRows<{ id: string }>("vocabulary_sets", SETS_QUERY, token2)).map((r) => r.id);
     expect(ids).toContain(SET_U2);
-    expect(ids).toContain(SET_LEGACY);
     expect(ids).not.toContain(SET_U1);
+    expect(ids).not.toContain(SET_ORPHAN);
   });
-});
 
-describe("RLS stays open — the scope is a UX filter, not a boundary", () => {
-  it("an UNfiltered read as seed-user-1 still returns seed-user-2's set", async () => {
-    const rows = await selectRows<{ id: string }>("vocabulary_sets", "select=id", token1);
-    expect(rows.map((r) => r.id)).toContain(SET_U2);
+  it("the orphaned NULL-owner set is reachable by nobody", async () => {
+    for (const token of [token1, token2]) {
+      const ids = (await selectRows<{ id: string }>("vocabulary_sets", "select=id", token)).map((r) => r.id);
+      expect(ids).not.toContain(SET_ORPHAN);
+    }
   });
 });
 
@@ -208,10 +206,10 @@ describe("importing a starter set (mirrors createSetWithItems)", () => {
       token1,
     );
 
-    const seenByOne = await selectRows<{ id: string }>("vocabulary_sets", scopedSetsQuery(U1), token1);
+    const seenByOne = await selectRows<{ id: string }>("vocabulary_sets", SETS_QUERY, token1);
     expect(seenByOne.map((r) => r.id)).toContain(created.id);
 
-    const seenByTwo = await selectRows<{ id: string }>("vocabulary_sets", scopedSetsQuery(U2), token2);
+    const seenByTwo = await selectRows<{ id: string }>("vocabulary_sets", SETS_QUERY, token2);
     expect(seenByTwo.map((r) => r.id)).not.toContain(created.id);
 
     const items = await selectRows("vocabulary_items", `select=id&set_id=eq.${created.id}`, token1);
@@ -220,21 +218,22 @@ describe("importing a starter set (mirrors createSetWithItems)", () => {
 });
 
 describe("practice_sample is scoped to the caller's sets (migration 20260901000000)", () => {
-  it("seed-user-1's pool draws only from its own + legacy sets", async () => {
+  it("seed-user-1's pool draws only from its own sets", async () => {
     const rows = await rpc<{ set_id: string }>("practice_sample", { sample_count: 50 }, token1);
     const setIds = new Set(rows.map((r) => r.set_id));
     expect(rows.length).toBeGreaterThan(0);
     expect(setIds.has(SET_U2)).toBe(false);
-    expect([...setIds].every((id) => id === SET_U1 || id === SET_LEGACY)).toBe(true);
-    expect(setIds.has(SET_LEGACY)).toBe(true);
+    expect(setIds.has(SET_ORPHAN)).toBe(false);
+    expect([...setIds].every((id) => id === SET_U1)).toBe(true);
   });
 
-  it("seed-user-2's pool draws only from its own + legacy sets", async () => {
+  it("seed-user-2's pool draws only from its own sets", async () => {
     const rows = await rpc<{ set_id: string }>("practice_sample", { sample_count: 50 }, token2);
     const setIds = new Set(rows.map((r) => r.set_id));
     expect(rows.length).toBeGreaterThan(0);
     expect(setIds.has(SET_U1)).toBe(false);
-    expect([...setIds].every((id) => id === SET_U2 || id === SET_LEGACY)).toBe(true);
+    expect(setIds.has(SET_ORPHAN)).toBe(false);
+    expect([...setIds].every((id) => id === SET_U2)).toBe(true);
   });
 
   it("practice_sample_folder honours both the folder and the owner", async () => {
