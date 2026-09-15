@@ -56,3 +56,16 @@ export const ManualOverride: Story = {
     await userEvent.click(canvas.getByText('Mark Correct'));
   },
 };
+
+export const ManualIncorrectOverride: Story = {
+  // A single-card deck: Pass3 shuffles its cards, so typing the one card's own
+  // exact term is only deterministic when there is nothing else to shuffle to.
+  args: { cards: [ECON_CARDS[0]] },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByPlaceholderText('Type the term...');
+    await userEvent.type(input, ECON_CARDS[0].term);
+    await userEvent.click(canvas.getByText('Check Answer'));
+    await userEvent.click(await canvas.findByText('Mark Incorrect'));
+  },
+};

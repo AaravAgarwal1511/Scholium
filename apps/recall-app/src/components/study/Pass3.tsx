@@ -4,42 +4,66 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Card } from "@/types";
 import { cn } from "@/lib/utils";
-import { checkPass3Answer } from "@/lib/answerCheck";
+import { checkPass3Answer, checkPass3AnswerChemistry, chemistryPrimaryTerm } from "@/lib/answerCheck";
+import { useSounds } from "@/hooks/useSounds";
 import { shuffle } from "./utils";
 import { CompletionScreen } from "./CompletionScreen";
 
 interface Pass3Props {
   cards: Card[];
   onComplete: () => void;
+  isChemistry?: boolean;
 }
 
-export function Pass3({ cards, onComplete }: Pass3Props) {
+export function Pass3({ cards, onComplete, isChemistry = false }: Pass3Props) {
   const [idx, setIdx] = useState(0);
   const [input, setInput] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [correct, setCorrect] = useState(0);
   const [shuffled] = useState(() => shuffle(cards));
-  const [manualCorrect, setManualCorrect] = useState(false);
+  // Overrides the auto-check for this card: null defers to it, "correct"/
+  // "incorrect" flips it. A single tri-state (rather than two booleans) makes
+  // the two override buttons mutually exclusive and freely reversible.
+  const [override, setOverride] = useState<"correct" | "incorrect" | null>(null);
+  const { playCorrect } = useSounds();
 
   if (idx >= shuffled.length)
     return <CompletionScreen score={correct} total={shuffled.length} onComplete={onComplete} />;
 
   const card = shuffled[idx];
-  const hint = "_ ".repeat(card.term.length).trim();
-  const autoCorrect = submitted && checkPass3Answer(input, card.term);
-  const isCorrect = autoCorrect || manualCorrect;
+  const checkAnswer = isChemistry ? checkPass3AnswerChemistry : checkPass3Answer;
+  // Hint must count the shortest ACCEPTED answer ("Lithium"), not the stored
+  // "Lithium, Li⁺" — otherwise it promises 12 letters for a 7-letter answer.
+  const hintTerm = isChemistry ? chemistryPrimaryTerm(card.term) : card.term;
+  const hint = "_ ".repeat(hintTerm.length).trim();
+  const autoCorrect = submitted && checkAnswer(input, card.term);
+  const isCorrect = override === null ? autoCorrect : override === "correct";
 
   function submit() {
     if (!input.trim()) return;
     setSubmitted(true);
-    if (checkPass3Answer(input.trim(), card.term)) setCorrect((c) => c + 1);
+    if (checkAnswer(input.trim(), card.term)) {
+      setCorrect((c) => c + 1);
+      playCorrect();
+    }
+  }
+
+  function markCorrect() {
+    setOverride("correct");
+    setCorrect((c) => c + 1);
+    playCorrect();
+  }
+
+  function markIncorrect() {
+    setOverride("incorrect");
+    setCorrect((c) => c - 1);
   }
 
   function next() {
     setIdx((i) => i + 1);
     setInput("");
     setSubmitted(false);
-    setManualCorrect(false);
+    setOverride(null);
   }
 
   return (
@@ -51,7 +75,7 @@ export function Pass3({ cards, onComplete }: Pass3Props) {
 
       <div>
         <div className="text-xs font-semibold text-muted-foreground mb-3">
-          Type the term ({card.term.length} letters)
+          Type the term ({hintTerm.length} letters)
         </div>
         <div className="text-xs text-muted-foreground/60 font-mono mb-3 tracking-widest">{hint}</div>
         <Input
@@ -93,12 +117,13 @@ export function Pass3({ cards, onComplete }: Pass3Props) {
           </span>
           <div className="flex gap-2">
             {!isCorrect && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => { setManualCorrect(true); setCorrect((c) => c + 1); }}
-              >
+              <Button size="sm" variant="outline" onClick={markCorrect}>
                 Mark Correct
+              </Button>
+            )}
+            {isCorrect && (
+              <Button size="sm" variant="outline" onClick={markIncorrect}>
+                Mark Incorrect
               </Button>
             )}
             <Button size="sm" variant={isCorrect ? "success" : "default"} onClick={next}>

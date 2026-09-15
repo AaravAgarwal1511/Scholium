@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { checkPass3Answer, checkPass4Answer } from "./answerCheck";
+import {
+  checkPass3Answer,
+  checkPass4Answer,
+  checkPass3AnswerChemistry,
+  checkPass4AnswerChemistry,
+  chemistryPrimaryTerm,
+} from "./answerCheck";
 
 /**
  * Pass 3 accepts a typed answer that is "close enough"; Pass 4 accepts one that
@@ -163,5 +169,146 @@ describe("checkPass4Answer — scoring quirks worth knowing about", () => {
       matched: 2,
       total: 2,
     });
+  });
+});
+
+/**
+ * Chemistry-only leniency (20260914000000_recall_chemistry_content.sql). These
+ * exercise checkPass3AnswerChemistry/checkPass4AnswerChemistry — separate
+ * functions used only when a chapter's subject is Chemistry — against real
+ * card text from that migration. Nothing above this point is touched by, or
+ * should be affected by, these tests.
+ */
+
+describe("chemistryPrimaryTerm", () => {
+  it("takes the part before the comma in a \"Name, Symbol\" term", () => {
+    expect(chemistryPrimaryTerm("Lithium, Li⁺")).toBe("Lithium");
+  });
+
+  it("leaves a term with no comma unchanged", () => {
+    expect(chemistryPrimaryTerm("Copper(II) Sulfate")).toBe("Copper(II) Sulfate");
+  });
+
+  it("leaves a term with more than one comma unchanged", () => {
+    // The reactivity-series "no reaction" summary card — must not shorten to "Carbon".
+    expect(chemistryPrimaryTerm("Carbon, Hydrogen, Copper, Silver and Gold")).toBe(
+      "Carbon, Hydrogen, Copper, Silver and Gold",
+    );
+  });
+});
+
+describe("checkPass3AnswerChemistry", () => {
+  it("accepts the bare name of a compound term", () => {
+    expect(checkPass3AnswerChemistry("Lithium", "Lithium, Li⁺")).toBe(true);
+  });
+
+  it("accepts the symbol alone, folding unicode charge notation to ASCII", () => {
+    expect(checkPass3AnswerChemistry("Li+", "Lithium, Li⁺")).toBe(true);
+    expect(checkPass3AnswerChemistry("Ca2+", "Calcium, Ca²⁺")).toBe(true);
+  });
+
+  it("still accepts the full compound term", () => {
+    expect(checkPass3AnswerChemistry("Lithium, Li⁺", "Lithium, Li⁺")).toBe(true);
+  });
+
+  it("does not shorten a term with more than one comma", () => {
+    // Typing just "Carbon" must not satisfy the 5-element summary card.
+    expect(
+      checkPass3AnswerChemistry("Carbon", "Carbon, Hydrogen, Copper, Silver and Gold"),
+    ).toBe(false);
+  });
+
+  it("rejects a sibling card's name", () => {
+    expect(checkPass3AnswerChemistry("Sodium", "Lithium, Li⁺")).toBe(false);
+  });
+
+  it("behaves like the default checker on a comma-free term", () => {
+    expect(checkPass3AnswerChemistry("Magnesum", "Magnesium")).toBe(true); // 1 edit, 9 chars
+  });
+});
+
+describe("checkPass4AnswerChemistry", () => {
+  // The six real flame-tests definitions, in migration order.
+  const FLAME = [
+    "Produces a red flame in the flame test.",
+    "Produces a yellow flame in the flame test.",
+    "Produces a lilac flame in the flame test.",
+    "Produces an orange-red flame in the flame test.",
+    "Produces a light green flame in the flame test.",
+    "Produces a blue-green flame in the flame test.",
+  ];
+
+  // The six real hydrated-salts definitions — "white" is shared by exactly 3/6.
+  const SALTS = [
+    "Formula CuSO₄·5H₂O; blue crystals.",
+    "Formula CoCl₂·6H₂O; pink crystals.",
+    "Formula FeSO₄·7H₂O; green crystals.",
+    "Formula MgSO₄·7H₂O; white crystals.",
+    "Formula Na₂CO₃·10H₂O; white crystals.",
+    "Formula CaSO₄·2H₂O; white crystals.",
+  ];
+
+  // The six real industrial-catalysts definitions.
+  const CATALYSTS = [
+    "Uses an iron catalyst.",
+    "Uses a vanadium(V) oxide catalyst.",
+    "Uses a nickel catalyst.",
+    "Uses a platinum-rhodium catalyst.",
+    "Uses enzymes in yeast as the catalyst.",
+    "Uses a zeolite ZSM-5 catalyst.",
+  ];
+
+  it("scores a terse but correct answer against the chapter's distinguishing word", () => {
+    // "Produces"/"flame"/"test" are boilerplate shared by all 6 flame cards,
+    // so only "red" survives to be scored — checkPass4Answer would score this
+    // 1/5 = 20% and fail it.
+    expect(checkPass4AnswerChemistry("Red", FLAME[0], FLAME)).toEqual({
+      correct: true,
+      matched: 1,
+      total: 1,
+    });
+  });
+
+  it("fails the wrong colour even dressed in the right boilerplate — the inversion checkPass4Answer gets backwards", () => {
+    // Copper's ("blue-green") full sentence, answered on Lithium's ("red") card.
+    expect(checkPass4AnswerChemistry(FLAME[5], FLAME[0], FLAME).correct).toBe(false);
+    // Documents that the DEFAULT checker gets this backwards (4/5 = 80%, passes)
+    // — unchanged on purpose; this is exactly why the chemistry variant exists.
+    expect(checkPass4Answer(FLAME[5], FLAME[0]).correct).toBe(true);
+  });
+
+  it("keeps a word shared by exactly half the chapter — it is the most informative word a chapter can have", () => {
+    // "white" is shared by 3 of 6 hydrated-salts cards; it must NOT be treated
+    // as boilerplate, or a sibling's colour would pass on Magnesium Sulfate's card.
+    expect(checkPass4AnswerChemistry("MgSO4.7H2O, white crystals", SALTS[3], SALTS)).toEqual({
+      correct: true,
+      matched: 2,
+      total: 2,
+    });
+    expect(
+      checkPass4AnswerChemistry("MgSO4.7H2O, blue crystals", SALTS[3], SALTS).correct,
+    ).toBe(false);
+  });
+
+  it("accepts a hyphenated key word typed as two separate words", () => {
+    // PUNCT deletes hyphens, so "platinum-rhodium" is one key word; "uses"/
+    // "catalyst" are boilerplate shared by all 6 catalyst cards.
+    expect(
+      checkPass4AnswerChemistry("platinum rhodium", CATALYSTS[3], CATALYSTS).correct,
+    ).toBe(true);
+  });
+
+  it("never auto-passes when every word in the chapter is shared — falls back to the full set", () => {
+    const def = "Reacts with acid quickly.";
+    expect(checkPass4AnswerChemistry("", def, [def, def])).toEqual({
+      correct: false,
+      matched: 0,
+      total: 3, // "reacts", "acid", "quickly" — "with" is a stop word
+    });
+  });
+
+  it("grades exactly like the default checker in a one-card chapter", () => {
+    const def = "Melts easily.";
+    expect(checkPass4AnswerChemistry("", def, [def])).toEqual(checkPass4Answer("", def));
   });
 });

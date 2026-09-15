@@ -12,15 +12,18 @@ interface Pass2Props {
 // Pass 2 ("choose") — read the definition, choose the term. Shares ChooseCard
 // with the demo and the Practice screen so every choose pass looks identical.
 export function Pass2({ cards, onComplete }: Pass2Props) {
-  const questions = useMemo<ChooseQuestion[]>(
-    () =>
-      cards.map((card, i) => ({
-        term: card.term,
-        definition: card.definition,
-        options: shuffle([card.term, ...pickDistractors(cards, i, 3).map((c) => c.term)]),
-      })),
-    [cards],
-  );
+  const questions = useMemo<ChooseQuestion[]>(() => {
+    // Shuffle the question order (previously always the stored sort_order —
+    // the one pass that didn't shuffle like Pass 1/3/4). `order`, not `cards`,
+    // must back pickDistractors too: it excludes by index, and that index has
+    // to refer to the same array being mapped or it excludes the wrong card.
+    const order = shuffle(cards);
+    return order.map((card, i) => ({
+      term: card.term,
+      definition: card.definition,
+      options: shuffle([card.term, ...pickDistractors(order, i, 3).map((c) => c.term)]),
+    }));
+  }, [cards]);
 
   const [idx, setIdx] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
