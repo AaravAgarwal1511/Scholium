@@ -30,8 +30,11 @@
   .gradient-hero { background: var(--gradient-hero); }
   .gradient-warm { background: var(--gradient-warm); }
   .gradient-success { background: var(--gradient-success); }
-  .bg-gradient-hero { background: var(--gradient-hero); }
-  .bg-gradient-success { background: var(--gradient-success); }
+  /* background-image, not the `background` shorthand: the shorthand also resets
+     background-clip to border-box, which cancels Tailwind's bg-clip-text
+     wherever these are combined (CompletionScreen's score text). */
+  .bg-gradient-hero { background-image: var(--gradient-hero); }
+  .bg-gradient-success { background-image: var(--gradient-success); }
   .shadow-soft { box-shadow: var(--shadow-soft); }
   .shadow-card { box-shadow: var(--shadow-card); }
   .shadow-hover { box-shadow: var(--shadow-hover); }

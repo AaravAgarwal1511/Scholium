@@ -17,7 +17,7 @@ import { Pass4 } from "@/components/study/Pass4";
 
 async function fetchChapter(id: string): Promise<Chapter | null> {
   const [chapterRes, cardsRes] = await Promise.all([
-    supabase.from("recall_chapters").select("id, name").eq("id", id).single(),
+    supabase.from("recall_chapters").select("id, name, subject_id").eq("id", id).single(),
     supabase
       .from("recall_cards")
       .select("term, definition")
@@ -28,6 +28,7 @@ async function fetchChapter(id: string): Promise<Chapter | null> {
   return {
     id: chapterRes.data.id,
     name: chapterRes.data.name,
+    subjectId: chapterRes.data.subject_id,
     cards: (cardsRes.data ?? []) as { term: string; definition: string }[],
   };
 }
@@ -72,6 +73,7 @@ export default function Study() {
     );
   }
 
+  const isChemistry = chapter.subjectId === "chemistry";
   const info = PASS_CONFIG[pass];
   const passDescriptions: Record<number, string> = {
     1: "Match each term to its correct definition. Click a term, then its definition.",
@@ -156,8 +158,8 @@ export default function Study() {
           <>
             {pass === 1 && <Pass1 cards={chapter.cards} onComplete={onComplete} />}
             {pass === 2 && <Pass2 cards={chapter.cards} onComplete={onComplete} />}
-            {pass === 3 && <Pass3 cards={chapter.cards} onComplete={onComplete} />}
-            {pass === 4 && <Pass4 cards={chapter.cards} onComplete={onComplete} />}
+            {pass === 3 && <Pass3 cards={chapter.cards} onComplete={onComplete} isChemistry={isChemistry} />}
+            {pass === 4 && <Pass4 cards={chapter.cards} onComplete={onComplete} isChemistry={isChemistry} />}
           </>
         )}
       </main>

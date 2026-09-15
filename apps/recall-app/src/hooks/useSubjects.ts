@@ -83,6 +83,7 @@ export function useSubjects() {
           name: row.name,
           cards: [],
           cardCount: undefined,
+          subjectId: row.subject_id,
         };
         section.chapters.push(chapter);
       }

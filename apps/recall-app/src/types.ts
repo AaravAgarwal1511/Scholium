@@ -8,6 +8,7 @@ export interface Chapter {
   name: string;
   cards: Card[];
   cardCount?: number; // populated when cards are not loaded
+  subjectId?: string; // 'chemistry' | 'physics' | 'economics'; drives the lenient chemistry grading in Pass 3/4
 }
 
 export interface Section {

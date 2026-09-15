@@ -4,22 +4,25 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { Card } from "@/types";
 import { cn } from "@/lib/utils";
-import { checkPass4Answer, type Pass4Result } from "@/lib/answerCheck";
+import { checkPass4Answer, checkPass4AnswerChemistry, type Pass4Result } from "@/lib/answerCheck";
+import { useSounds } from "@/hooks/useSounds";
 import { shuffle } from "./utils";
 import { CompletionScreen } from "./CompletionScreen";
 
 interface Pass4Props {
   cards: Card[];
   onComplete: () => void;
+  isChemistry?: boolean;
 }
 
-export function Pass4({ cards, onComplete }: Pass4Props) {
+export function Pass4({ cards, onComplete, isChemistry = false }: Pass4Props) {
   const [idx, setIdx] = useState(0);
   const [input, setInput] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [score, setScore] = useState(0);
   const [shuffled] = useState(() => shuffle(cards));
   const [autoResult, setAutoResult] = useState<Pass4Result | null>(null);
+  const { playCorrect } = useSounds();
 
   if (idx >= shuffled.length)
     return <CompletionScreen score={score} total={shuffled.length} onComplete={onComplete} />;
@@ -28,14 +31,27 @@ export function Pass4({ cards, onComplete }: Pass4Props) {
 
   function reveal() {
     if (!input.trim()) return;
-    const result = checkPass4Answer(input, card.definition);
+    const result = isChemistry
+      ? checkPass4AnswerChemistry(input, card.definition, cards.map((c) => c.definition))
+      : checkPass4Answer(input, card.definition);
     setAutoResult(result);
     setRevealed(true);
-    if (result.correct) setScore((s) => s + 1);
+    if (result.correct) {
+      setScore((s) => s + 1);
+      playCorrect();
+    }
   }
 
-  function advance(markCorrectOverride = false) {
-    if (markCorrectOverride && !autoResult?.correct) setScore((s) => s + 1);
+  // `override` both adjusts the score relative to the auto-check and advances
+  // to the next card — mirrors this component's existing "Mark Correct" flow
+  // rather than Pass3's stay-on-card toggle, since Pass4 has no "undo before
+  // moving on" step today either.
+  function advance(override?: "correct" | "incorrect") {
+    if (override === "correct" && !autoResult?.correct) {
+      setScore((s) => s + 1);
+      playCorrect();
+    }
+    if (override === "incorrect" && autoResult?.correct) setScore((s) => s - 1);
     setIdx((i) => i + 1);
     setInput("");
     setRevealed(false);
@@ -92,7 +108,10 @@ export function Pass4({ cards, onComplete }: Pass4Props) {
               </span>
               <div className="flex gap-2">
                 {!autoResult.correct && (
-                  <Button size="sm" variant="outline" onClick={() => advance(true)}>Mark Correct</Button>
+                  <Button size="sm" variant="outline" onClick={() => advance("correct")}>Mark Correct</Button>
+                )}
+                {autoResult.correct && (
+                  <Button size="sm" variant="outline" onClick={() => advance("incorrect")}>Mark Incorrect</Button>
                 )}
                 <Button size="sm" variant={autoResult.correct ? "success" : "default"} onClick={() => advance()}>
                   {idx + 1 >= shuffled.length ? "Finish" : "Next →"}
