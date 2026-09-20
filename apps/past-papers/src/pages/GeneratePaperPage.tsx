@@ -181,6 +181,11 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
   const [selections, setSelections] = useState<SelectionMap>(
     () => loadGeneratorSession()?.selections ?? {}
   );
+  // `selections` only ever holds a committed positive integer, so a field the
+  // user has emptied or half-typed (e.g. clearing "15" on the way to "150")
+  // lives here instead — otherwise the controlled input would have nothing
+  // valid to render and would snap back mid-edit.
+  const [countDrafts, setCountDrafts] = useState<Record<number, string>>({});
   const [chapters, setChapters] = useState<ChapterInfo[]>([]);
   const [loadingChapters, setLoadingChapters] = useState(false);
   const [pickedFrom, setPickedFrom] = useState<number | null>(
@@ -486,6 +491,7 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
 
   const resetSelection = () => {
     setSelections({});
+    setCountDrafts({});
     setPickedFrom(null);
     setPickedTo(null);
     setGenerateError(null);
@@ -526,6 +532,14 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
       }
       return updated;
     });
+    if (count === 0) {
+      setCountDrafts((prev) => {
+        if (!(chapter in prev)) return prev;
+        const updated = { ...prev };
+        delete updated[chapter];
+        return updated;
+      });
+    }
     setGenerateError(null);
     setResult(null);
   };
@@ -546,6 +560,14 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
   const selectedChapters = Object.keys(selections).map(Number);
   const totalQuestions = Object.values(selections).reduce((a, b) => a + b, 0);
   const overLimit = totalQuestions > MAX_GENERATED_QUESTIONS;
+  // A count can exceed the chapter's real pool once the field is freely
+  // editable (no more per-keystroke clamp to `available`) — this is what
+  // blocks Generate in that case instead, mirroring `overLimit` below.
+  const unmetChapters = selectedChapters
+    .filter((ch) => selections[ch] > availableIn(ch))
+    .sort((a, b) => a - b);
+  const overAvailable = unmetChapters.length > 0;
+  const blocked = overLimit || overAvailable;
   const estimatedTime = Math.round(totalQuestions * 2.5);
   const chapterName = (n: number) =>
     chapters.find((c) => c.number === n)?.name ?? "Unknown";
@@ -558,6 +580,14 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
     if (overLimit) {
       setGenerateError(
         `Too many questions (${totalQuestions}). One paper can hold at most ${MAX_GENERATED_QUESTIONS}.`
+      );
+      return;
+    }
+    if (overAvailable) {
+      setGenerateError(
+        unmetChapters.length === 1
+          ? `Chapter ${unmetChapters[0]} only has ${availableIn(unmetChapters[0])} questions between ${yearFrom} and ${yearTo}. Lower the count to generate.`
+          : `Chapters ${unmetChapters.join(", ")} ask for more questions than are available between ${yearFrom} and ${yearTo}. Lower the counts shown in red to generate.`
       );
       return;
     }
@@ -890,6 +920,7 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
                 const available = availableIn(ch.number);
                 const isSelected = Object.prototype.hasOwnProperty.call(selections, ch.number);
                 const questionCount = selections[ch.number] || 0;
+                const countOverAvailable = questionCount > available;
 
                 return (
                   <div
@@ -943,20 +974,46 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
                             id={`generate-question-count-${ch.number}`}
                             type="number"
                             min="1"
-                            max={available}
-                            value={questionCount}
+                            inputMode="numeric"
+                            value={countDrafts[ch.number] ?? String(questionCount)}
+                            aria-invalid={countOverAvailable}
                             onChange={(e) => {
-                              const val = parseInt(e.target.value, 10);
-                              if (!isNaN(val) && val > 0) {
-                                handleChapterToggle(
-                                  ch.number,
-                                  Math.min(val, available)
-                                );
+                              const raw = e.target.value;
+                              // Digits only, capped at 4 characters so a
+                              // stray extra zero can't blow up the summary
+                              // tiles — enforcement of the real limit
+                              // (`available`, `MAX_GENERATED_QUESTIONS`)
+                              // happens at Generate, not per keystroke.
+                              if (!/^\d{0,4}$/.test(raw)) return;
+                              setCountDrafts((prev) => ({ ...prev, [ch.number]: raw }));
+                              const val = parseInt(raw, 10);
+                              if (!isNaN(val) && val >= 1) {
+                                handleChapterToggle(ch.number, val);
                               }
                             }}
-                            className="w-16 px-2 py-1 rounded border border-border bg-background text-foreground text-center text-sm font-medium focus:outline-none focus:border-success"
+                            onBlur={() => {
+                              setCountDrafts((prev) => {
+                                if (!(ch.number in prev)) return prev;
+                                const updated = { ...prev };
+                                delete updated[ch.number];
+                                return updated;
+                              });
+                            }}
+                            className="w-16 px-2 py-1 rounded border bg-background text-foreground text-center text-sm font-medium focus:outline-none"
+                            style={{
+                              borderColor: countOverAvailable
+                                ? "hsl(var(--destructive))"
+                                : "hsl(var(--border))",
+                            }}
                           />
-                          <span className="text-xs text-muted-foreground">
+                          <span
+                            className="text-xs"
+                            style={{
+                              color: countOverAvailable
+                                ? "hsl(var(--destructive))"
+                                : "hsl(var(--muted-foreground))",
+                            }}
+                          >
                             / {available}
                           </span>
                         </div>
@@ -1057,7 +1114,14 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
                     <span>
                       Chapter {ch}: {chapterName(ch)}
                     </span>
-                    <span className="font-medium text-foreground">
+                    <span
+                      className="font-medium"
+                      style={{
+                        color: unmetChapters.includes(ch)
+                          ? "hsl(var(--destructive))"
+                          : "hsl(var(--foreground))",
+                      }}
+                    >
                       {selections[ch]} Q
                     </span>
                   </div>
@@ -1077,6 +1141,29 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
                 </div>
               )}
 
+              {overAvailable && !overLimit && !generateError && (
+                <div className="mb-4 flex items-start gap-2 p-3 rounded bg-destructive/10 border border-destructive/20">
+                  <AlertCircle
+                    size={16}
+                    className="text-destructive mt-0.5 shrink-0"
+                  />
+                  <p className="text-sm text-destructive">
+                    {unmetChapters.length === 1 ? (
+                      <>
+                        Chapter {unmetChapters[0]} only has {availableIn(unmetChapters[0])}{" "}
+                        questions between {yearFrom} and {yearTo}.{" "}
+                      </>
+                    ) : (
+                      <>
+                        Chapters {unmetChapters.join(", ")} ask for more questions than are
+                        available between {yearFrom} and {yearTo}.{" "}
+                      </>
+                    )}
+                    Lower the counts shown in red to generate.
+                  </p>
+                </div>
+              )}
+
               {generateError && (
                 <div className="mb-4 flex items-start gap-2 p-3 rounded bg-destructive/10 border border-destructive/20">
                   <AlertCircle
@@ -1089,19 +1176,19 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
 
               <button
                 onClick={handleGenerate}
-                disabled={isGenerating || overLimit}
+                disabled={isGenerating || blocked}
                 className="w-full px-4 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
                 style={{
                   backgroundColor:
-                    isGenerating || overLimit
+                    isGenerating || blocked
                       ? "hsl(var(--muted))"
                       : "hsl(var(--primary))",
                   color:
-                    isGenerating || overLimit
+                    isGenerating || blocked
                       ? "hsl(var(--muted-foreground))"
                       : "hsl(var(--primary-foreground))",
-                  cursor: isGenerating || overLimit ? "not-allowed" : "pointer",
-                  opacity: isGenerating || overLimit ? 0.6 : 1,
+                  cursor: isGenerating || blocked ? "not-allowed" : "pointer",
+                  opacity: isGenerating || blocked ? 0.6 : 1,
                 }}
               >
                 <Zap size={18} />
