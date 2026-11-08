@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookOpen, BarChart3, Pencil, Sparkles } from "lucide-react";
+import { SplitSetDialog } from "@/components/SplitSetDialog";
+import { SPLIT_MIN_TERMS } from "@/lib/sets";
 
 export interface SetCardSet {
   id: string;
@@ -18,11 +20,13 @@ interface SetCardProps {
   // Sits next to Edit in the header: a delete dialog on the home page,
   // "remove from folder" inside a folder.
   action?: ReactNode;
+  // Reload the page's data after a set is split. Without it the split button is hidden.
+  onSplit?: () => void;
   // Stagger for the entrance animation; omit for no animation.
   animationDelay?: number;
 }
 
-export const SetCard = ({ set, action, animationDelay }: SetCardProps) => {
+export const SetCard = ({ set, action, onSplit, animationDelay }: SetCardProps) => {
   const itemCount = set.item_count ?? 0;
   const progress = set.progress ?? 0;
 
@@ -54,6 +58,9 @@ export const SetCard = ({ set, action, animationDelay }: SetCardProps) => {
                 <Pencil className="h-4 w-4" />
               </Button>
             </Link>
+            {onSplit && itemCount > SPLIT_MIN_TERMS && (
+              <SplitSetDialog set={set} itemCount={itemCount} onSplit={onSplit} />
+            )}
             {action}
           </div>
         </div>

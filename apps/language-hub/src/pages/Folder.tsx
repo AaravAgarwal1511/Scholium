@@ -398,6 +398,7 @@ const FolderPage = () => {
               <SetCard
                 key={set.id}
                 set={set}
+                onSplit={fetchData}
                 action={
                   <Button
                     variant="ghost"

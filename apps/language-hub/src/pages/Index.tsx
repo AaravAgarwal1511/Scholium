@@ -440,6 +440,7 @@ const Index = () => {
                 <SetCard
                   key={set.id}
                   set={set}
+                  onSplit={fetchAll}
                   animationDelay={index * 100}
                   action={
                     <AlertDialog>
