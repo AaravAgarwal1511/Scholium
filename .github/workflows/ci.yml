@@ -68,7 +68,8 @@ jobs:
 
   test:
     name: Unit & component tests
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is now 26.04, which Playwright 1.59 cannot install browsers on.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -131,7 +132,8 @@ jobs:
 
   e2e:
     name: End-to-end
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is now 26.04, which Playwright 1.59 cannot install browsers on.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
