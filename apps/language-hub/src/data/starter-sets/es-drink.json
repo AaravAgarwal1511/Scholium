@@ -1,0 +1,23 @@
+{
+  "id": "es-drink",
+  "items": [
+    { "term": "la bebida", "definition": "drink" },
+    { "term": "el agua", "definition": "water" },
+    { "term": "la leche", "definition": "milk" },
+    { "term": "el zumo", "definition": "juice" },
+    { "term": "el café", "definition": "coffee" },
+    { "term": "el té", "definition": "tea" },
+    { "term": "el refresco", "definition": "soft drink" },
+    { "term": "la limonada", "definition": "lemonade" },
+    { "term": "el hielo", "definition": "ice" },
+    { "term": "el vaso", "definition": "glass" },
+    { "term": "la copa", "definition": "wine glass" },
+    { "term": "la taza", "definition": "cup" },
+    { "term": "el bol", "definition": "bowl" },
+    { "term": "el plato", "definition": "plate" },
+    { "term": "el cuchillo", "definition": "knife" },
+    { "term": "el tenedor", "definition": "fork" },
+    { "term": "la cuchara", "definition": "spoon" },
+    { "term": "la sartén", "definition": "frying pan" }
+  ]
+}

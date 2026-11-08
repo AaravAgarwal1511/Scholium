@@ -1,0 +1,25 @@
+{
+  "id": "fr-greetings-social",
+  "items": [
+    { "term": "bonjour", "definition": "hello" },
+    { "term": "bonsoir", "definition": "good evening" },
+    { "term": "salut", "definition": "hi" },
+    { "term": "au revoir", "definition": "goodbye" },
+    { "term": "à plus tard", "definition": "see you later" },
+    { "term": "à demain", "definition": "see you tomorrow" },
+    { "term": "s'il vous plaît", "definition": "please" },
+    { "term": "merci", "definition": "thank you" },
+    { "term": "pardon", "definition": "sorry" },
+    { "term": "je dois m'en aller", "definition": "I have to go" },
+    { "term": "enchanté", "definition": "pleased to meet you" },
+    { "term": "ça va ?", "definition": "how's it going?" },
+    { "term": "comment allez-vous ?", "definition": "how are you? (formal)" },
+    { "term": "bienvenue", "definition": "welcome" },
+    { "term": "quel dommage !", "definition": "what a pity!" },
+    { "term": "que c'est gentil !", "definition": "how kind!" },
+    { "term": "que c'est intéressant !", "definition": "how interesting!" },
+    { "term": "que c'est ennuyeux !", "definition": "how boring!" },
+    { "term": "accepter une invitation", "definition": "to accept an invitation" },
+    { "term": "refuser une invitation", "definition": "to decline an invitation" }
+  ]
+}

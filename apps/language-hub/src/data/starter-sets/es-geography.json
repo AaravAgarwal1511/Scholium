@@ -1,0 +1,20 @@
+{
+  "id": "es-geography",
+  "items": [
+    { "term": "el continente", "definition": "continent" },
+    { "term": "África", "definition": "Africa" },
+    { "term": "América", "definition": "America" },
+    { "term": "Asia", "definition": "Asia" },
+    { "term": "Europa", "definition": "Europe" },
+    { "term": "Oceanía", "definition": "Oceania" },
+    { "term": "Australasia", "definition": "Australasia" },
+    { "term": "Antártida", "definition": "Antarctica" },
+    { "term": "el Ártico", "definition": "the Arctic" },
+    { "term": "el país", "definition": "country" },
+    { "term": "el país hispanohablante", "definition": "Spanish-speaking country" },
+    { "term": "el norte", "definition": "the north" },
+    { "term": "el sur", "definition": "the south" },
+    { "term": "el este", "definition": "the east" },
+    { "term": "el oeste", "definition": "the west" }
+  ]
+}

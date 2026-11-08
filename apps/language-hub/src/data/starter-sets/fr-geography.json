@@ -1,0 +1,20 @@
+{
+  "id": "fr-geography",
+  "items": [
+    { "term": "le continent", "definition": "continent" },
+    { "term": "l'Afrique", "definition": "Africa" },
+    { "term": "l'Amérique", "definition": "America" },
+    { "term": "l'Asie", "definition": "Asia" },
+    { "term": "l'Europe", "definition": "Europe" },
+    { "term": "l'Océanie", "definition": "Oceania" },
+    { "term": "l'Australasie", "definition": "Australasia" },
+    { "term": "l'Antarctique", "definition": "Antarctica" },
+    { "term": "l'Arctique", "definition": "the Arctic" },
+    { "term": "le pays", "definition": "country" },
+    { "term": "le pays francophone", "definition": "French-speaking country" },
+    { "term": "le nord", "definition": "the north" },
+    { "term": "le sud", "definition": "the south" },
+    { "term": "l'est", "definition": "the east" },
+    { "term": "l'ouest", "definition": "the west" }
+  ]
+}

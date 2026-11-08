@@ -43,7 +43,7 @@ test('importing a starter set inserts the set then its items', async ({ page, co
 
   await page.goto('/starter-sets');
 
-  const card = page.getByTestId('starter-set-fr-greetings');
+  const card = page.getByTestId('starter-set-fr-greetings-social');
   await expect(card).toBeVisible();
   await card.getByRole('button', { name: /import set/i }).click();
 

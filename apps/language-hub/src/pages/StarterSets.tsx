@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { createSetWithItems } from "@/lib/sets";
-import { STARTER_SETS, type StarterSet } from "@/data/starterSets";
+import { STARTER_SETS, loadStarterSetItems, type StarterSet } from "@/data/starterSets";
 import { ArrowLeft, Check, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
@@ -57,16 +57,17 @@ const StarterSets = () => {
   const handleImport = async (starter: StarterSet) => {
     setImportingId(starter.id);
     try {
+      const items = await loadStarterSetItems(starter.id);
       await createSetWithItems({
         name: starter.name,
         description: starter.description,
         language: starter.language,
         userId: user?.id ?? null,
-        items: starter.items,
+        items,
       });
-      track("starter_set_imported", { starter_id: starter.id, cards: starter.items.length });
+      track("starter_set_imported", { starter_id: starter.id, cards: items.length });
       setImportedKeys((prev) => new Set(prev).add(keyFor(starter.name, starter.language)));
-      toast.success(`Imported "${starter.name}" — ${starter.items.length} terms added to your sets`);
+      toast.success(`Imported "${starter.name}" — ${items.length} terms added to your sets`);
     } catch (error) {
       console.error("Error importing starter set:", error);
       toast.error("Failed to import set");
@@ -129,7 +130,7 @@ const StarterSets = () => {
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
                       {starter.language === "spanish" ? "🇪🇸 Spanish" : "🇫🇷 French"}
                     </span>
-                    <span className="text-xs text-muted-foreground">{starter.items.length} terms</span>
+                    <span className="text-xs text-muted-foreground">{starter.count} terms</span>
                     {imported && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-success/15 text-success">
                         <Check className="h-3 w-3" aria-hidden="true" />
@@ -141,7 +142,7 @@ const StarterSets = () => {
                 <CardContent className="flex flex-col gap-3 flex-1">
                   <div className="bg-muted/50 rounded-lg p-3">
                     <div className="grid gap-1.5">
-                      {starter.items.slice(0, PREVIEW_COUNT).map((item, index) => (
+                      {starter.preview.map((item, index) => (
                         <div
                           key={index}
                           className="flex items-center gap-2 text-sm bg-card rounded-md px-3 py-1.5"
@@ -151,9 +152,9 @@ const StarterSets = () => {
                           <span className="text-foreground">{item.definition}</span>
                         </div>
                       ))}
-                      {starter.items.length > PREVIEW_COUNT && (
+                      {starter.count > PREVIEW_COUNT && (
                         <p className="text-sm text-muted-foreground text-center py-1">
-                          … and {starter.items.length - PREVIEW_COUNT} more
+                          … and {starter.count - PREVIEW_COUNT} more
                         </p>
                       )}
                     </div>

@@ -1,0 +1,23 @@
+{
+  "id": "es-weather",
+  "items": [
+    { "term": "el tiempo", "definition": "weather" },
+    { "term": "la previsión del tiempo", "definition": "weather forecast" },
+    { "term": "la estación", "definition": "season" },
+    { "term": "los grados", "definition": "degrees" },
+    { "term": "el calor", "definition": "heat" },
+    { "term": "el frío", "definition": "cold" },
+    { "term": "la nube", "definition": "cloud" },
+    { "term": "la lluvia", "definition": "rain" },
+    { "term": "la nieve", "definition": "snow" },
+    { "term": "el viento", "definition": "wind" },
+    { "term": "la niebla", "definition": "fog" },
+    { "term": "la escarcha", "definition": "frost" },
+    { "term": "el granizo", "definition": "hail" },
+    { "term": "la tormenta", "definition": "storm" },
+    { "term": "el huracán", "definition": "hurricane" },
+    { "term": "el trueno", "definition": "thunder" },
+    { "term": "el rayo", "definition": "lightning bolt" },
+    { "term": "el relámpago", "definition": "flash of lightning" }
+  ]
+}

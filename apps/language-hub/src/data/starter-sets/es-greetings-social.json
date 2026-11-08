@@ -1,0 +1,29 @@
+{
+  "id": "es-greetings-social",
+  "items": [
+    { "term": "hola", "definition": "hello" },
+    { "term": "buenos días", "definition": "good morning" },
+    { "term": "buenas tardes", "definition": "good afternoon" },
+    { "term": "buenas noches", "definition": "good night" },
+    { "term": "adiós", "definition": "goodbye" },
+    { "term": "hasta luego", "definition": "see you later" },
+    { "term": "hasta mañana", "definition": "see you tomorrow" },
+    { "term": "por favor", "definition": "please" },
+    { "term": "gracias", "definition": "thank you" },
+    { "term": "lo siento", "definition": "sorry" },
+    { "term": "perdón", "definition": "excuse me" },
+    { "term": "¿cómo estás?", "definition": "how are you?" },
+    { "term": "¿qué tal?", "definition": "how's it going?" },
+    { "term": "encantado", "definition": "pleased to meet you" },
+    { "term": "¡bienvenido!", "definition": "welcome" },
+    { "term": "¡qué lástima!", "definition": "what a pity!" },
+    { "term": "¡qué pena!", "definition": "what a shame!" },
+    { "term": "¡qué bonito!", "definition": "how lovely!" },
+    { "term": "¡qué interesante!", "definition": "how interesting!" },
+    { "term": "¡qué molesto!", "definition": "how annoying!" },
+    { "term": "¡ojalá!", "definition": "hopefully!" },
+    { "term": "aceptar una invitación", "definition": "to accept an invitation" },
+    { "term": "rechazar una invitación", "definition": "to decline an invitation" },
+    { "term": "tener ganas de", "definition": "to feel like" }
+  ]
+}

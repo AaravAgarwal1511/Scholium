@@ -1,0 +1,26 @@
+{
+  "id": "es-measurements",
+  "items": [
+    { "term": "el grado", "definition": "degree" },
+    { "term": "el gramo", "definition": "gram" },
+    { "term": "el kilogramo", "definition": "kilogram" },
+    { "term": "el kilómetro", "definition": "kilometre" },
+    { "term": "el litro", "definition": "litre" },
+    { "term": "mediano", "definition": "medium" },
+    { "term": "minúsculo", "definition": "tiny" },
+    { "term": "redondo", "definition": "round" },
+    { "term": "el círculo", "definition": "circle" },
+    { "term": "el cuadrado", "definition": "square" },
+    { "term": "el triángulo", "definition": "triangle" },
+    { "term": "el material", "definition": "material" },
+    { "term": "la madera", "definition": "wood" },
+    { "term": "el metal", "definition": "metal" },
+    { "term": "el oro", "definition": "gold" },
+    { "term": "la plata", "definition": "silver" },
+    { "term": "el cristal", "definition": "glass" },
+    { "term": "el papel", "definition": "paper" },
+    { "term": "el algodón", "definition": "cotton" },
+    { "term": "la lana", "definition": "wool" },
+    { "term": "el cuero", "definition": "leather" }
+  ]
+}

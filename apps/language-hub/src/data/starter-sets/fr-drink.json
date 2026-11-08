@@ -1,0 +1,26 @@
+{
+  "id": "fr-drink",
+  "items": [
+    { "term": "la boisson", "definition": "drink" },
+    { "term": "la boisson non alcoolisée", "definition": "soft drink" },
+    { "term": "l'eau", "definition": "water" },
+    { "term": "le lait", "definition": "milk" },
+    { "term": "le jus", "definition": "juice" },
+    { "term": "le café", "definition": "coffee" },
+    { "term": "le thé", "definition": "tea" },
+    { "term": "le chocolat chaud", "definition": "hot chocolate" },
+    { "term": "la limonade", "definition": "lemonade" },
+    { "term": "le coca", "definition": "cola" },
+    { "term": "le glaçon", "definition": "ice cube" },
+    { "term": "prendre quelque chose à boire", "definition": "to have something to drink" },
+    { "term": "le verre", "definition": "glass" },
+    { "term": "la tasse", "definition": "cup" },
+    { "term": "le bol", "definition": "bowl" },
+    { "term": "l'assiette", "definition": "plate" },
+    { "term": "le couteau", "definition": "knife" },
+    { "term": "la fourchette", "definition": "fork" },
+    { "term": "la cuiller", "definition": "spoon" },
+    { "term": "la casserole", "definition": "saucepan" },
+    { "term": "la marmite", "definition": "cooking pot" }
+  ]
+}

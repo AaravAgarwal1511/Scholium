@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,7 +15,6 @@ import { usePageView, useAnalytics } from "@repo/analytics";
 import Index from "./pages/Index";
 import Demo from "./pages/Demo";
 import CreateSet from "./pages/CreateSet";
-import StarterSets from "./pages/StarterSets";
 import Study from "./pages/Study";
 import FirstPass from "./pages/FirstPass";
 import Practice from "./pages/Practice";
@@ -26,6 +25,10 @@ import EditSet from "./pages/EditSet";
 import Folder from "./pages/Folder";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+
+// The starter-sets catalog pulls in ~3,000 vocabulary items across its per-set
+// JSON chunks; keep it and its data off the initial bundle.
+const StarterSets = lazy(() => import("./pages/StarterSets"));
 
 const queryClient = new QueryClient();
 
@@ -70,24 +73,26 @@ function FadeRoutes({ description }: { description?: string | null }) {
   usePageView(location.pathname);
   return (
     <div key={location.key} className="page-fade-in">
-      <Routes>
-        <Route path="/" element={<Index description={description} />} />
-        <Route path="/create" element={<CreateSet />} />
-        <Route path="/starter-sets" element={<StarterSets />} />
-        <Route path="/edit/:id" element={<EditSet />} />
-        <Route path="/folder/:id" element={<Folder />} />
-        <Route path="/study/:id" element={<Study />} />
-        <Route path="/first-pass/:id" element={<FirstPass />} />
-        <Route path="/practice" element={<Practice />} />
-        <Route path="/practice-setup" element={<PracticeSetup />} />
-        <Route path="/signin" element={<Auth defaultMode="signin" />} />
-        <Route path="/signup" element={<Auth defaultMode="signup" />} />
-        <Route path="/auth/reset-password" element={<ResetPassword />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/terms" element={<TermsOfService homeUrl={SCHOLIUM_HOME_URL} />} />
-        <Route path="/privacy" element={<PrivacyPolicy homeUrl={SCHOLIUM_HOME_URL} />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      <Suspense fallback={null}>
+        <Routes>
+          <Route path="/" element={<Index description={description} />} />
+          <Route path="/create" element={<CreateSet />} />
+          <Route path="/starter-sets" element={<StarterSets />} />
+          <Route path="/edit/:id" element={<EditSet />} />
+          <Route path="/folder/:id" element={<Folder />} />
+          <Route path="/study/:id" element={<Study />} />
+          <Route path="/first-pass/:id" element={<FirstPass />} />
+          <Route path="/practice" element={<Practice />} />
+          <Route path="/practice-setup" element={<PracticeSetup />} />
+          <Route path="/signin" element={<Auth defaultMode="signin" />} />
+          <Route path="/signup" element={<Auth defaultMode="signup" />} />
+          <Route path="/auth/reset-password" element={<ResetPassword />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/terms" element={<TermsOfService homeUrl={SCHOLIUM_HOME_URL} />} />
+          <Route path="/privacy" element={<PrivacyPolicy homeUrl={SCHOLIUM_HOME_URL} />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
     </div>
   );
 }
