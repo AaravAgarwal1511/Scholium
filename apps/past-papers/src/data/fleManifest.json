@@ -1,0 +1,93 @@
+[
+  {
+    "slug": "2025-june-s1",
+    "label": "June 2025 (Series 1)",
+    "papers": [
+      {
+        "paper": "11",
+        "qp": "0500-2025-june-s1-11-qp.pdf",
+        "ms": "0500-2025-june-s1-11-ms.pdf"
+      },
+      {
+        "paper": "21",
+        "qp": "0500-2025-june-s1-21-qp.pdf",
+        "ms": "0500-2025-june-s1-21-ms.pdf"
+      }
+    ]
+  },
+  {
+    "slug": "2025-march",
+    "label": "March 2025",
+    "papers": [
+      {
+        "paper": "12",
+        "qp": "0500-2025-march-12-qp.pdf",
+        "ms": "0500-2025-march-12-ms.pdf"
+      },
+      {
+        "paper": "22",
+        "qp": "0500-2025-march-22-qp.pdf",
+        "ms": "0500-2025-march-22-ms.pdf"
+      }
+    ]
+  },
+  {
+    "slug": "2024-november-s1",
+    "label": "November 2024 (Series 1)",
+    "papers": [
+      {
+        "paper": "11",
+        "qp": "0500-2024-november-s1-11-qp.pdf",
+        "ms": "0500-2024-november-s1-11-ms.pdf"
+      },
+      {
+        "paper": "21",
+        "qp": "0500-2024-november-s1-21-qp.pdf",
+        "ms": "0500-2024-november-s1-21-ms.pdf"
+      }
+    ]
+  },
+  {
+    "slug": "2024-november-s2",
+    "label": "November 2024 (Series 2)",
+    "papers": [
+      {
+        "paper": "12",
+        "qp": "0500-2024-november-s2-12-qp.pdf",
+        "ms": "0500-2024-november-s2-12-ms.pdf"
+      }
+    ]
+  },
+  {
+    "slug": "2024-november-s3",
+    "label": "November 2024 (Series 3)",
+    "papers": [
+      {
+        "paper": "13",
+        "qp": "0500-2024-november-s3-13-qp.pdf",
+        "ms": "0500-2024-november-s3-13-ms.pdf"
+      },
+      {
+        "paper": "23",
+        "qp": "0500-2024-november-s3-23-qp.pdf",
+        "ms": "0500-2024-november-s3-23-ms.pdf"
+      }
+    ]
+  },
+  {
+    "slug": "2024-march",
+    "label": "March 2024",
+    "papers": [
+      {
+        "paper": "12",
+        "qp": "0500-2024-march-12-qp.pdf",
+        "ms": "0500-2024-march-12-ms.pdf"
+      },
+      {
+        "paper": "22",
+        "qp": "0500-2024-march-22-qp.pdf",
+        "ms": "0500-2024-march-22-ms.pdf"
+      }
+    ]
+  }
+]

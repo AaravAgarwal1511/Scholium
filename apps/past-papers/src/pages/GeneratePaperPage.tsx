@@ -786,6 +786,23 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
           </span>
           Select Subject
         </h2>
+        {/* FLE spans the full row and opens its own subroute instead of
+            the component/year steps below. */}
+        <button
+          onClick={() => navigate("/fle")}
+          className="mb-3 w-full flex items-baseline gap-2 px-4 py-3 rounded-lg border-2 font-medium transition-all text-left"
+          style={{
+            borderColor: "hsl(var(--border))",
+            backgroundColor: "transparent",
+            color: "hsl(var(--foreground))",
+          }}
+        >
+          <span>First Language English</span>
+          <span className="text-xs font-normal tabular-nums opacity-60">0500</span>
+          <span aria-hidden="true" className="ml-auto self-center text-lg leading-none opacity-60">
+            →
+          </span>
+        </button>
         {loadingSubjects ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {Array.from({ length: 4 }).map((_, i) => (

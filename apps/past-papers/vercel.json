@@ -46,6 +46,7 @@
     { "source": "/signin", "destination": "/index.html" },
     { "source": "/signup", "destination": "/index.html" },
     { "source": "/auth/reset-password", "destination": "/index.html" },
-    { "source": "/settings", "destination": "/index.html" }
+    { "source": "/settings", "destination": "/index.html" },
+    { "source": "/fle", "destination": "/index.html" }
   ]
 }
