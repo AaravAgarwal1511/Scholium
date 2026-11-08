@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
+import RangeTotals from "../components/RangeTotals";
 
 type OverviewRow = {
   app_key: string;
@@ -119,6 +120,8 @@ export default function Analytics() {
           ))}
         </div>
       </div>
+
+      <RangeTotals />
 
       {!overview || !events || !daily || !pastPapersFunnel ? (
         <div className="text-slate-500">Loading analytics…</div>

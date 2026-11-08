@@ -74,13 +74,15 @@ async function selectFrom(table: string): Promise<{ status: number; rows: unknow
 }
 
 /** Every admin RPC must fail closed for an anonymous caller. */
-function expectRejected(result: RpcResult, name: string) {
+function expectRejected(result: RpcResult, name: string, { revoked = false } = {}) {
   expect(
     result.status,
     `${name} answered ${result.status} to an anonymous caller — expected a rejection. Body: ${JSON.stringify(result.body).slice(0, 300)}`,
   ).toBeGreaterThanOrEqual(400);
+  // Functions whose EXECUTE is revoked from anon never reach the admin guard: Postgres
+  // refuses the call first. That is the stricter outcome, so accept it where expected.
   expect(result.message, `${name} rejected, but not via the admin guard`).toMatch(
-    /not authorized/i,
+    revoked ? /not authorized|permission denied/i : /not authorized/i,
   );
 }
 
@@ -102,9 +104,18 @@ describe("admin analytics RPCs are closed to anonymous callers", () => {
     ["admin_analytics_funnel", { p_app_key: "recall", p_steps: ["a", "b"], p_days: 7 }],
     ["admin_analytics_retention", { p_app_key: "recall", p_weeks: 4 }],
   ];
+  // EXECUTE revoked from anon in 20261027000000, so Postgres rejects before the guard runs.
+  const revokedFromAnon: [string, Record<string, unknown>][] = [
+    ["admin_analytics_range_summary", { p_from: null, p_to: null, p_app_key: null }],
+    ["admin_analytics_monthly", { p_from: null, p_to: null, p_app_key: null }],
+  ];
 
   it.each(readOnly)("%s rejects anon", async (name, args) => {
     expectRejected(await rpc(name, args), name);
+  });
+
+  it.each(revokedFromAnon)("%s rejects anon (execute revoked)", async (name, args) => {
+    expectRejected(await rpc(name, args), name, { revoked: true });
   });
 });
 
