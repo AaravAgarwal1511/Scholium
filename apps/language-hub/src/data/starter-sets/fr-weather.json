@@ -1,0 +1,33 @@
+{
+  "id": "fr-weather",
+  "items": [
+    { "term": "le temps", "definition": "weather" },
+    { "term": "la météo", "definition": "weather forecast" },
+    { "term": "les conditions météorologiques", "definition": "weather conditions" },
+    { "term": "la saison", "definition": "season" },
+    { "term": "le degré", "definition": "degree" },
+    { "term": "la chaleur", "definition": "heat" },
+    { "term": "le froid", "definition": "the cold" },
+    { "term": "ensoleillé", "definition": "sunny" },
+    { "term": "humide", "definition": "humid" },
+    { "term": "l'humidité", "definition": "humidity" },
+    { "term": "le nuage", "definition": "cloud" },
+    { "term": "la pluie", "definition": "rain" },
+    { "term": "la neige", "definition": "snow" },
+    { "term": "le vent", "definition": "wind" },
+    { "term": "le brouillard", "definition": "fog" },
+    { "term": "la brume", "definition": "mist" },
+    { "term": "le givre", "definition": "frost" },
+    { "term": "le verglas", "definition": "black ice" },
+    { "term": "la grêle", "definition": "hail" },
+    { "term": "l'orage", "definition": "thunderstorm" },
+    { "term": "la tempête", "definition": "storm" },
+    { "term": "l'ouragan", "definition": "hurricane" },
+    { "term": "le tonnerre", "definition": "thunder" },
+    { "term": "l'éclair", "definition": "lightning" },
+    { "term": "la nuit", "definition": "night" },
+    { "term": "il fait froid", "definition": "it's cold" },
+    { "term": "il gèle", "definition": "it's freezing" },
+    { "term": "il pleut", "definition": "it's raining" }
+  ]
+}

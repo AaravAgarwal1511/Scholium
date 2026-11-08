@@ -1,0 +1,31 @@
+{
+  "id": "fr-culture-festivals",
+  "items": [
+    { "term": "la croyance", "definition": "belief" },
+    { "term": "la foi", "definition": "faith" },
+    { "term": "être croyant", "definition": "to be a believer" },
+    { "term": "être pratiquant", "definition": "to be practising" },
+    { "term": "l'église", "definition": "church" },
+    { "term": "la mosquée", "definition": "mosque" },
+    { "term": "la synagogue", "definition": "synagogue" },
+    { "term": "le temple", "definition": "temple" },
+    { "term": "la messe", "definition": "mass" },
+    { "term": "l'office religieux", "definition": "religious service" },
+    { "term": "le service", "definition": "church service" },
+    { "term": "le pèlerinage", "definition": "pilgrimage" },
+    { "term": "le baptême", "definition": "baptism" },
+    { "term": "le saint", "definition": "saint" },
+    { "term": "la fête", "definition": "festival" },
+    { "term": "l'occasion", "definition": "occasion" },
+    { "term": "le jour férié", "definition": "public holiday" },
+    { "term": "le feu d'artifice", "definition": "firework" },
+    { "term": "Noël", "definition": "Christmas" },
+    { "term": "le Nouvel An", "definition": "New Year" },
+    { "term": "Pâques", "definition": "Easter" },
+    { "term": "le ramadan", "definition": "Ramadan" },
+    { "term": "Divali", "definition": "Diwali" },
+    { "term": "la crèche de Noël", "definition": "nativity scene" },
+    { "term": "célébrer", "definition": "to celebrate" },
+    { "term": "fêter", "definition": "to have a party" }
+  ]
+}

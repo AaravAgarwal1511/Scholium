@@ -1,0 +1,30 @@
+{
+  "id": "fr-measurements",
+  "items": [
+    { "term": "le mètre", "definition": "metre" },
+    { "term": "le centimètre", "definition": "centimetre" },
+    { "term": "le kilomètre", "definition": "kilometre" },
+    { "term": "le gramme", "definition": "gram" },
+    { "term": "le kilogramme", "definition": "kilogram" },
+    { "term": "le litre", "definition": "litre" },
+    { "term": "moyen", "definition": "medium" },
+    { "term": "tout petit", "definition": "tiny" },
+    { "term": "le carré", "definition": "square" },
+    { "term": "le cercle", "definition": "circle" },
+    { "term": "le rond", "definition": "round shape" },
+    { "term": "le triangle", "definition": "triangle" },
+    { "term": "circulaire", "definition": "circular" },
+    { "term": "triangulaire", "definition": "triangular" },
+    { "term": "le matériau", "definition": "material" },
+    { "term": "le bois", "definition": "wood" },
+    { "term": "le métal", "definition": "metal" },
+    { "term": "l'or", "definition": "gold as a metal" },
+    { "term": "l'argent", "definition": "silver as a metal" },
+    { "term": "le plastique", "definition": "plastic" },
+    { "term": "le papier", "definition": "paper" },
+    { "term": "le carton", "definition": "cardboard" },
+    { "term": "le coton", "definition": "cotton" },
+    { "term": "la laine", "definition": "wool" },
+    { "term": "le cuir", "definition": "leather" }
+  ]
+}

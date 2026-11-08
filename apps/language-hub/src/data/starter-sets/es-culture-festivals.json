@@ -1,0 +1,26 @@
+{
+  "id": "es-culture-festivals",
+  "items": [
+    { "term": "la celebración", "definition": "celebration" },
+    { "term": "celebrar", "definition": "to celebrate" },
+    { "term": "la fiesta", "definition": "party" },
+    { "term": "el festival", "definition": "festival" },
+    { "term": "la ocasión especial", "definition": "special occasion" },
+    { "term": "el cumpleaños", "definition": "birthday" },
+    { "term": "la fiesta nacional", "definition": "national holiday" },
+    { "term": "los fuegos artificiales", "definition": "fireworks" },
+    { "term": "la misa", "definition": "mass" },
+    { "term": "el santo", "definition": "saint" },
+    { "term": "el templo", "definition": "temple" },
+    { "term": "creer en", "definition": "to believe in" },
+    { "term": "la Navidad", "definition": "Christmas" },
+    { "term": "la Nochebuena", "definition": "Christmas Eve" },
+    { "term": "la Nochevieja", "definition": "New Year's Eve" },
+    { "term": "el Año Nuevo", "definition": "New Year" },
+    { "term": "Los Reyes Magos", "definition": "the Three Kings" },
+    { "term": "el Belén", "definition": "nativity scene" },
+    { "term": "el bautizo", "definition": "christening" },
+    { "term": "El Día de Todos los Santos", "definition": "All Saints' Day" },
+    { "term": "los problemas sociales", "definition": "social problems" }
+  ]
+}
