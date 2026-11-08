@@ -19,6 +19,7 @@ const SettingsPage = lazy(() => import("@/pages/Settings"));
 const Auth = lazy(() => import("@/pages/Auth"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
+const FlePapersPage = lazy(() => import("@/pages/FlePapersPage"));
 
 function RouteFallback() {
   return (
@@ -103,6 +104,7 @@ function MainRoutes({ apps, ownDescription }: { apps: AppLink[]; ownDescription:
       <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path="/" element={<GeneratePaperPage description={ownDescription} />} />
+          <Route path="/fle" element={<FlePapersPage />} />
           <Route path="/generate" element={<Navigate to="/" replace />} />
           <Route path="/signin" element={<Auth defaultMode="signin" />} />
           <Route path="/signup" element={<Auth defaultMode="signup" />} />
