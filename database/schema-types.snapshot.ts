@@ -668,6 +668,15 @@ export type Database = {
           visitors: number
         }[]
       }
+      admin_analytics_monthly: {
+        Args: { p_app_key?: string; p_from?: string; p_to?: string }
+        Returns: {
+          events: number
+          month: string
+          papers_generated: number
+          visitors: number
+        }[]
+      }
       admin_analytics_overview: {
         Args: { p_days?: number }
         Returns: {
@@ -678,6 +687,17 @@ export type Database = {
           sessions: number
           signed_out_pct: number
           wau: number
+        }[]
+      }
+      admin_analytics_range_summary: {
+        Args: { p_app_key?: string; p_from?: string; p_to?: string }
+        Returns: {
+          events: number
+          first_event: string
+          last_event: string
+          papers_failed: number
+          papers_generated: number
+          visitors: number
         }[]
       }
       admin_analytics_retention: {

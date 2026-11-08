@@ -101,6 +101,8 @@ describe("admin analytics RPCs are closed to anonymous callers", () => {
     ["admin_analytics_events", { p_days: 7, p_app_key: "recall" }],
     ["admin_analytics_funnel", { p_app_key: "recall", p_steps: ["a", "b"], p_days: 7 }],
     ["admin_analytics_retention", { p_app_key: "recall", p_weeks: 4 }],
+    ["admin_analytics_range_summary", { p_from: null, p_to: null, p_app_key: null }],
+    ["admin_analytics_monthly", { p_from: null, p_to: null, p_app_key: null }],
   ];
 
   it.each(readOnly)("%s rejects anon", async (name, args) => {
