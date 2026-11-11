@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll } from "vitest";
 
 /**
- * Chemistry content added to Recall Master (20260914000000_recall_chemistry_content.sql),
+ * Chemistry content added to Recall Master (20260914000000_recall_chemistry_content.sql and
+ * 20261111000000_recall_chemistry_definitions.sql),
  * against the LOCAL stack. Runs via `pnpm test:db:local` (scripts/test-db-local.sh brings
  * up Docker Supabase, applies every migration in database/migrations/, seeds
  * database/seed.sql, then runs this).
@@ -14,7 +15,7 @@ import { describe, it, expect, beforeAll } from "vitest";
  * What it proves:
  *   1. The Chemistry subject/section/chapter tree lands exactly as migrated — the shape
  *      useSubjects.ts (apps/recall-app) reconstructs from recall_chapters.
- *   2. Every chapter's cards are present (73 total across 8 chapters).
+ *   2. Every chapter's cards are present (128 total across 9 chapters).
  *   3. The load-bearing invariant: no chapter has two cards with the same `definition`
  *      (or the same `term`). MatchingRound (apps/recall-app/src/components/study/
  *      MatchingRound.tsx) matches Pass 1 strictly by array position — a duplicate
@@ -36,6 +37,7 @@ const EXPECTED_CHAPTER_IDS = [
   "chemistry-industrial-catalysts",
   "chemistry-hydrated-salts",
   "chemistry-reactivity-series",
+  "chemistry-definitions",
 ];
 
 const EXPECTED_CARD_COUNT: Record<string, number> = {
@@ -47,7 +49,15 @@ const EXPECTED_CARD_COUNT: Record<string, number> = {
   "chemistry-industrial-catalysts": 6,
   "chemistry-hydrated-salts": 6,
   "chemistry-reactivity-series": 8,
+  "chemistry-definitions": 55,
 };
+
+// Reference Tables is section_sort_order 0; the syllabus Definitions section follows it
+// (20261111000000_recall_chemistry_definitions.sql).
+const SECTION_OF: Record<string, { id: string; name: string }> = {
+  "chemistry-definitions": { id: "chemistry-definitions-section", name: "Definitions" },
+};
+const REFERENCE_TABLES = { id: "chemistry-reference-tables", name: "Reference Tables" };
 
 interface ChapterRow {
   id: string;
@@ -115,24 +125,25 @@ beforeAll(async () => {
 });
 
 describe("Chemistry subject tree (recall_chapters)", () => {
-  it("has exactly the eight expected chapters, in order, under one section", () => {
+  it("has exactly the nine expected chapters, in order, across the two sections", () => {
     expect(chapters.map((c) => c.id)).toEqual(EXPECTED_CHAPTER_IDS);
     for (const c of chapters) {
       expect(c.subject_id).toBe("chemistry");
       expect(c.subject_name).toBe("Chemistry");
       expect(c.subject_emoji).toBe("🧪");
-      expect(c.section_id).toBe("chemistry-reference-tables");
-      expect(c.section_name).toBe("Reference Tables");
+      const section = SECTION_OF[c.id] ?? REFERENCE_TABLES;
+      expect(c.section_id).toBe(section.id);
+      expect(c.section_name).toBe(section.name);
     }
   });
 
-  it("chapter sort_order is dense 0..7 — the order Home.tsx renders them in", () => {
-    expect(chapters.map((c) => c.sort_order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  it("chapter sort_order is dense 0..8 — the order Home.tsx renders them in", () => {
+    expect(chapters.map((c) => c.sort_order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
   });
 });
 
 describe("Chemistry cards (recall_cards)", () => {
-  it("has the expected card count per chapter, 73 total", () => {
+  it("has the expected card count per chapter, 128 total", () => {
     const byChapter = new Map<string, CardRow[]>();
     for (const card of cards) {
       const list = byChapter.get(card.chapter_id) ?? [];
@@ -143,7 +154,7 @@ describe("Chemistry cards (recall_cards)", () => {
     for (const id of EXPECTED_CHAPTER_IDS) {
       expect(byChapter.get(id)?.length ?? 0).toBe(EXPECTED_CARD_COUNT[id]);
     }
-    expect(cards.length).toBe(73);
+    expect(cards.length).toBe(128);
   });
 
   it("has no two cards in the same chapter sharing a definition (Pass 1 matches by position)", () => {
