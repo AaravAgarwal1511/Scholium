@@ -1,73 +1,52 @@
 import { describe, it, expect } from "vitest";
-import { mergeLines, hasBlankPageBanner, marksInRegion } from "./page-chars.js";
+import { regionHasContent, tightenBottom, marksInRegion } from "./page-chars.js";
 
-describe("mergeLines", () => {
-  it("merges items on the same baseline into one left-to-right line", () => {
-    const lines = mergeLines([
-      { y: 60, x: 300, xEnd: 340, text: "PAGE" },
-      { y: 60, x: 250, xEnd: 295, text: "BLANK" },
-    ]);
-    expect(lines).toEqual([
-      { y: 60, text: "BLANK PAGE", xCenter: (250 + 340) / 2 },
-    ]);
+// Real 0606 geometry: the page number sits on a ~47pt baseline, the next
+// question's marker ~60pt below the top, the © footer ~805pt down an 842pt page.
+const A4_HEIGHT = 841.89;
+const CONTENT_OPTS = { headerSkip: 45, footerSkip: 50, minChars: 8 };
+
+describe("regionHasContent", () => {
+  it("treats a header-only sliver (page number alone) as blank", () => {
+    const page = { height: A4_HEIGHT, runs: [{ y: 47, bottom: 50, n: 2 }] };
+    expect(regionHasContent(page, 0, 62, CONTENT_OPTS)).toBe(false);
   });
 
-  it("keeps items on different baselines as separate lines", () => {
-    const lines = mergeLines([
-      { y: 60, x: 250, xEnd: 340, text: "BLANK PAGE" },
-      { y: 120, x: 250, xEnd: 300, text: "Some other line" },
-    ]);
-    expect(lines).toHaveLength(2);
+  it("keeps a run-on crop carrying real question text", () => {
+    const page = {
+      height: A4_HEIGHT,
+      runs: [
+        { y: 47, bottom: 50, n: 2 },
+        { y: 73, bottom: 76, n: 30 },
+      ],
+    };
+    expect(regionHasContent(page, 0, 300, CONTENT_OPTS)).toBe(true);
+  });
+
+  it("ignores the © footer band", () => {
+    const page = { height: A4_HEIGHT, runs: [{ y: 805, bottom: 808, n: 30 }] };
+    expect(regionHasContent(page, 0, null, CONTENT_OPTS)).toBe(false);
   });
 });
 
-describe("hasBlankPageBanner", () => {
-  const PAGE_WIDTH = 595.276;
-  const CENTER = PAGE_WIDTH / 2;
+describe("tightenBottom", () => {
+  const TIGHTEN = { footerSkip: 50, pad: 5 };
 
-  it("detects the banner near the top, centered", () => {
+  it("pulls an open-ended crop up to the last content line, above the footer", () => {
     const page = {
-      width: PAGE_WIDTH,
-      lines: [{ y: 60, text: "BLANK PAGE", xCenter: CENTER }],
+      height: A4_HEIGHT,
+      runs: [
+        { y: 80, bottom: 83, n: 20 },
+        { y: 300, bottom: 303, n: 3 },
+        { y: 805, bottom: 808, n: 30 },
+      ],
     };
-    expect(hasBlankPageBanner(page)).toBe(true);
+    expect(tightenBottom(page, 60, null, TIGHTEN)).toBe(308);
   });
 
-  it("is case-insensitive", () => {
-    const page = {
-      width: PAGE_WIDTH,
-      lines: [{ y: 60, text: "Blank Page", xCenter: CENTER }],
-    };
-    expect(hasBlankPageBanner(page)).toBe(true);
-  });
-
-  it("ignores matching text that isn't near the top of the page", () => {
-    const page = {
-      width: PAGE_WIDTH,
-      lines: [{ y: 400, text: "BLANK PAGE", xCenter: CENTER }],
-    };
-    expect(hasBlankPageBanner(page)).toBe(false);
-  });
-
-  it("ignores matching text that isn't horizontally centered", () => {
-    const page = {
-      width: PAGE_WIDTH,
-      lines: [{ y: 60, text: "BLANK PAGE", xCenter: 40 }],
-    };
-    expect(hasBlankPageBanner(page)).toBe(false);
-  });
-
-  it("does not fire on real content that merely mentions the phrase in passing", () => {
-    const page = {
-      width: PAGE_WIDTH,
-      lines: [{ y: 60, text: "This BLANK PAGE reference is part of a sentence", xCenter: CENTER }],
-    };
-    expect(hasBlankPageBanner(page)).toBe(false);
-  });
-
-  it("returns false when the page has no text at all", () => {
-    const page = { width: PAGE_WIDTH, lines: [] };
-    expect(hasBlankPageBanner(page)).toBe(false);
+  it("leaves the crop alone when the region holds no text", () => {
+    const page = { height: A4_HEIGHT, runs: [] };
+    expect(tightenBottom(page, 60, null, TIGHTEN)).toBe(null);
   });
 });
 

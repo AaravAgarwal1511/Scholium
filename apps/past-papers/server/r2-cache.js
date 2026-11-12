@@ -33,7 +33,7 @@ export const CACHE_PREFIX = '_cache';
 // characters, enough to clear regionHasContent's MIN_CONTENT_CHARS on its own —
 // so a filler page whose byte stream slipped past isBlankPage's threshold could
 // still be swept into a continuation crop and rendered. Every v3 chapter that
-// hit that gap is stale (see hasBlankPageBanner in page-chars.js).
+// hit that gap is stale (now caught by pageHasBlankPageText in compose-pdf.js).
 //
 // v5 (2026-08-01): the first section-divider page now also prints the subject
 // name + paper number above "Questions"/"Mark Scheme", so every v4 object is
@@ -51,7 +51,12 @@ export const CACHE_PREFIX = '_cache';
 // v6 (2026-08-19): every composed page now carries a "Scholium" wordmark in the
 // top margin. v5 objects are unbranded, and the key is otherwise deterministic,
 // so they would be served forever without this bump.
-const CACHE_VERSION = 'v6';
+//
+// v7 (2026-11-12): blank-crop detection and bottom trimming moved off pdf.js,
+// which was failing in the Vercel runtime, so both had silently been no-ops in
+// prod. Every v6 object composed there carries untrimmed full-page crops and
+// stray header-only pages (just the next source page's number).
+const CACHE_VERSION = 'v7';
 
 const R2_PUBLIC_URL = (
   process.env.VITE_R2_PUBLIC_URL ||

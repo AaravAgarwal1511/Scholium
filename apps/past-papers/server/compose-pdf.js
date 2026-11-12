@@ -15,13 +15,7 @@ import {
 import fontkit from '@pdf-lib/fontkit';
 import { createClient } from '@supabase/supabase-js';
 import { fetchRowsByIds } from './supabase-rows.js';
-import {
-  createCharIndex,
-  regionHasContent,
-  tightenBottom,
-  hasBlankPageBanner,
-  marksInRegion,
-} from './page-chars.js';
+import { regionHasContent, tightenBottom, marksInRegion } from './page-chars.js';
 import { answerInRegion } from './mcqAnswers.js';
 
 // Lazily create the Supabase client so merely importing this module never throws
@@ -66,8 +60,8 @@ export const BRAND_HEADER = {
 
 // Poppins is vendored locally under server/fonts/ (downloaded from Google
 // Fonts' OFL-licensed source — see fonts/LICENSE_POPPINS) instead of pulled
-// from a CDN at request time, the same reasoning as server/pdfjs-standard-
-// fonts: this composer runs in a serverless function and dev server alike,
+// from a CDN at request time, the same reasoning as any runtime asset here:
+// this composer runs in a serverless function and dev server alike,
 // and neither should depend on a third-party host being reachable just to
 // stamp a page.
 const FONTS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fonts');
@@ -235,9 +229,7 @@ function makeCache() {
     indexes: new Map(),  // `${paperNum}/${kind}` → Map<stem, {meta, byQ, questions}>
     blank: new Map(),    // PDFDocument → Map<pageIndex, boolean>
     blankText: new Map(), // PDFDocument → Map<pageIndex, boolean>
-    streamLines: new Map(), // PDFDocument → Map<pageIndex, {lines, height}> (marks, no pdf.js)
-    bytes: new Map(),    // PDFDocument → { key, bytes }  (for the text layer)
-    chars: createCharIndex(),
+    streamLines: new Map(), // PDFDocument → Map<pageIndex, {lines, height, failed}> (no pdf.js)
   };
 }
 
@@ -274,7 +266,7 @@ function isBlankPage(cache, srcDoc, pageIndex) {
 // BLANK_PAGE_MAX_STREAM. This is what actually catches that page: reading the
 // stream directly, with no dependency on the pdf.js/canvas machinery that
 // proved unreliable in the serverless runtime (missing standard fonts,
-// missing native canvas — see hasBlankPageBanner and its history).
+// missing native canvas — see the history note above pageMarkLines).
 function pageHasBlankPageText(cache, srcDoc, pageIndex) {
   let perDoc = cache.blankText.get(srcDoc);
   if (!perDoc) cache.blankText.set(srcDoc, (perDoc = new Map()));
@@ -880,13 +872,15 @@ export function makeResourceResolver(srcDoc, resourcesDict) {
 // pageHasBlankPageText. Fails safe to an empty page — the caller's fallback
 // (1 mark for a question with no token found) already covers "this page's
 // text couldn't be read" exactly as it covers "this is a multiple-choice
-// question that never prints one".
+// question that never prints one". `failed` lets the blank-crop checks (see
+// pageTextModel) tell "unreadable" apart from "genuinely no text", since for
+// them an empty page means "drop it" and must never be assumed.
 function pageMarkLines(cache, srcDoc, pageIndex) {
   let perDoc = cache.streamLines.get(srcDoc);
   if (!perDoc) cache.streamLines.set(srcDoc, (perDoc = new Map()));
   if (perDoc.has(pageIndex)) return perDoc.get(pageIndex);
 
-  let page = { lines: [], height: 0 };
+  let page = { lines: [], height: 0, failed: true };
   try {
     const srcPage = srcDoc.getPage(pageIndex);
     let contents = srcPage.node.Contents();
@@ -895,12 +889,50 @@ function pageMarkLines(cache, srcDoc, pageIndex) {
     const stream = Buffer.from(bytes).toString('latin1');
     const height = srcPage.getHeight();
     const { resolveFont, resolveXObject } = makeResourceResolver(srcDoc, srcPage.node.Resources());
-    page = { lines: contentStreamTextLines(stream, height, { resolveFont, resolveXObject }), height };
+    page = {
+      lines: contentStreamTextLines(stream, height, { resolveFont, resolveXObject }),
+      height,
+      failed: false,
+    };
   } catch (err) {
     console.warn(`  ⚠️  Content-stream text read failed: ${err.message}`);
   }
   perDoc.set(pageIndex, page);
   return page;
+}
+
+// Approximate drop below a baseline to a glyph's lower edge, so a crop trimmed
+// to the last line does not clip its descenders (body text here is ~10–11pt).
+const DESCENDER_PAD = 3;
+
+// The page shape regionHasContent / tightenBottom expect — `{runs, height}`,
+// each run `{y, bottom, n}` in top-origin points — built from the same raw
+// content-stream reader as the marks, NOT pdf.js. These two checks used to sit
+// on pdf.js's getTextContent(), which fails in the Vercel runtime (see the
+// history note above pageMarkLines) while working locally. Both fail closed, so
+// in prod every question crop went untrimmed (a full source page, answer space
+// and © footer included) and every header-only sliver was kept. A sliver can't
+// fit under a full-page crop, so it landed on an output page of its own: the
+// "blank page with just the next page number" in generated papers.
+//
+// Whitespace-only show-text runs are dropped. The content stream has plenty of
+// them (pdf.js's text layer skipped them too), and left in, they would pull a
+// trim far below the last visible line.
+//
+// Returns null when the stream could not be read, so callers keep the crop
+// and leave it untrimmed rather than read "unreadable" as "empty".
+export function textModelFromLines({ lines, height, failed }) {
+  if (failed) return null;
+  const runs = [];
+  for (const line of lines) {
+    const n = line.text.replace(/\s/g, '').length;
+    if (n > 0) runs.push({ y: line.y, bottom: line.y + DESCENDER_PAD, n });
+  }
+  return { runs, height };
+}
+
+function pageTextModel(cache, srcDoc, pageNum) {
+  return textModelFromLines(pageMarkLines(cache, srcDoc, pageNum - 1));
 }
 
 async function loadIndex(cache, loader, paperNum, kind) {
@@ -931,9 +963,6 @@ async function loadSourcePdf(cache, loader, paperNum, kind, stem) {
   const bytes = await loader.loadPdfBytes(paperNum, kind, stem);
   const pdf = await PDFDocument.load(bytes);
   cache.pdfs.set(cacheKey, pdf);
-  // Kept for the content test, which needs a text layer pdf-lib cannot give it.
-  // `PDFDocument.load` copies, so these bytes stay intact.
-  cache.bytes.set(pdf, { key: cacheKey, bytes });
   return pdf;
 }
 
@@ -1068,12 +1097,11 @@ export function pageSpecs(qRecord, nextRecord, skippablePages, geom, kind, pageC
 // for those subjects; scoping to continuations avoids the per-subject tuning
 // altogether, because every such row sits on its own record's page.
 //
-// The cheap page-level check runs first so obvious BLANK PAGEs never pay for
-// text extraction. When it does run, the literal "BLANK PAGE" banner (see
-// hasBlankPageBanner) is checked before falling back to the char count — the
-// banner text is itself 9 characters, enough to clear MIN_CONTENT_CHARS on its
-// own, so a filler page whose byte stream slips past BLANK_PAGE_MAX_STREAM
-// would otherwise read as real content.
+// The page-level checks run first: isBlankPage (stream size), then the literal
+// "BLANK PAGE" banner (pageHasBlankPageText). The banner text is itself 9
+// characters, enough to clear MIN_CONTENT_CHARS on its own, so a filler page
+// whose byte stream slips past BLANK_PAGE_MAX_STREAM would otherwise read as
+// real content. Only then is the char count taken, from pageTextModel.
 // An open-ended crop (`yBot === null`) means "to the bottom of the page", which
 // drags in the blank remainder and the © UCLES footer. Trim it to the last line
 // of real content instead — the reference's `tighten_bottom`.
@@ -1087,44 +1115,32 @@ export function pageSpecs(qRecord, nextRecord, skippablePages, geom, kind, pageC
 // Questions only. The reference disables it for mark schemes because their rows
 // are bounded by drawn table rules rather than by characters, so trimming to the
 // last glyph would cut through the ruling.
-async function tightenOpenEnd(cache, srcDoc, spec, kind) {
+function tightenOpenEnd(cache, srcDoc, spec, kind) {
   if (spec.yBot !== null || kind !== 'questions') return spec;
 
-  const source = cache.bytes.get(srcDoc);
-  if (!source) return spec;
-  try {
-    const page = await cache.chars.pageChars(source.key, source.bytes, spec.page);
-    const yBot = tightenBottom(page, spec.yTop, spec.yBot, {
-      footerSkip: FOOTER_ZONE,
-      pad: TIGHTEN_PAD,
-    });
-    if (yBot === null || !(yBot > spec.yTop)) return spec;
-    return { ...spec, yBot };
-  } catch {
-    return spec; // untrimmed is merely ugly; guessing could clip content
-  }
+  const page = pageTextModel(cache, srcDoc, spec.page);
+  if (!page) return spec; // untrimmed is merely ugly; guessing could clip content
+  const yBot = tightenBottom(page, spec.yTop, spec.yBot, {
+    footerSkip: FOOTER_ZONE,
+    pad: TIGHTEN_PAD,
+  });
+  if (yBot === null || !(yBot > spec.yTop)) return spec;
+  return { ...spec, yBot };
 }
 
-async function isEmptyContinuation(cache, srcDoc, spec, kind) {
+function isEmptyContinuation(cache, srcDoc, spec, kind) {
   if (!spec.continuation) return false;
   if (isBlankPage(cache, srcDoc, spec.page - 1)) return true;
   if (pageHasBlankPageText(cache, srcDoc, spec.page - 1)) return true;
 
-  const source = cache.bytes.get(srcDoc);
-  if (!source) return false; // no bytes retained → keep the crop
-  try {
-    const page = await cache.chars.pageChars(source.key, source.bytes, spec.page);
-    if (hasBlankPageBanner(page)) return true;
-    return !regionHasContent(page, spec.yTop, spec.yBot, {
-      headerSkip: kind === 'mark_schemes' ? MS_HEADER_ZONE : HEADER_ZONE,
-      footerSkip: FOOTER_ZONE,
-      minChars: MIN_CONTENT_CHARS,
-    });
-  } catch (err) {
-    // Never drop content because the text layer could not be read.
-    console.warn(`  ⚠️  Content check failed for p${spec.page}: ${err.message}`);
-    return false;
-  }
+  // Never drop content because the page's text could not be read.
+  const page = pageTextModel(cache, srcDoc, spec.page);
+  if (!page) return false;
+  return !regionHasContent(page, spec.yTop, spec.yBot, {
+    headerSkip: kind === 'mark_schemes' ? MS_HEADER_ZONE : HEADER_ZONE,
+    footerSkip: FOOTER_ZONE,
+    minChars: MIN_CONTENT_CHARS,
+  });
 }
 
 // The stimulus shares a crop convention with its parts: the same ascender
@@ -1500,8 +1516,7 @@ export class PageLayout {
 }
 
 // Sums the "[n]" mark tokens (see marksInRegion, fed by pageMarkLines above —
-// deliberately not the pdf.js-backed cache.chars, per the history at
-// pageHasBlankPageText) whose baseline falls inside the crops actually kept
+// deliberately not pdf.js, per the history note above pageMarkLines) whose baseline falls inside the crops actually kept
 // for one question, deduped so a stem crop overlapping its own sub-part crop
 // cannot double-count a token both see. Falls back to 1 mark when the
 // question yields no token at all — multiple-choice papers never print one.
@@ -1706,12 +1721,8 @@ async function renderSection(
         ...specs,
       ].filter((s) => s.page - 1 >= 0 && s.page - 1 < pageCount);
 
-      const keep = await Promise.all(
-        onPage.map(async (s) => !(await isEmptyContinuation(cache, srcDoc, s, kind))),
-      );
-      const trimmed = await Promise.all(
-        onPage.map((s) => tightenOpenEnd(cache, srcDoc, s, kind)),
-      );
+      const keep = onPage.map((s) => !isEmptyContinuation(cache, srcDoc, s, kind));
+      const trimmed = onPage.map((s) => tightenOpenEnd(cache, srcDoc, s, kind));
       const keptSpecs = trimmed.filter((_, i) => keep[i]);
       const crops = keptSpecs.map((s) => ({
         doc: srcDoc,
