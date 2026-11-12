@@ -15,7 +15,7 @@ import { describe, it, expect, beforeAll } from "vitest";
  * What it proves:
  *   1. The Chemistry subject/section/chapter tree lands exactly as migrated — the shape
  *      useSubjects.ts (apps/recall-app) reconstructs from recall_chapters.
- *   2. Every chapter's cards are present (128 total across 9 chapters).
+ *   2. Every chapter's cards are present (128 total across 16 chapters).
  *   3. The load-bearing invariant: no chapter has two cards with the same `definition`
  *      (or the same `term`). MatchingRound (apps/recall-app/src/components/study/
  *      MatchingRound.tsx) matches Pass 1 strictly by array position — a duplicate
@@ -37,7 +37,14 @@ const EXPECTED_CHAPTER_IDS = [
   "chemistry-industrial-catalysts",
   "chemistry-hydrated-salts",
   "chemistry-reactivity-series",
-  "chemistry-definitions",
+  "chemistry-definitions-atoms-bonding",
+  "chemistry-definitions-formulae-mole",
+  "chemistry-definitions-electrolysis-energy",
+  "chemistry-definitions-rates-equilibrium-redox",
+  "chemistry-definitions-acids-salts-alloys",
+  "chemistry-definitions-organic-formulae",
+  "chemistry-definitions-organic-reactions",
+  "chemistry-definitions-solutions-separation",
 ];
 
 const EXPECTED_CARD_COUNT: Record<string, number> = {
@@ -49,14 +56,19 @@ const EXPECTED_CARD_COUNT: Record<string, number> = {
   "chemistry-industrial-catalysts": 6,
   "chemistry-hydrated-salts": 6,
   "chemistry-reactivity-series": 8,
-  "chemistry-definitions": 55,
+  "chemistry-definitions-atoms-bonding": 8,
+  "chemistry-definitions-formulae-mole": 5,
+  "chemistry-definitions-electrolysis-energy": 8,
+  "chemistry-definitions-rates-equilibrium-redox": 9,
+  "chemistry-definitions-acids-salts-alloys": 7,
+  "chemistry-definitions-organic-formulae": 6,
+  "chemistry-definitions-organic-reactions": 5,
+  "chemistry-definitions-solutions-separation": 7,
 };
 
 // Reference Tables is section_sort_order 0; the syllabus Definitions section follows it
 // (20261111000000_recall_chemistry_definitions.sql).
-const SECTION_OF: Record<string, { id: string; name: string }> = {
-  "chemistry-definitions": { id: "chemistry-definitions-section", name: "Definitions" },
-};
+const DEFINITIONS_SECTION = { id: "chemistry-definitions-section", name: "Definitions" };
 const REFERENCE_TABLES = { id: "chemistry-reference-tables", name: "Reference Tables" };
 
 interface ChapterRow {
@@ -125,20 +137,20 @@ beforeAll(async () => {
 });
 
 describe("Chemistry subject tree (recall_chapters)", () => {
-  it("has exactly the nine expected chapters, in order, across the two sections", () => {
+  it("has exactly the sixteen expected chapters, in order, across the two sections", () => {
     expect(chapters.map((c) => c.id)).toEqual(EXPECTED_CHAPTER_IDS);
     for (const c of chapters) {
       expect(c.subject_id).toBe("chemistry");
       expect(c.subject_name).toBe("Chemistry");
       expect(c.subject_emoji).toBe("🧪");
-      const section = SECTION_OF[c.id] ?? REFERENCE_TABLES;
+      const section = c.id.startsWith("chemistry-definitions-") ? DEFINITIONS_SECTION : REFERENCE_TABLES;
       expect(c.section_id).toBe(section.id);
       expect(c.section_name).toBe(section.name);
     }
   });
 
-  it("chapter sort_order is dense 0..8 — the order Home.tsx renders them in", () => {
-    expect(chapters.map((c) => c.sort_order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  it("chapter sort_order is dense 0..15 — the order Home.tsx renders them in", () => {
+    expect(chapters.map((c) => c.sort_order)).toEqual(Array.from({ length: 16 }, (_, i) => i));
   });
 });
 
