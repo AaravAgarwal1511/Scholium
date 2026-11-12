@@ -18,6 +18,7 @@ import {
   rotatedCropBox,
   collectQuestionMarks,
   contentStreamTextLines,
+  textModelFromLines,
   parseToUnicodeCMap,
   stampBrandHeader,
   embedBrandFont,
@@ -26,14 +27,14 @@ import {
   isMcqComponent,
   PageLayout,
 } from "./compose-pdf.js";
-import { marksInRegion } from "./page-chars.js";
+import { marksInRegion, regionHasContent, tightenBottom } from "./page-chars.js";
 
 // Recovers the text a page's single Tj call actually drew, from a *reloaded*
 // document (so this reads the saved bytes pdf-lib produced, not the live
 // object graph). Two encodings show up here:
 //  - a standard font (WinAnsi) writes single-byte codes that equal the
 //    character's Latin-1 code point, whether as a literal `(...)` or a hex
-//    string `<...>` — hasBlankPageBanner reads *source* PDFs the same way.
+//    string `<...>` — pageHasBlankPageText reads *source* PDFs the same way.
 //  - a custom embedded font (Poppins, subset-embedded via fontkit) is always
 //    CID-keyed: the hex string holds 2-byte glyph ids, not character codes,
 //    so it only decodes through the ToUnicode CMap pdf-lib attaches for
@@ -334,11 +335,53 @@ describe("rotatedCropBox — placing a crop on a rotated source page", () => {
 
 // The total-marks footer's aggregation step: how many marks one question's kept
 // crops are actually worth, read straight off the source PDF's own "[n]" text.
-// Deliberately NOT backed by pdf.js (cache.chars) — see the comment above
-// pageMarkLines in compose-pdf.js for why: getTextContent() has repeatedly
-// proven unreliable in the Vercel serverless runtime for this exact codebase,
-// so marks are read from the raw content stream via pageMarkLines instead,
-// same as blank-page detection already does.
+// Deliberately NOT backed by pdf.js — see the comment above pageMarkLines in
+// compose-pdf.js for why: getTextContent() has repeatedly proven unreliable in
+// the Vercel serverless runtime for this exact codebase, so marks are read from
+// the raw content stream via pageMarkLines instead, as blank-crop detection and
+// trimming now are too (textModelFromLines, below).
+
+// The page model behind isEmptyContinuation / tightenOpenEnd. Regression for
+// generated 0606 papers carrying pages with nothing but the next source page's
+// number: when the text read failed, every header sliver was kept and every
+// crop left untrimmed. These run against the stream-derived lines that are
+// actually read in prod, with values measured off real 0606 papers.
+describe("textModelFromLines — blank-crop detection without pdf.js", () => {
+  const HEIGHT = 841.89;
+  const CONTENT = { headerSkip: 45, footerSkip: 50, minChars: 8 };
+
+  it("drops a header sliver holding only the page number", () => {
+    // June2025-11 p8: the barcode line sits above the header skip and the page
+    // number at 47 is a single character, far under MIN_CONTENT_CHARS.
+    const page = textModelFromLines({
+      height: HEIGHT,
+      failed: false,
+      lines: [
+        { y: 47, text: "8" },
+        { y: 26, text: "* 0000800000008 *" },
+      ],
+    });
+    expect(regionHasContent(page, 0, 61.5, CONTENT)).toBe(false);
+  });
+
+  it("ignores whitespace-only show-text runs when trimming", () => {
+    const page = textModelFromLines({
+      height: HEIGHT,
+      failed: false,
+      lines: [
+        { y: 120, text: "(ii) Find the acceleration. [3]" },
+        { y: 635, text: "   " },
+      ],
+    });
+    expect(page.runs).toHaveLength(1);
+    expect(tightenBottom(page, 60, null, { footerSkip: 50, pad: 5 })).toBe(128);
+  });
+
+  it("returns null for an unreadable page so callers keep the crop untrimmed", () => {
+    expect(textModelFromLines({ lines: [], height: 0, failed: true })).toBe(null);
+  });
+});
+
 describe("collectQuestionMarks — per-question mark aggregation", () => {
   // A minimal stand-in for makeCache()'s streamLines cache: `pages` maps a
   // 0-based page index (pdf-lib's own convention — collectQuestionMarks
