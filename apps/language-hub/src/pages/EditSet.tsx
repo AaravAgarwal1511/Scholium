@@ -21,6 +21,7 @@ import {
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { SCOPED_LANGUAGE } from "@/suiteScope";
 
 /** Pure — depends only on its argument, so it lives outside the component and
  *  stays referentially stable for the memoised fetch below. */
@@ -228,6 +229,8 @@ const EditSet = () => {
                                     onChange={(e) => setDescription(e.target.value)}
                                 />
                             </div>
+                            {/* Suite mode: the language is the subject in the URL, not a choice. */}
+                            {!SCOPED_LANGUAGE && (
                             <div className="space-y-2">
                                 <Label htmlFor="language">Language</Label>
                                 <Select value={language} onValueChange={setLanguage}>
@@ -240,6 +243,7 @@ const EditSet = () => {
                                     </SelectContent>
                                 </Select>
                             </div>
+                            )}
                             <div className="space-y-2">
                                 <Label htmlFor="folder">Folder</Label>
                                 <Select value={folderId} onValueChange={setFolderId}>

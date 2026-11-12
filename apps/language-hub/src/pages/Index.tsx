@@ -66,6 +66,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { SCOPED_LANGUAGE } from "@/suiteScope";
 
 interface VocabularySet {
   id: string;
@@ -107,10 +108,12 @@ const Index = () => {
       // RLS scopes vocabulary_sets to auth.uid() = user_id
       // (20260909000000_language_hub_owner_scoped_rls.sql), so a plain read only
       // ever returns the signed-in user's own sets.
-      const { data: setsData, error: setsError } = await supabase
-        .from("vocabulary_sets")
-        .select("*")
-        .order("created_at", { ascending: false });
+      // Suite mode: only the language this page was opened for (/french/language-hub).
+      let setsQuery = supabase.from("vocabulary_sets").select("*");
+      if (SCOPED_LANGUAGE) setsQuery = setsQuery.eq("language", SCOPED_LANGUAGE);
+      const { data: setsData, error: setsError } = await setsQuery.order("created_at", {
+        ascending: false,
+      });
 
       if (setsError) throw setsError;
 

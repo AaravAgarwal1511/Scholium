@@ -1,10 +1,19 @@
 import { useEffect, useState, lazy, Suspense } from "react";
 import { BrowserRouter, Route, Routes, Navigate, useLocation, useNavigate } from "react-router-dom";
-import { ScholiumNavbar, ScholiumFooter, TermsOfService, PrivacyPolicy, SCHOLIUM_HOME_URL } from "@repo/ui";
+import {
+  ScholiumNavbar,
+  ScholiumFooter,
+  TermsOfService,
+  PrivacyPolicy,
+  SuiteSubjectBar,
+  suiteAppLinks,
+  suiteSubjectLinks,
+  goToSubjectByName,
+} from "@repo/ui";
+import { SCOPE } from "@/suiteScope";
 import type { AppLink } from "@repo/ui";
 import "@repo/ui/scholium-navbar.css";
 import "@repo/ui/legal.css";
-import { supabase } from "@/integrations/supabase/client";
 import { Analytics } from "@vercel/analytics/react";
 import { usePageView, useAnalytics } from "@repo/analytics";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -35,19 +44,9 @@ function RouteFallback() {
 // lookup silently missed and the subtitle fell back to its hardcoded default.
 const OWN_APP_URL = "https://pastpapers.thescholium.com";
 
+// Suite mode: the navbar's tools come from the shared registry in @repo/ui.
 async function loadScholiumApps(): Promise<AppLink[]> {
-  const first = await supabase
-    .from("scholium_apps")
-    .select("id, title, url, icon, subjects, description")
-    .order("sort_order");
-  if (first.error && /(subjects|description)/i.test(first.error.message)) {
-    const fallback = await supabase
-      .from("scholium_apps")
-      .select("id, title, url, icon")
-      .order("sort_order");
-    return (fallback.data ?? []) as AppLink[];
-  }
-  return (first.data ?? []) as AppLink[];
+  return suiteAppLinks();
 }
 
 function NavbarWired({ apps }: { apps: AppLink[] }) {
@@ -62,7 +61,11 @@ function NavbarWired({ apps }: { apps: AppLink[] }) {
     <ScholiumNavbar
       apps={apps}
       onAppClick={(id) => track("nav_app_click", { to_app_id: id })}
-      homeUrl={SCHOLIUM_HOME_URL}
+      homeUrl=""
+      currentAppId={SCOPE?.tool.id}
+      subjects={suiteSubjectLinks()}
+      currentSubject={SCOPE?.subject.slug}
+      onPickSubject={(subject) => goToSubjectByName(subject)}
       user={user ? { email: user.email ?? "" } : null}
       onSignInClick={() => track("signin_click", { source: "navbar" })}
       onSignUpClick={() => track("signup_click", { source: "navbar" })}
@@ -86,10 +89,12 @@ export default function App() {
 
   const ownDescription = apps.find((a) => a.url === OWN_APP_URL)?.description ?? null;
 
+  if (!SCOPE) return null;
+
   return (
     <AuthProvider>
       <Analytics />
-      <BrowserRouter>
+      <BrowserRouter basename={SCOPE.basename}>
         <MainRoutes apps={apps} ownDescription={ownDescription} />
       </BrowserRouter>
     </AuthProvider>
@@ -101,6 +106,7 @@ function MainRoutes({ apps, ownDescription }: { apps: AppLink[]; ownDescription:
   return (
     <>
       <NavbarWired apps={apps} />
+      {SCOPE && <SuiteSubjectBar subject={SCOPE.subject} currentToolId={SCOPE.tool.id} />}
       <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path="/" element={<GeneratePaperPage description={ownDescription} />} />
@@ -110,12 +116,12 @@ function MainRoutes({ apps, ownDescription }: { apps: AppLink[]; ownDescription:
           <Route path="/signup" element={<Auth defaultMode="signup" />} />
           <Route path="/auth/reset-password" element={<ResetPassword />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/terms" element={<TermsOfService homeUrl={SCHOLIUM_HOME_URL} />} />
-          <Route path="/privacy" element={<PrivacyPolicy homeUrl={SCHOLIUM_HOME_URL} />} />
+          <Route path="/terms" element={<TermsOfService homeUrl="" />} />
+          <Route path="/privacy" element={<PrivacyPolicy homeUrl="" />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
-      <ScholiumFooter homeUrl={SCHOLIUM_HOME_URL} />
+      <ScholiumFooter homeUrl="" />
       <Toaster />
     </>
   );

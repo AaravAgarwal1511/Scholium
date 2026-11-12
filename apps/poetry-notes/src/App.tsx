@@ -1,11 +1,20 @@
 import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ProjectProvider, useProject } from './contexts/ProjectContext';
-import { ScholiumNavbar, ScholiumFooter, TermsOfService, PrivacyPolicy, SCHOLIUM_HOME_URL } from '@repo/ui';
+import {
+  ScholiumNavbar,
+  ScholiumFooter,
+  TermsOfService,
+  PrivacyPolicy,
+  SuiteSubjectBar,
+  suiteAppLinks,
+  suiteSubjectLinks,
+  goToSubjectByName,
+} from '@repo/ui';
+import { SCOPE } from './suiteScope';
 import type { AppLink } from '@repo/ui';
 import '@repo/ui/scholium-navbar.css';
 import '@repo/ui/legal.css';
-import { supabase } from './integrations/supabase/client';
 import { Analytics } from '@vercel/analytics/react';
 import { usePageView, useAnalytics } from '@repo/analytics';
 import { Login } from './pages/Login';
@@ -19,19 +28,9 @@ import './App.css';
 // This app's own row in scholium_apps. Ids are UUIDs (not slugs), so match by URL.
 const OWN_APP_URL = 'https://poetrynotes.vercel.app';
 
+// Suite mode: the navbar's tools come from the shared registry in @repo/ui.
 async function loadScholiumApps(): Promise<AppLink[]> {
-  const first = await supabase
-    .from('scholium_apps')
-    .select('id, title, url, icon, subjects, description, has_demo, no_login')
-    .order('sort_order');
-  if (first.error && /(subjects|description|has_demo|no_login)/i.test(first.error.message)) {
-    const fallback = await supabase
-      .from('scholium_apps')
-      .select('id, title, url, icon')
-      .order('sort_order');
-    return (fallback.data ?? []) as AppLink[];
-  }
-  return (first.data ?? []) as AppLink[];
+  return suiteAppLinks();
 }
 
 type View = 'landing' | 'editor' | 'settings';
@@ -83,11 +82,16 @@ function AppContent() {
       <ScholiumNavbar
         apps={apps}
         onAppClick={(id) => track('nav_app_click', { to_app_id: id })}
-        homeUrl={SCHOLIUM_HOME_URL}
+        homeUrl=""
+        currentAppId={SCOPE?.tool.id}
+        subjects={suiteSubjectLinks()}
+        currentSubject={SCOPE?.subject.slug}
+        onPickSubject={(subject) => goToSubjectByName(subject)}
         user={user ? { email: user.email ?? '' } : null}
         onSignOut={handleSignOut}
         onSettings={() => setCurrentView('settings')}
       />
+      {SCOPE && <SuiteSubjectBar subject={SCOPE.subject} currentToolId={SCOPE.tool.id} />}
       <div key={currentView} className="page-fade-in">
         {currentView === 'settings' ? (
           <Settings onBack={() => setCurrentView('landing')} onSignOut={handleSignOut} />
@@ -101,7 +105,7 @@ function AppContent() {
           />
         )}
       </div>
-      <ScholiumFooter homeUrl={SCHOLIUM_HOME_URL} />
+      <ScholiumFooter homeUrl="" />
     </div>
   );
 }
@@ -110,11 +114,14 @@ export default function App() {
   // The /demo and legal pages are public and router-free — served directly. Compute
   // the page rather than returning early so a single <Analytics /> mounts on every
   // path (Vercel Web Analytics must see the demo and legal pageviews too).
-  const path = typeof window !== 'undefined' ? window.location.pathname : '';
+  // Suite mode: paths are relative to /:subject/poetry-notes.
+  if (!SCOPE) return null;
+  const full = typeof window !== 'undefined' ? window.location.pathname : '';
+  const path = full.slice(SCOPE.basename.length) || '/';
   const routerFreePage =
     path === '/demo' ? <Demo /> :
-    path === '/terms' ? <TermsOfService homeUrl={SCHOLIUM_HOME_URL} /> :
-    path === '/privacy' ? <PrivacyPolicy homeUrl={SCHOLIUM_HOME_URL} /> :
+    path === '/terms' ? <TermsOfService homeUrl="" /> :
+    path === '/privacy' ? <PrivacyPolicy homeUrl="" /> :
     null;
   return (
     <>

@@ -1,5 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import { SCOPED_SUBJECT_CODE } from "@/suiteScope";
+
+// The subject step is hidden in suite mode, so the remaining steps renumber from 1.
+const STEP_OFFSET = SCOPED_SUBJECT_CODE ? -1 : 0;
 import { toast } from "sonner";
 import { useAnalytics } from "@repo/analytics";
 import { Zap, Download, AlertCircle, CheckCircle2, ExternalLink } from "lucide-react";
@@ -172,8 +176,9 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
   // Auth.tsx always navigates away from and back to this page — doesn't lose
   // the user's selections. See the persistence effect further down and
   // `@/lib/generatorSession` for what's actually stored and why.
+  // Suite mode: the subject comes from the URL (/physics/past-papers) and is fixed.
   const [selectedSubject, setSelectedSubject] = useState<string | null>(
-    () => loadGeneratorSession()?.selectedSubject ?? null
+    () => SCOPED_SUBJECT_CODE ?? loadGeneratorSession()?.selectedSubject ?? null
   );
   const [selectedComponent, setSelectedComponent] = useState<string | null>(
     () => loadGeneratorSession()?.selectedComponent ?? null
@@ -321,7 +326,10 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
 
   // Load subjects
   const { data: subjects, loading: loadingSubjects } = useAsync(
-    () => listSubjects(),
+    () =>
+      listSubjects().then((all) =>
+        SCOPED_SUBJECT_CODE ? all.filter((code) => code === SCOPED_SUBJECT_CODE) : all,
+      ),
     []
   );
 
@@ -778,7 +786,9 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
 
       <SavedPapersPanel user={user} loadingAuth={loadingAuth} refreshSignal={savedPapersRefresh} />
 
-      {/* Step 1: Subject Selection */}
+      {/* Step 1: Subject Selection — skipped in suite mode, where the subject
+          comes from the URL (/physics/past-papers). */}
+      {!SCOPED_SUBJECT_CODE && (
       <section className="mb-8">
         <h2 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
           <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-sm font-bold">
@@ -787,8 +797,9 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
           Select Subject
         </h2>
         {/* FLE spans the full row and opens its own subroute instead of
-            the component/year steps below. */}
-        <button
+            the component/year steps below. Hidden in suite mode — it isn't
+            part of the subject this page was opened for. */}
+        {!SCOPED_SUBJECT_CODE && <button
           onClick={() => navigate("/fle")}
           className="mb-3 w-full flex items-baseline gap-2 px-4 py-3 rounded-lg border-2 font-medium transition-all text-left"
           style={{
@@ -802,7 +813,7 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
           <span aria-hidden="true" className="ml-auto self-center text-lg leading-none opacity-60">
             →
           </span>
-        </button>
+        </button>}
         {loadingSubjects ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -847,13 +858,14 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
           />
         )}
       </section>
+      )}
 
       {/* Step 2: Component Selection */}
       {selectedSubject && (
         <section className="mb-8">
           <h2 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
             <span className="flex items-center justify-center w-7 h-7 rounded-full bg-accent/10 text-accent text-sm font-bold">
-              2
+              {STEP_OFFSET + 2}
             </span>
             Select Component
           </h2>
@@ -903,7 +915,7 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
         <section className="mb-8">
           <h2 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
             <span className="flex items-center justify-center w-7 h-7 rounded-full bg-success/10 text-success text-sm font-bold">
-              3
+              {STEP_OFFSET + 3}
             </span>
             Choose Years, Chapters & Question Counts
           </h2>
@@ -1230,7 +1242,7 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
         >
           <h2 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
             <span className="flex items-center justify-center w-7 h-7 rounded-full bg-success/10 text-success text-sm font-bold">
-              4
+              {STEP_OFFSET + 4}
             </span>
             Your Paper Is Ready
           </h2>

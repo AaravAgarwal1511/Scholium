@@ -28,7 +28,7 @@ async function paperBlob(paper: GeneratedPaper): Promise<Blob> {
   // this (a navigation, not a fetch), which is why downloadPaper() never hit it.
   // Reading the bytes back out (rather than just navigating to them) has to go
   // through our own server instead, which already holds R2 credentials.
-  const response = await fetch(`/api/proxy-paper?key=${encodeURIComponent(paper.key)}`);
+  const response = await fetch(`${import.meta.env.BASE_URL}api/proxy-paper?key=${encodeURIComponent(paper.key)}`);
   if (!response.ok) throw new Error(`Could not fetch the generated paper (${response.status})`);
   return response.blob();
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAnalytics } from "@repo/analytics";
+import { SCOPED_LANGUAGE } from "@/suiteScope";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,7 +29,7 @@ const keyFor = (name: string, language: string) => `${language}:::${name.trim().
 const StarterSets = () => {
   const { user } = useAuth();
   const { track } = useAnalytics();
-  const [filter, setFilter] = useState<LanguageFilter>("all");
+  const [filter, setFilter] = useState<LanguageFilter>(SCOPED_LANGUAGE ?? "all");
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importedKeys, setImportedKeys] = useState<Set<string>>(new Set());
 
@@ -99,6 +100,8 @@ const StarterSets = () => {
           </p>
         </div>
 
+        {/* Suite mode: fixed to the subject's language, so no filter row. */}
+        {!SCOPED_LANGUAGE && (
         <div className="flex gap-2 flex-wrap" role="group" aria-label="Filter by language">
           {FILTERS.map((f) => (
             <Button
@@ -112,6 +115,7 @@ const StarterSets = () => {
             </Button>
           ))}
         </div>
+        )}
 
         <div className="grid gap-4 md:grid-cols-2">
           {visibleSets.map((starter) => {

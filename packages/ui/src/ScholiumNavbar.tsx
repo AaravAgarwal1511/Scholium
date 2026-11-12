@@ -46,6 +46,21 @@ export interface ScholiumNavbarProps {
   /** Fired when the "Join now" button is clicked, before onSignUp navigates (or
    *  the ${homeUrl}/signup anchor is followed). */
   onSignUpClick?: () => void;
+  /** Suite mode: the tool this page belongs to. Tool links are same-origin
+   *  paths there, so "current" can't be derived from the URL's origin. */
+  currentAppId?: string;
+  /** Suite mode: renders a "Subjects" dropdown left of Study tools, linking to
+   *  each subject's page (/physics). Omitted → no dropdown. */
+  subjects?: NavSubjectLink[];
+  /** Slug of the subject this page belongs to, highlighted in the dropdown. */
+  currentSubject?: string;
+}
+
+export interface NavSubjectLink {
+  slug: string;
+  name: string;
+  icon?: string | null;
+  url: string;
 }
 
 function sameOrigin(url: string, origin: string): boolean {
@@ -66,7 +81,11 @@ export function ScholiumNavbar({
   onAppClick,
   onSignInClick,
   onSignUpClick,
+  currentAppId,
+  subjects,
+  currentSubject,
 }: ScholiumNavbarProps) {
+  const [subjectsOpen, setSubjectsOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -76,6 +95,7 @@ export function ScholiumNavbar({
   const searchListboxId = useId();
   const searchOptionId = (i: number) => `${searchListboxId}-opt-${i}`;
 
+  const subjectsRef = useRef<HTMLDivElement>(null);
   const toolsRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -118,15 +138,17 @@ export function ScholiumNavbar({
 
   // Close dropdowns on outside click + Escape.
   useEffect(() => {
-    if (!toolsOpen && !accountOpen && !searchOpen) return;
+    if (!subjectsOpen && !toolsOpen && !accountOpen && !searchOpen) return;
     function onMouseDown(e: MouseEvent) {
       const t = e.target as Node;
+      if (subjectsOpen && subjectsRef.current && !subjectsRef.current.contains(t)) setSubjectsOpen(false);
       if (toolsOpen && toolsRef.current && !toolsRef.current.contains(t)) setToolsOpen(false);
       if (accountOpen && accountRef.current && !accountRef.current.contains(t)) setAccountOpen(false);
       if (searchOpen && searchRef.current && !searchRef.current.contains(t)) setSearchOpen(false);
     }
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
+        setSubjectsOpen(false);
         setToolsOpen(false);
         setAccountOpen(false);
         setSearchOpen(false);
@@ -138,7 +160,7 @@ export function ScholiumNavbar({
       document.removeEventListener('mousedown', onMouseDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [toolsOpen, accountOpen, searchOpen]);
+  }, [subjectsOpen, toolsOpen, accountOpen, searchOpen]);
 
   function pickSuggestion(entry: SubjectEntry) {
     setSearch('');
@@ -177,12 +199,59 @@ export function ScholiumNavbar({
           <ScholiumLogo size="sm" />
         </a>
 
+        {/* ── Subjects dropdown (suite mode) ───────────────────────── */}
+        {subjects && subjects.length > 0 ? (
+          <div className="rui-navbar-tools" ref={subjectsRef}>
+            <button
+              type="button"
+              className="rui-navbar-tools-btn"
+              onClick={() => { setSubjectsOpen(o => !o); setToolsOpen(false); setAccountOpen(false); setSearchOpen(false); }}
+              aria-haspopup="true"
+              aria-expanded={subjectsOpen}
+              aria-label="Subjects"
+            >
+              <span className="rui-navbar-tools-btn-label">Subjects</span>
+              <svg
+                width="10" height="10" viewBox="0 0 10 10" fill="none"
+                stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
+                aria-hidden="true"
+                className={`rui-navbar-chevron${subjectsOpen ? ' rui-navbar-chevron--open' : ''}`}
+              >
+                <path d="M2 4 L5 7 L8 4" />
+              </svg>
+            </button>
+
+            {subjectsOpen && (
+              <div className="rui-navbar-dropdown" role="menu">
+                <div className="rui-apps-grid">
+                  {subjects.map(s => {
+                    const current = s.slug === currentSubject;
+                    return (
+                      <a
+                        key={s.slug}
+                        href={s.url}
+                        className={`rui-app-card${current ? ' rui-app-card--current' : ''}`}
+                        role="menuitem"
+                        aria-current={current ? 'page' : undefined}
+                        onClick={() => setSubjectsOpen(false)}
+                      >
+                        {s.icon ? <span className="rui-app-icon">{s.icon}</span> : null}
+                        <span className="rui-app-title">{s.name}</span>
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
+
         {/* ── Study tools dropdown ─────────────────────────────────── */}
         <div className="rui-navbar-tools" ref={toolsRef}>
           <button
             type="button"
             className="rui-navbar-tools-btn"
-            onClick={() => { setToolsOpen(o => !o); setAccountOpen(false); setSearchOpen(false); }}
+            onClick={() => { setToolsOpen(o => !o); setSubjectsOpen(false); setAccountOpen(false); setSearchOpen(false); }}
             aria-haspopup="true"
             aria-expanded={toolsOpen}
             aria-label="Study tools"
@@ -203,12 +272,15 @@ export function ScholiumNavbar({
               {toolApps.length > 0 ? (
                 <div className="rui-apps-grid">
                   {toolApps.map(app => {
-                    const current = sameOrigin(app.url, currentOrigin);
+                    const relative = app.url.startsWith('/');
+                    const current = currentAppId
+                      ? app.id === currentAppId
+                      : !relative && sameOrigin(app.url, currentOrigin);
                     return (
                       <a
                         key={app.id}
                         href={app.url}
-                        target={current ? '_self' : '_blank'}
+                        target={current || relative ? '_self' : '_blank'}
                         rel="noopener noreferrer"
                         className={`rui-app-card${current ? ' rui-app-card--current' : ''}`}
                         role="menuitem"

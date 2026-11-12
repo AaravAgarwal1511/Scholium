@@ -30,6 +30,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { ArrowLeft, Dumbbell, FolderOpen, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { SCOPED_LANGUAGE } from "@/suiteScope";
 
 interface VocabularySet {
   id: string;
@@ -111,6 +112,7 @@ const FolderPage = () => {
         .from("vocabulary_sets")
         .select("*")
         .eq("folder_id", id)
+        .in("language", SCOPED_LANGUAGE ? [SCOPED_LANGUAGE] : ["french", "spanish"])
         .order("created_at", { ascending: false });
 
       if (setsError) throw setsError;
@@ -134,6 +136,7 @@ const FolderPage = () => {
       .from("vocabulary_sets")
       .select("*")
       .is("folder_id", null)
+      .in("language", SCOPED_LANGUAGE ? [SCOPED_LANGUAGE] : ["french", "spanish"])
       .order("created_at", { ascending: false });
 
     if (error) {

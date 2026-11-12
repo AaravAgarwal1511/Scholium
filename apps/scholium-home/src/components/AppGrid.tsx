@@ -33,7 +33,7 @@ export default function AppGrid({ apps, loading, highlightedAppId, subject }: Ap
           >
             {subject ? (
               <>
-                {count} tools —{" "}
+                {count} {count === 1 ? "tool" : "tools"} —{" "}
                 <span style={{ color: "hsl(var(--primary))" }}>for {subject}.</span>
               </>
             ) : (

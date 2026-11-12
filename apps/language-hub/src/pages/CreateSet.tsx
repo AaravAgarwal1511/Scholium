@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { createSetWithItems } from "@/lib/sets";
 import { ArrowLeft, Upload, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { SCOPED_LANGUAGE } from "@/suiteScope";
 
 const CreateSet = () => {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ const CreateSet = () => {
   const { track } = useAnalytics();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [language, setLanguage] = useState("french");
+  const [language, setLanguage] = useState<string>(SCOPED_LANGUAGE ?? "french");
   const [vocabularyText, setVocabularyText] = useState("");
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<{ term: string; definition: string }[]>([]);
@@ -133,6 +134,8 @@ const CreateSet = () => {
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </div>
+              {/* Suite mode: the language is the subject in the URL, not a choice. */}
+              {!SCOPED_LANGUAGE && (
               <div className="space-y-2">
                 <Label htmlFor="language">Language</Label>
                 <Select value={language} onValueChange={setLanguage}>
@@ -145,6 +148,7 @@ const CreateSet = () => {
                   </SelectContent>
                 </Select>
               </div>
+              )}
             </CardContent>
           </Card>
 

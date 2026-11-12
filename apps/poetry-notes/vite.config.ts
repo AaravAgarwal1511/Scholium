@@ -11,9 +11,14 @@ const dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(file
 
 // More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
 export default defineConfig({
+  // Subject-first suite: this tool is served from /poetry-notes/ on the shared origin.
+  base: "/poetry-notes/",
   server: {
     host: "::",
     port: 5173,
+    // Suite mode: pages arrive via scholium-home's proxy (localhost:3030), so
+    // point the HMR socket straight at this server.
+    hmr: { clientPort: 5173 },
   },
   plugins: [react()],
   resolve: {

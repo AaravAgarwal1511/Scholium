@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { ScholiumFooter } from "@repo/ui";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { ScholiumFooter, getSubjectByName, subjectUrl } from "@repo/ui";
 import type { AppLink } from "@repo/ui";
 import Hero from "@/components/Hero";
 import SubjectPicker from "@/components/SubjectPicker";
@@ -47,19 +47,20 @@ export default function HomePage({ apps, loadingApps }: HomePageProps) {
     }, 2800);
   }, []);
 
+  const navigate = useNavigate();
+  // Subject-first: every subject chip opens that subject's page (/physics),
+  // even when only one tool covers it.
   const handleSubjectPick = useCallback(
     (subject: string, appIds: string[]) => {
-      if (appIds.length === 1) {
-        const app = apps.find((a) => a.id === appIds[0]);
-        if (app) {
-          window.location.href = app.url;
-        }
+      const s = getSubjectByName(subject);
+      if (s) {
+        navigate(subjectUrl(s.slug));
         return;
       }
       setSubjectFilter({ subject, appIds });
       requestAnimationFrame(() => scrollTo("tools"));
     },
-    [apps],
+    [navigate],
   );
 
   // React to ?highlight=<appId> changes (either initial load or in-app navigation).

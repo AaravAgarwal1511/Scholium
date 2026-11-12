@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { Dumbbell } from "lucide-react";
 import { toast } from "sonner";
+import { SCOPED_LANGUAGE } from "@/suiteScope";
 import { QuizSession, QuizQuestion, QuestionType } from "@/components/QuizSession";
 import { useAnalytics } from "@repo/analytics";
 
@@ -78,11 +79,17 @@ const Practice = () => {
       // random mastered items with their set language already joined, instead of
       // downloading the whole mastered library to shuffle and slice on the client.
       // Folder practice runs the same sampling, filtered to that folder's sets.
-      const { data, error } = folderId
+      const { data: sampled, error } = folderId
         ? await supabase.rpc("practice_sample_folder", { sample_count: count, target_folder: folderId })
         : await supabase.rpc("practice_sample", { sample_count: count });
 
       if (error) throw error;
+
+      // Suite mode: only the subject's language. (Prototype: filtered after
+      // sampling; the real fix is a language argument on the RPCs.)
+      const data = SCOPED_LANGUAGE
+        ? (sampled ?? []).filter((r) => (r.language || "french") === SCOPED_LANGUAGE)
+        : sampled;
 
       if (!data || data.length === 0) {
         toast.error(

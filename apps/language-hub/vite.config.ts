@@ -8,10 +8,22 @@ import { playwright } from '@vitest/browser-playwright';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // Subject-first suite: this tool is served from /language-hub/ on the shared origin.
+  base: "/language-hub/",
   server: {
     host: "::",
     port: 8080,
+    // Suite mode: pages arrive via scholium-home's proxy (localhost:3030), so
+    // point the HMR socket straight at this server.
+    hmr: { clientPort: 8080 },
     proxy: {
+      // Mounted under /language-hub/ in suite mode, so its API is too — two tools
+      // can't both own /api on one origin.
+      "/language-hub/api": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+        rewrite: (p: string) => p.replace(/^\/language-hub/, ""),
+      },
       "/api": {
         target: "http://localhost:3000",
         changeOrigin: true,

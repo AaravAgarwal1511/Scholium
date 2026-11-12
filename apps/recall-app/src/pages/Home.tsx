@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/collapsible";
 import { useApp } from "@/contexts/AppContext";
 import { useSubjects } from "@/hooks/useSubjects";
+import { RECALL_SUBJECT_ID } from "@/suiteScope";
 import { TwoSiderLauncher } from "@/components/TwoSiderLauncher";
 import type { Chapter, Section, Subject } from "@/types";
 import { PASS_CONFIG } from "@/lib/passConfig";
@@ -224,6 +225,8 @@ export default function Home({ description }: { description?: string | null } = 
         </p>
       </header>
 
+      {/* Suite mode: the subject comes from the URL, so no subject tabs. */}
+      {!RECALL_SUBJECT_ID && (
       <div className="max-w-5xl mx-auto px-6 mt-6">
         <div className="flex gap-2">
           {subjects.map((s) => (
@@ -243,6 +246,7 @@ export default function Home({ description }: { description?: string | null } = 
           ))}
         </div>
       </div>
+      )}
 
       <main className="max-w-5xl mx-auto px-6 py-6">
         <div className="grid md:grid-cols-2 gap-4">

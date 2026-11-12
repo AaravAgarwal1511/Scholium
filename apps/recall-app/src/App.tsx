@@ -3,11 +3,20 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from
 import { Loader2 } from "lucide-react";
 import { AppProvider, useApp } from "@/contexts/AppContext";
 import { Toaster } from "@/components/ui/sonner";
-import { ScholiumNavbar, ScholiumFooter, TermsOfService, PrivacyPolicy, SCHOLIUM_HOME_URL } from "@repo/ui";
+import {
+  ScholiumNavbar,
+  ScholiumFooter,
+  TermsOfService,
+  PrivacyPolicy,
+  SuiteSubjectBar,
+  suiteAppLinks,
+  suiteSubjectLinks,
+  goToSubjectByName,
+} from "@repo/ui";
+import { SCOPE } from "@/suiteScope";
 import type { AppLink } from "@repo/ui";
 import "@repo/ui/scholium-navbar.css";
 import "@repo/ui/legal.css";
-import { supabase } from "@/integrations/supabase/client";
 import { Analytics } from "@vercel/analytics/react";
 import { usePageView, useAnalytics } from "@repo/analytics";
 import Login from "@/pages/Login";
@@ -22,19 +31,9 @@ import ResetPassword from "@/pages/ResetPassword";
 // This app's own row in scholium_apps. Ids are UUIDs (not slugs), so match by URL.
 const OWN_APP_URL = "https://recall-master-app.vercel.app";
 
+// Suite mode: the navbar's tools come from the shared registry in @repo/ui.
 async function loadScholiumApps(): Promise<AppLink[]> {
-  const first = await supabase
-    .from("scholium_apps")
-    .select("id, title, url, icon, subjects, description, has_demo, no_login")
-    .order("sort_order");
-  if (first.error && /(subjects|description|has_demo|no_login)/i.test(first.error.message)) {
-    const fallback = await supabase
-      .from("scholium_apps")
-      .select("id, title, url, icon")
-      .order("sort_order");
-    return (fallback.data ?? []) as AppLink[];
-  }
-  return (first.data ?? []) as AppLink[];
+  return suiteAppLinks();
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -71,7 +70,11 @@ function NavbarWired({ apps }: { apps: AppLink[] }) {
     <ScholiumNavbar
       apps={apps}
       onAppClick={(id) => track("nav_app_click", { to_app_id: id })}
-      homeUrl={SCHOLIUM_HOME_URL}
+      homeUrl=""
+      currentAppId={SCOPE?.tool.id}
+      subjects={suiteSubjectLinks()}
+      currentSubject={SCOPE?.subject.slug}
+      onPickSubject={(subject) => goToSubjectByName(subject)}
       user={supabaseUser ? { email: supabaseUser.email ?? "" } : null}
       onSignIn={() => navigate("/signin")}
       onSignUp={() => navigate("/signup")}
@@ -147,8 +150,8 @@ function FadeRoutes({ description }: { description?: string | null }) {
           }
         />
         <Route path="/auth/reset-password" element={<ResetPassword />} />
-        <Route path="/terms" element={<TermsOfService homeUrl={SCHOLIUM_HOME_URL} />} />
-        <Route path="/privacy" element={<PrivacyPolicy homeUrl={SCHOLIUM_HOME_URL} />} />
+        <Route path="/terms" element={<TermsOfService homeUrl="" />} />
+        <Route path="/privacy" element={<PrivacyPolicy homeUrl="" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
@@ -164,8 +167,10 @@ export default function App() {
 
   const ownDescription = apps.find((a) => a.url === OWN_APP_URL)?.description ?? null;
 
+  if (!SCOPE) return null;
+
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={SCOPE.basename}>
       <Analytics />
       <Routes>
         <Route path="/demo" element={<Demo />} />
@@ -174,8 +179,9 @@ export default function App() {
           element={
             <AppProvider>
               <NavbarWired apps={apps} />
+              <SuiteSubjectBar subject={SCOPE.subject} currentToolId={SCOPE.tool.id} />
               <FadeRoutes description={ownDescription} />
-              <ScholiumFooter homeUrl={SCHOLIUM_HOME_URL} />
+              <ScholiumFooter homeUrl="" />
               <Toaster />
             </AppProvider>
           }

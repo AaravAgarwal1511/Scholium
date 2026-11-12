@@ -29,10 +29,22 @@ function injectHomepageFallback(): Plugin {
 }
 
 export default defineConfig({
+  // Subject-first suite: this tool is served from /past-papers/ on the shared origin.
+  base: "/past-papers/",
   server: {
     host: "::",
     port: 3040,
+    // Suite mode: pages arrive via scholium-home's proxy (localhost:3030), so
+    // point the HMR socket straight at this server.
+    hmr: { clientPort: 3040 },
     proxy: {
+      // Mounted under /past-papers/ in suite mode, so its API is too — two tools
+      // can't both own /api on one origin.
+      "/past-papers/api": {
+        target: "http://localhost:3002",
+        changeOrigin: true,
+        rewrite: (p: string) => p.replace(/^\/past-papers/, ""),
+      },
       "/api": {
         target: "http://localhost:3002",
         changeOrigin: true,

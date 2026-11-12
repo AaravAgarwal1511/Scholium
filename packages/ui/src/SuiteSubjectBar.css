@@ -1,0 +1,71 @@
+/* Subject strip under the navbar (subject-first suite prototype). */
+
+.rui-subjectbar {
+  width: 100%;
+  background: hsl(var(--card) / 0.92);
+  border-bottom: 1px solid var(--color-rule);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+}
+
+.rui-subjectbar-inner {
+  max-width: 80rem;
+  margin: 0 auto;
+  min-height: 2.75rem;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  overflow-x: auto;
+}
+
+.rui-subjectbar-subject,
+.rui-subjectbar-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-secondary, inherit);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.65rem;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.rui-subjectbar-subject {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.rui-subjectbar-subject:hover,
+.rui-subjectbar-tab:hover {
+  background: hsl(var(--primary) / 0.08);
+  color: hsl(var(--primary));
+}
+
+.rui-subjectbar-subject--current,
+.rui-subjectbar-tab--current {
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+}
+
+.rui-subjectbar-sep {
+  color: var(--color-rule);
+  font-weight: 300;
+}
+
+.rui-subjectbar-tabs {
+  display: flex;
+  gap: 0.25rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+@media (max-width: 640px) {
+  .rui-subjectbar-inner {
+    padding: 0 1rem;
+  }
+}

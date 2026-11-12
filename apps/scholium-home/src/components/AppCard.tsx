@@ -1,6 +1,16 @@
 import { useMemo, useState } from "react";
 import { ArrowUpRight, LockOpen, PlayCircle, Sparkles } from "lucide-react";
 import { useAnalytics } from "@repo/analytics";
+import { subjectsForTool, toolUrl } from "@repo/ui";
+
+// Suite mode: a card's url is a same-origin path — either the tool's subject
+// list (/tools/recall) or the tool inside a subject (/physics/recall). Those
+// open in the same tab, and the demo lives under a subject-scoped tool URL.
+function suiteDemoBase(id: string, url: string): string {
+  if (!url.startsWith("/tools/")) return url;
+  const first = subjectsForTool(id)[0];
+  return first ? toolUrl(id, first.slug) : url;
+}
 
 // Fallback for tools with a no-signup trial at `<app-url>/demo`, used only when
 // the DB `has_demo` flag is absent (e.g. before the tags migration is applied).
@@ -134,7 +144,8 @@ export default function AppCard({
   const { track } = useAnalytics();
   const slug = useMemo(() => resolveAppSlug(title, url), [title, url]);
   const showDemo = has_demo ?? DEMO_SLUGS.has(slug);
-  const tryUrl = showDemo ? `${url.replace(/\/+$/, "")}/demo` : null;
+  const tryUrl = showDemo ? `${suiteDemoBase(id, url).replace(/\/+$/, "")}/demo` : null;
+  const linkTarget = url.startsWith("/") ? "_self" : "_blank";
   const meta = APP_META[slug];
   const accentVar = meta?.accentVar ?? "--primary";
   const accent = `hsl(var(${accentVar}))`;
@@ -167,7 +178,7 @@ export default function AppCard({
           {tryUrl && (
             <a
               href={tryUrl}
-              target="_blank"
+              target={linkTarget}
               rel="noopener noreferrer"
               onClick={() => track("demo_click", { app_id: id })}
               className="sch-focus inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-[0.08em] shadow-soft"
@@ -195,7 +206,7 @@ export default function AppCard({
       )}
       <a
         href={url}
-        target="_blank"
+        target={linkTarget}
         rel="noopener noreferrer"
         data-app-id={id}
         onClick={() => track("app_card_click", { app_id: id, source: "grid" })}

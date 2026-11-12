@@ -6,9 +6,14 @@ import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
 import { playwright } from '@vitest/browser-playwright';
 
 export default defineConfig({
+  // Subject-first suite: this tool is served from /recall/ on the shared origin.
+  base: "/recall/",
   server: {
     host: "::",
     port: 8081,
+    // Suite mode: pages arrive via scholium-home's proxy (localhost:3030), so
+    // point the HMR socket straight at this server.
+    hmr: { clientPort: 8081 },
   },
   plugins: [react()],
   resolve: {

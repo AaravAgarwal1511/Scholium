@@ -227,7 +227,7 @@ export async function getChapterQuestions(
   paperNum: number,
 ): Promise<Map<number, ChapterQuestion[]>> {
   const params = new URLSearchParams({ subject, paperNum: String(paperNum) });
-  const res = await fetch(`/api/chapter-questions?${params}`);
+  const res = await fetch(`${import.meta.env.BASE_URL}api/chapter-questions?${params}`);
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(body?.error || `Failed to load question index (${res.status})`);
@@ -302,7 +302,7 @@ export type GeneratedPaper =
 // (@/lib/savedPapers) — that `_cache/` object can be pruned, so callers should
 // fall back to `generatePaper` with the paper's recipe if this 404s.
 export async function fetchPaperBytes(key: string): Promise<Blob> {
-  const response = await fetch(`/api/proxy-paper?key=${encodeURIComponent(key)}`);
+  const response = await fetch(`${import.meta.env.BASE_URL}api/proxy-paper?key=${encodeURIComponent(key)}`);
   if (!response.ok) throw new Error(`Could not fetch the paper (${response.status})`);
   return response.blob();
 }
@@ -349,7 +349,7 @@ export async function generatePaper(
   questionIds: string[],
   options: GeneratePaperOptions = {}
 ): Promise<GeneratedPaper> {
-  const response = await fetch("/api/compose-paper", {
+  const response = await fetch(`${import.meta.env.BASE_URL}api/compose-paper`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

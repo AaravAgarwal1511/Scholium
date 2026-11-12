@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Chapter, Section, Subject } from "@/types";
+import { RECALL_SUBJECT_ID } from "@/suiteScope";
 
 export function useSubjects() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -42,8 +43,12 @@ export function useSubjects() {
       }[];
 
       // Filter disabled subjects/sections
+      // Suite mode: only the subject this page was opened for (/physics/recall).
       const visible = rows.filter(
-        (r) => !disabledIds.has(r.subject_id) && !disabledIds.has(r.section_id),
+        (r) =>
+          (!RECALL_SUBJECT_ID || r.subject_id === RECALL_SUBJECT_ID) &&
+          !disabledIds.has(r.subject_id) &&
+          !disabledIds.has(r.section_id),
       );
 
       // Build Subject[]
