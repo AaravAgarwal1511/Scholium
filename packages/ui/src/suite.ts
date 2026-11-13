@@ -195,8 +195,12 @@ export function getSuiteScope(toolId: string): SuiteScope | null {
  */
 export function requireSuiteScope(toolId: string): SuiteScope | null {
   const scope = getSuiteScope(toolId);
-  if (!scope && typeof window !== 'undefined') {
-    window.location.replace(toolIndexUrl(toolId));
+  // Opened on the tool's own deployment (not through the suite origin), the
+  // subject list doesn't exist there and the tool's SPA fallback would serve
+  // this same app again — so redirect at most once, never from that URL.
+  const target = toolIndexUrl(toolId);
+  if (!scope && typeof window !== 'undefined' && window.location.pathname !== target) {
+    window.location.replace(target);
   }
   return scope;
 }

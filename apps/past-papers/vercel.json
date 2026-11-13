@@ -37,6 +37,8 @@
     { "source": "/generate", "destination": "/", "permanent": true }
   ],
   "rewrites": [
+    { "source": "/past-papers", "destination": "/" },
+    { "source": "/past-papers/:path*", "destination": "/:path*" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/papers/:subject/topics/:slug", "destination": "/papers/:subject/topics/:slug/index.html" },
     { "source": "/papers/:subject/:component", "destination": "/papers/:subject/:component/index.html" },

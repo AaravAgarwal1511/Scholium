@@ -12,6 +12,8 @@
     }
   ],
   "rewrites": [
+    { "source": "/poetry-notes", "destination": "/" },
+    { "source": "/poetry-notes/:path*", "destination": "/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

@@ -12,6 +12,8 @@
     }
   ],
   "rewrites": [
+    { "source": "/recall", "destination": "/" },
+    { "source": "/recall/:path*", "destination": "/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

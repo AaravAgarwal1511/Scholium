@@ -16,6 +16,23 @@
     { "source": "/subjects/:slug*", "destination": "/", "permanent": true }
   ],
   "rewrites": [
+    { "source": "/tools/:mount", "destination": "/index.html" },
+    { "source": "/:subject/language-hub", "destination": "https://preview-langhub.vercel.app/language-hub" },
+    { "source": "/:subject/language-hub/:path+", "destination": "https://preview-langhub.vercel.app/language-hub/:path+" },
+    { "source": "/language-hub", "destination": "https://preview-langhub.vercel.app/language-hub" },
+    { "source": "/language-hub/:path+", "destination": "https://preview-langhub.vercel.app/language-hub/:path+" },
+    { "source": "/:subject/recall", "destination": "https://preview-recallmaster.vercel.app/recall" },
+    { "source": "/:subject/recall/:path+", "destination": "https://preview-recallmaster.vercel.app/recall/:path+" },
+    { "source": "/recall", "destination": "https://preview-recallmaster.vercel.app/recall" },
+    { "source": "/recall/:path+", "destination": "https://preview-recallmaster.vercel.app/recall/:path+" },
+    { "source": "/:subject/past-papers", "destination": "https://preview-pastpapers.vercel.app/past-papers" },
+    { "source": "/:subject/past-papers/:path+", "destination": "https://preview-pastpapers.vercel.app/past-papers/:path+" },
+    { "source": "/past-papers", "destination": "https://preview-pastpapers.vercel.app/past-papers" },
+    { "source": "/past-papers/:path+", "destination": "https://preview-pastpapers.vercel.app/past-papers/:path+" },
+    { "source": "/:subject/poetry-notes", "destination": "https://preview-poetrynotes.vercel.app/poetry-notes" },
+    { "source": "/:subject/poetry-notes/:path+", "destination": "https://preview-poetrynotes.vercel.app/poetry-notes/:path+" },
+    { "source": "/poetry-notes", "destination": "https://preview-poetrynotes.vercel.app/poetry-notes" },
+    { "source": "/poetry-notes/:path+", "destination": "https://preview-poetrynotes.vercel.app/poetry-notes/:path+" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
