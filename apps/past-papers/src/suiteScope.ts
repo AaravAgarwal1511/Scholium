@@ -8,7 +8,11 @@ import { requireSuiteScope } from "@repo/ui";
 export const SCOPE = requireSuiteScope("past-papers");
 
 /** Suite subject slug → Cambridge IGCSE syllabus code (paper_files.subject). */
-const SUBJECT_CODES: Record<string, string> = { physics: "0625" };
+const SUBJECT_CODES: Record<string, string> = {
+  physics: "0625",
+  chemistry: "0620",
+  "add-maths": "0606",
+};
 
 export const SCOPED_SUBJECT_CODE: string | null = SCOPE
   ? SUBJECT_CODES[SCOPE.subject.slug] ?? null

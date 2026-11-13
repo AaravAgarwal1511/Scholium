@@ -90,6 +90,20 @@ export const SUITE_SUBJECTS: SuiteSubject[] = [
     tools: ['recall-app', 'past-papers'],
   },
   {
+    slug: 'chemistry',
+    name: 'Chemistry',
+    emoji: '🧪',
+    blurb: 'Work through real exam questions, topic by topic.',
+    tools: ['past-papers'],
+  },
+  {
+    slug: 'add-maths',
+    name: 'Additional Mathematics',
+    emoji: '📐',
+    blurb: 'Practise past-paper questions chapter by chapter, calculator and non-calculator.',
+    tools: ['past-papers'],
+  },
+  {
     slug: 'literature',
     name: 'Literature',
     emoji: '📖',
