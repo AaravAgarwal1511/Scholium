@@ -1,3 +1,4 @@
+import { scopedToolTitle } from "@repo/ui";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAnalytics } from "@repo/analytics";
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/collapsible";
 import { useApp } from "@/contexts/AppContext";
 import { useSubjects } from "@/hooks/useSubjects";
-import { RECALL_SUBJECT_ID } from "@/suiteScope";
+import { RECALL_SUBJECT_ID, SCOPE } from "@/suiteScope";
 import { TwoSiderLauncher } from "@/components/TwoSiderLauncher";
 import type { Chapter, Section, Subject } from "@/types";
 import { PASS_CONFIG } from "@/lib/passConfig";
@@ -218,7 +219,7 @@ export default function Home({ description }: { description?: string | null } = 
     <div className="min-h-screen bg-background">
       <header className="max-w-5xl mx-auto px-6 pt-10 pb-2">
         <h1 className="text-foreground text-3xl sm:text-4xl font-bold tracking-tight">
-          Recall Master.
+          {SCOPE ? scopedToolTitle(SCOPE) : "Recall Master"}.
         </h1>
         <p className="mt-2 text-muted-foreground max-w-2xl leading-relaxed">
           {description ?? "A laboratory for memory. Four progressive passes (match, choose, recall, write) until the answer is yours."}

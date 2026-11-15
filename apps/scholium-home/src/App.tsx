@@ -1,3 +1,4 @@
+import { useGoTo } from "@/lib/goTo";
 import { useEffect, useState } from "react";
 import { BrowserRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -35,6 +36,7 @@ async function loadScholiumApps(): Promise<AppLink[]> {
 function NavbarWired({ apps }: { apps: AppLink[] }) {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const goTo = useGoTo();
   const { track } = useAnalytics();
   // On /physics the Physics entry in the Subjects dropdown is highlighted.
   const firstSegment = useLocation().pathname.split("/")[1] ?? "";
@@ -51,7 +53,7 @@ function NavbarWired({ apps }: { apps: AppLink[] }) {
       }}
       onPickSubject={(subject) => {
         const s = getSubjectByName(subject);
-        navigate(s ? subjectUrl(s.slug) : "/");
+        goTo(s ? subjectUrl(s.slug) : "/");
       }}
     />
   );

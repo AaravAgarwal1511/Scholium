@@ -31,6 +31,8 @@ export interface SuiteSubject {
   name: string;
   emoji: string;
   blurb: string;
+  /** Cambridge IGCSE syllabus code, shown next to the name everywhere. */
+  code?: string;
   /** Tool ids, in display order. */
   tools: string[];
 }
@@ -81,6 +83,7 @@ export const SUITE_TOOLS: SuiteTool[] = [
 export const SUITE_SUBJECTS: SuiteSubject[] = [
   {
     slug: 'physics',
+    code: '0625',
     name: 'Physics',
     emoji: '⚛️',
     blurb: 'Lock in the definitions, then test them against real exam questions.',
@@ -88,13 +91,15 @@ export const SUITE_SUBJECTS: SuiteSubject[] = [
   },
   {
     slug: 'chemistry',
+    code: '0620',
     name: 'Chemistry',
     emoji: '🧪',
-    blurb: 'Learn the definitions, then work through real exam questions topic by topic.',
+    blurb: 'Lock in the definitions, then test them against real exam questions.',
     tools: ['recall-app', 'past-papers'],
   },
   {
     slug: 'biology',
+    code: '0610',
     name: 'Biology',
     emoji: '🧬',
     blurb: 'Build papers from real exam questions, topic by topic.',
@@ -102,6 +107,7 @@ export const SUITE_SUBJECTS: SuiteSubject[] = [
   },
   {
     slug: 'maths',
+    code: '0580',
     name: 'Mathematics',
     emoji: '➗',
     blurb: 'Practise past-paper questions chapter by chapter.',
@@ -109,6 +115,7 @@ export const SUITE_SUBJECTS: SuiteSubject[] = [
   },
   {
     slug: 'int-maths',
+    code: '0607',
     name: 'International Mathematics',
     emoji: '📊',
     blurb: 'Practise past-paper questions chapter by chapter.',
@@ -116,13 +123,15 @@ export const SUITE_SUBJECTS: SuiteSubject[] = [
   },
   {
     slug: 'add-maths',
+    code: '0606',
     name: 'Additional Mathematics',
     emoji: '📐',
-    blurb: 'Practise past-paper questions chapter by chapter, calculator and non-calculator.',
+    blurb: 'Practise past-paper questions chapter by chapter.',
     tools: ['past-papers'],
   },
   {
     slug: 'computer-science',
+    code: '0478',
     name: 'Computer Science',
     emoji: '💻',
     blurb: 'Build papers from real exam questions, topic by topic.',
@@ -130,13 +139,15 @@ export const SUITE_SUBJECTS: SuiteSubject[] = [
   },
   {
     slug: 'economics',
+    code: '0455',
     name: 'Economics',
     emoji: '📈',
-    blurb: 'Memorise the key definitions, then apply them to real exam questions.',
+    blurb: 'Lock in the definitions, then test them against real exam questions.',
     tools: ['recall-app', 'past-papers'],
   },
   {
     slug: 'english-language',
+    code: '0500',
     name: 'First Language English',
     emoji: '✍️',
     blurb: 'Download adapted past papers and mark schemes.',
@@ -144,6 +155,7 @@ export const SUITE_SUBJECTS: SuiteSubject[] = [
   },
   {
     slug: 'french',
+    code: '0520',
     name: 'French',
     emoji: '🇫🇷',
     blurb: 'Build vocabulary, drill it, and hear it spoken.',
@@ -151,6 +163,7 @@ export const SUITE_SUBJECTS: SuiteSubject[] = [
   },
   {
     slug: 'spanish',
+    code: '0530',
     name: 'Spanish',
     emoji: '🇪🇸',
     blurb: 'Build vocabulary, drill it, and hear it spoken.',
@@ -177,16 +190,39 @@ export function getSubject(slug: string): SuiteSubject | undefined {
   return SUITE_SUBJECTS.find(s => s.slug === slug.toLowerCase());
 }
 
+/** Accepts a bare name, a slug, or a label with its code ("Physics (0625)"). */
 export function getSubjectByName(name: string): SuiteSubject | undefined {
-  const n = name.toLowerCase();
-  return SUITE_SUBJECTS.find(s => s.name.toLowerCase() === n || s.slug === n);
+  const n = name.toLowerCase().trim();
+  const bare = n.replace(/\s*\(\d{4}\)$/, '');
+  return SUITE_SUBJECTS.find(
+    s => s.name.toLowerCase() === bare || s.slug === bare || subjectLabel(s).toLowerCase() === n,
+  );
+}
+
+/** "Physics (0625)" — the name with its syllabus code, wherever a subject is named. */
+export function subjectLabel(subject: SuiteSubject): string {
+  return subject.code ? `${subject.name} (${subject.code})` : subject.name;
+}
+
+/** "Physics (0625) Past Papers" — a tool as opened for one subject. */
+export function scopedToolTitle(scope: { subject: SuiteSubject; tool: SuiteTool }): string {
+  return `${subjectLabel(scope.subject)} ${scope.tool.title}`;
 }
 
 export function subjectsForTool(toolId: string): SuiteSubject[] {
   return SUITE_SUBJECTS.filter(s => s.tools.includes(toolId));
 }
 
+/** Where picking a subject lands: its page listing its tools, or — when only one
+ *  tool covers it (Biology → Past Papers) — straight into that tool. */
 export function subjectUrl(slug: string): string {
+  const subject = getSubject(slug);
+  if (subject && subject.tools.length === 1) return toolUrl(subject.tools[0], subject.slug);
+  return `/${slug}`;
+}
+
+/** The subject's own page, regardless of how many tools it has. */
+export function subjectPageUrl(slug: string): string {
   return `/${slug}`;
 }
 
@@ -203,7 +239,7 @@ export function toolIndexUrl(toolId: string): string {
 /** Where a tool lives for one subject, e.g. `/physics/recall`. */
 export function toolUrl(toolId: string, subjectSlug: string): string {
   const tool = getTool(toolId);
-  return tool ? `/${subjectSlug}/${tool.mount}` : subjectUrl(subjectSlug);
+  return tool ? `/${subjectSlug}/${tool.mount}` : subjectPageUrl(subjectSlug);
 }
 
 /** The suite as `AppLink`s for the navbar's Study-tools dropdown and search.
@@ -216,7 +252,7 @@ export function suiteAppLinks(): AppLink[] {
     url: toolIndexUrl(t.id),
     icon: t.icon,
     description: t.description,
-    subjects: subjectsForTool(t.id).map(s => s.name),
+    subjects: subjectsForTool(t.id).map(subjectLabel),
     has_demo: t.hasDemo,
     no_login: t.noLogin,
   }));
@@ -226,7 +262,7 @@ export function suiteAppLinks(): AppLink[] {
 export function suiteSubjectLinks(): NavSubjectLink[] {
   return SUITE_SUBJECTS.map(s => ({
     slug: s.slug,
-    name: s.name,
+    name: subjectLabel(s),
     icon: s.emoji,
     url: subjectUrl(s.slug),
   }));
@@ -261,6 +297,13 @@ export function getSuiteScope(toolId: string): SuiteScope | null {
   return { tool, subject, basename: `/${subject.slug}/${tool.mount}` };
 }
 
+/** Sets the tab title to the subject + tool, e.g. "Computer Science (0478) Past Papers · Scholium". */
+export function applySuiteDocumentTitle(scope: SuiteScope | null): void {
+  if (scope && typeof document !== 'undefined') {
+    document.title = `${scopedToolTitle(scope)} · Scholium`;
+  }
+}
+
 /**
  * Resolves the scope or, failing that, sends the browser to the tool's subject
  * list and returns null. Call once at the top of a tool's App.
@@ -274,5 +317,6 @@ export function requireSuiteScope(toolId: string): SuiteScope | null {
   if (!scope && typeof window !== 'undefined' && window.location.pathname !== target) {
     window.location.replace(target);
   }
+  applySuiteDocumentTitle(scope);
   return scope;
 }

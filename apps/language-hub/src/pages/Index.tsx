@@ -1,3 +1,4 @@
+import { scopedToolTitle } from "@repo/ui";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -66,7 +67,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { SCOPED_LANGUAGE } from "@/suiteScope";
+import { SCOPE, SCOPED_LANGUAGE } from "@/suiteScope";
 
 interface VocabularySet {
   id: string;
@@ -228,7 +229,7 @@ const Index = () => {
 
       <header data-tour="hero" className="container mx-auto max-w-4xl px-6 pt-10 pb-2">
         <h1 className="text-foreground text-3xl sm:text-4xl font-bold tracking-tight">
-          Language Hub.
+          {SCOPE ? scopedToolTitle(SCOPE) : "Language Hub"}.
         </h1>
         <p className="mt-2 text-muted-foreground max-w-2xl leading-relaxed">
           A field-notebook for vocabulary in French 🇫🇷 and Spanish 🇪🇸, flashcards, drills, dictation, until the words become yours.

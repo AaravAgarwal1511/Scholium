@@ -128,7 +128,7 @@ export default function SubjectPicker({ apps, onPick }: SubjectPickerProps) {
 
         <ul className="flex flex-wrap items-center justify-center gap-2 list-none p-0 m-0">
           {entries.map((entry) => {
-            const Icon = SUBJECT_ICONS[entry.subject.toLowerCase()];
+            const Icon = SUBJECT_ICONS[entry.subject.toLowerCase().replace(/\s*\(\d{4}\)$/, "")];
             return (
               <li key={`${entry.subject}-${entry.appIds.join(",")}`}>
                 <button

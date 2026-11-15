@@ -1,3 +1,5 @@
+import { scopedToolTitle } from '@repo/ui';
+import { SCOPE } from '../suiteScope';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import type { ChangeEvent } from 'react';
 import { useProject } from '../contexts/ProjectContext';
@@ -92,7 +94,7 @@ export function LandingPage({ onProjectReady, description }: LandingPageProps) {
         return (
             <div className="landing-page">
                 <header className="landing-page-header">
-                    <h1>Poetry Notes.</h1>
+                    <h1>{SCOPE ? scopedToolTitle(SCOPE) : 'Poetry Notes'}.</h1>
                     <p>{description ?? 'Your saved annotations, every reading kept beside the verse.'}</p>
                 </header>
                 <div className="landing-content">
@@ -140,7 +142,7 @@ export function LandingPage({ onProjectReady, description }: LandingPageProps) {
     return (
         <div className="landing-page">
             <header className="landing-page-header">
-                <h1>Poetry Notes.</h1>
+                <h1>{SCOPE ? scopedToolTitle(SCOPE) : 'Poetry Notes'}.</h1>
                 <p>{description ?? 'Marginalia for verse, selections become anchors, notes become a canvas around the text.'}</p>
             </header>
 

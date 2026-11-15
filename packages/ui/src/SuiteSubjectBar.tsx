@@ -1,4 +1,4 @@
-import { getTool, subjectUrl, toolUrl, type SuiteSubject } from './suite';
+import { getTool, subjectLabel, subjectPageUrl, toolUrl, type SuiteSubject } from './suite';
 import './SuiteSubjectBar.css';
 
 export interface SuiteSubjectBarProps {
@@ -17,14 +17,22 @@ export function SuiteSubjectBar({ subject, currentToolId }: SuiteSubjectBarProps
   return (
     <nav className="rui-subjectbar" aria-label={`${subject.name} tools`}>
       <div className="rui-subjectbar-inner">
-        <a
-          href={subjectUrl(subject.slug)}
-          className={`rui-subjectbar-subject${currentToolId ? '' : ' rui-subjectbar-subject--current'}`}
-          aria-current={currentToolId ? undefined : 'page'}
-        >
-          <span aria-hidden="true">{subject.emoji}</span>
-          {subject.name}
-        </a>
+        {subject.tools.length > 1 ? (
+          <a
+            href={subjectPageUrl(subject.slug)}
+            className={`rui-subjectbar-subject${currentToolId ? '' : ' rui-subjectbar-subject--current'}`}
+            aria-current={currentToolId ? undefined : 'page'}
+          >
+            <span aria-hidden="true">{subject.emoji}</span>
+            {subjectLabel(subject)}
+          </a>
+        ) : (
+          // One tool: the subject page would only bounce back here, so no link.
+          <span className="rui-subjectbar-subject">
+            <span aria-hidden="true">{subject.emoji}</span>
+            {subjectLabel(subject)}
+          </span>
+        )}
         <span className="rui-subjectbar-sep" aria-hidden="true">/</span>
         <ul className="rui-subjectbar-tabs">
           {subject.tools.map(id => {

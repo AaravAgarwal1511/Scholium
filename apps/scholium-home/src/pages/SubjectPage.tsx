@@ -5,6 +5,7 @@ import {
   SuiteSubjectBar,
   getSubject,
   getTool,
+  subjectLabel,
   toolUrl,
 } from "@repo/ui";
 import type { AppLink } from "@repo/ui";
@@ -20,6 +21,12 @@ export default function SubjectPage({ fallback }: { fallback: ReactNode }) {
   const { subject: slug = "" } = useParams();
   const subject = getSubject(slug);
   if (!subject) return <>{fallback}</>;
+  // One tool covers it: nothing to choose here, open the tool (another zone,
+  // so a full navigation).
+  if (subject.tools.length === 1) {
+    window.location.replace(toolUrl(subject.tools[0], subject.slug));
+    return null;
+  }
 
   const apps: AppLink[] = subject.tools.flatMap((id) => {
     const tool = getTool(id);
@@ -31,7 +38,7 @@ export default function SubjectPage({ fallback }: { fallback: ReactNode }) {
         url: toolUrl(tool.id, subject.slug),
         icon: tool.icon,
         description: tool.description,
-        subjects: [subject.name],
+        subjects: [subjectLabel(subject)],
         has_demo: tool.hasDemo,
         no_login: tool.noLogin,
       },
@@ -58,11 +65,16 @@ export default function SubjectPage({ fallback }: { fallback: ReactNode }) {
             >
               {subject.name}
               <span style={{ color: "hsl(var(--primary))" }}>.</span>
+              {subject.code && (
+                <span className="ml-3 align-middle text-muted-foreground font-medium" style={{ fontSize: "0.45em", letterSpacing: 0 }}>
+                  {subject.code}
+                </span>
+              )}
             </h1>
             <p className="mt-4 text-foreground/70 text-lg leading-relaxed max-w-2xl">{subject.blurb}</p>
           </div>
         </section>
-        <AppGrid apps={apps} loading={false} subject={subject.name} />
+        <AppGrid apps={apps} loading={false} subject={subjectLabel(subject)} />
       </main>
       <ScholiumFooter homeUrl="/" />
     </div>

@@ -1,6 +1,6 @@
 import { Navigate, useParams } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
-import { ScholiumFooter, getToolByMount, subjectsForTool, toolUrl } from "@repo/ui";
+import { ScholiumFooter, getToolByMount, subjectLabel, subjectsForTool, toolUrl } from "@repo/ui";
 
 /**
  * `/tools/:mount` — where the navbar's Study-tools dropdown lands. The suite is
@@ -46,24 +46,29 @@ export default function ToolSubjectsPage() {
 
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4 list-none p-0 m-0 rui-stagger">
             {subjects.map((s) => (
-              <li key={s.slug}>
+              <li key={s.slug} className="flex">
                 {/* Straight into the tool for that subject — the visitor already
                     chose the tool. A plain <a>: the tool is another zone, so
                     this is a full page load, not a client-side route. */}
                 <a
                   href={toolUrl(tool.id, s.slug)}
-                  className="sch-focus group flex items-start gap-4 p-6 rounded-[var(--radius-lg)] bg-paper border transition-all duration-300 hover:-translate-y-1"
+                  className="sch-focus group flex w-full items-start gap-4 p-6 rounded-[var(--radius-lg)] bg-paper border transition-all duration-300 hover:-translate-y-1"
                   style={{ borderColor: "var(--color-border)", boxShadow: "var(--shadow-card)" }}
                 >
                   <span className="text-4xl" aria-hidden>
                     {s.emoji}
                   </span>
-                  <span className="flex-1">
+                  {/* Column with the CTA pinned to the bottom, so cards in a row
+                      line up even when one blurb wraps to an extra line. */}
+                  <span className="flex-1 self-stretch flex flex-col">
                     <span className="block text-foreground text-2xl font-semibold" style={{ letterSpacing: "-0.02em" }}>
                       {s.name}
+                      {s.code && (
+                        <span className="ml-2 text-base font-medium text-muted-foreground tabular-nums">{s.code}</span>
+                      )}
                     </span>
                     <span className="mt-1 block text-muted-foreground leading-relaxed">{s.blurb}</span>
-                    <span className="mt-3 block text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: "hsl(var(--primary))" }}>
+                    <span className="mt-auto pt-3 block text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: "hsl(var(--primary))" }}>
                       Open {tool.title} for {s.name}
                     </span>
                   </span>
