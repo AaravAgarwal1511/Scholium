@@ -188,7 +188,9 @@ function SectionCard({
   );
 }
 
-export default function Home({ description }: { description?: string | null } = {}) {
+// Barebones prototype: the DB tagline is still passed in but no longer rendered.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export default function Home({ description: _description }: { description?: string | null } = {}) {
   const navigate = useNavigate();
   const { user, loadingAuth } = useApp();
   const { track } = useAnalytics();
@@ -221,9 +223,6 @@ export default function Home({ description }: { description?: string | null } = 
         <h1 className="text-foreground text-3xl sm:text-4xl font-bold tracking-tight">
           {SCOPE ? scopedToolTitle(SCOPE) : "Recall Master"}.
         </h1>
-        <p className="mt-2 text-muted-foreground max-w-2xl leading-relaxed">
-          {description ?? "A laboratory for memory. Four progressive passes (match, choose, recall, write) until the answer is yours."}
-        </p>
       </header>
 
       {/* Suite mode: the subject comes from the URL, so no subject tabs. */}

@@ -71,7 +71,6 @@ export default function SubjectPage({ fallback }: { fallback: ReactNode }) {
                 </span>
               )}
             </h1>
-            <p className="mt-4 text-foreground/70 text-lg leading-relaxed max-w-2xl">{subject.blurb}</p>
           </div>
         </section>
         <AppGrid apps={apps} loading={false} subject={subjectLabel(subject)} />

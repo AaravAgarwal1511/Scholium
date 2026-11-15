@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowUpRight, LockOpen, PlayCircle, Sparkles } from "lucide-react";
+import { ArrowUpRight, PlayCircle, Sparkles } from "lucide-react";
 import { useAnalytics } from "@repo/analytics";
 import { subjectsForTool, toolUrl } from "@repo/ui";
 
@@ -135,10 +135,7 @@ export default function AppCard({
   title,
   url,
   icon,
-  subjects,
-  description,
   has_demo,
-  no_login,
   highlighted,
 }: AppCardProps) {
   const { track } = useAnalytics();
@@ -150,8 +147,6 @@ export default function AppCard({
   const accentVar = meta?.accentVar ?? "--primary";
   const accent = `hsl(var(${accentVar}))`;
   const accentSoft = `hsl(var(${accentVar}) / 0.1)`;
-  const hasSubjects = subjects && subjects.length > 0;
-  const resolvedDescription = description ?? meta?.description ?? null;
   const [imageFailed, setImageFailed] = useState(false);
 
   const screenshotUrl = screenshotBySlug[slug];
@@ -173,7 +168,7 @@ export default function AppCard({
           validateDOMNesting) and browsers handle its click target
           unpredictably. Absolutely positioned to sit visually over the
           screenshot corner instead. */}
-      {(tryUrl || no_login) && (
+      {tryUrl && (
         <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-2">
           {tryUrl && (
             <a
@@ -186,21 +181,8 @@ export default function AppCard({
               aria-label={`Try ${title} free, no account needed`}
             >
               <PlayCircle size={14} strokeWidth={2.25} aria-hidden />
-              Try it free
+              Try it
             </a>
-          )}
-          {no_login && (
-            <span
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-[0.08em] shadow-soft"
-              style={{
-                background: "hsl(var(--card))",
-                color: accent,
-                border: `1px solid hsl(var(${accentVar}) / 0.3)`,
-              }}
-            >
-              <LockOpen size={14} strokeWidth={2.25} aria-hidden />
-              No login required
-            </span>
           )}
         </div>
       )}
@@ -243,18 +225,13 @@ export default function AppCard({
         </div>
 
         {/* Text */}
-        <div className="p-8 flex flex-col flex-1">
+        <div className="px-8 py-6 flex flex-col flex-1">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="text-foreground text-2xl font-semibold leading-tight" style={{ letterSpacing: "-0.02em" }}>
                 {icon && <span className="mr-2" aria-hidden>{icon}</span>}
                 {title}
               </h3>
-              {meta && (
-                <p className="mt-1 text-sm font-semibold" style={{ color: accent }}>
-                  {meta.tagline}
-                </p>
-              )}
             </div>
             <ArrowUpRight
               size={20}
@@ -263,23 +240,7 @@ export default function AppCard({
             />
           </div>
 
-          {resolvedDescription && (
-            <p className="mt-4 text-base text-muted-foreground leading-relaxed flex-1">{resolvedDescription}</p>
-          )}
 
-          {hasSubjects && (
-            <div className="mt-6 pt-5 border-t flex flex-wrap gap-1.5" style={{ borderColor: "var(--color-rule)" }}>
-              {subjects!.map((subject) => (
-                <span
-                  key={subject}
-                  className="text-[0.65rem] font-semibold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full"
-                  style={{ background: accentSoft, color: accent, border: `1px solid hsl(var(${accentVar}) / 0.3)` }}
-                >
-                  {subject}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       </a>
     </div>

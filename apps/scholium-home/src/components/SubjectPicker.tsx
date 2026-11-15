@@ -113,7 +113,7 @@ export default function SubjectPicker({ apps, onPick }: SubjectPickerProps) {
     <section id="subjects" className="py-20 border-t border-[color:var(--color-rule)]">
       <div className="max-w-3xl mx-auto px-6 text-center">
         <h2
-          className="text-foreground mb-3"
+          className="text-foreground mb-8"
           style={{
             fontSize: "clamp(1.75rem, 4vw, 2.5rem)",
             lineHeight: 1.1,
@@ -121,11 +121,8 @@ export default function SubjectPicker({ apps, onPick }: SubjectPickerProps) {
             fontWeight: 700,
           }}
         >
-          Choose your <span style={{ color: "hsl(var(--primary))" }}>subject</span>.
+          Subjects<span style={{ color: "hsl(var(--primary))" }}>.</span>
         </h2>
-        <p className="text-foreground/75 leading-relaxed mb-8">
-          Pick a subject and we'll point you to the tool that covers it.
-        </p>
 
         <ul className="flex flex-wrap items-center justify-center gap-2 list-none p-0 m-0">
           {entries.map((entry) => {

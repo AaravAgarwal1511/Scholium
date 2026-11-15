@@ -231,9 +231,6 @@ const Index = () => {
         <h1 className="text-foreground text-3xl sm:text-4xl font-bold tracking-tight">
           {SCOPE ? scopedToolTitle(SCOPE) : "Language Hub"}.
         </h1>
-        <p className="mt-2 text-muted-foreground max-w-2xl leading-relaxed">
-          A field-notebook for vocabulary in French 🇫🇷 and Spanish 🇪🇸, flashcards, drills, dictation, until the words become yours.
-        </p>
       </header>
 
       <div className="container mx-auto max-w-4xl px-6 pt-8 pb-0 flex gap-3 flex-wrap" data-tour="cta-buttons">

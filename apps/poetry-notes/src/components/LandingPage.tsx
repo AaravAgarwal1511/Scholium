@@ -15,7 +15,7 @@ interface LandingPageProps {
 
 type Screen = 'home' | 'open';
 
-export function LandingPage({ onProjectReady, description }: LandingPageProps) {
+export function LandingPage({ onProjectReady, description: _description }: LandingPageProps) {
     const { createNewProject, importProject, loadProjectList, openProject, deleteProject } = useProject();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [error, setError] = useState<string | null>(null);
@@ -95,7 +95,6 @@ export function LandingPage({ onProjectReady, description }: LandingPageProps) {
             <div className="landing-page">
                 <header className="landing-page-header">
                     <h1>{SCOPE ? scopedToolTitle(SCOPE) : 'Poetry Notes'}.</h1>
-                    <p>{description ?? 'Your saved annotations, every reading kept beside the verse.'}</p>
                 </header>
                 <div className="landing-content">
                     <div className="projects-toolbar">
@@ -143,7 +142,6 @@ export function LandingPage({ onProjectReady, description }: LandingPageProps) {
         <div className="landing-page">
             <header className="landing-page-header">
                 <h1>{SCOPE ? scopedToolTitle(SCOPE) : 'Poetry Notes'}.</h1>
-                <p>{description ?? 'Marginalia for verse, selections become anchors, notes become a canvas around the text.'}</p>
             </header>
 
             <div className="landing-content">

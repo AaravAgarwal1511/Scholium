@@ -165,7 +165,9 @@ interface GeneratePaperPageProps {
   description?: string | null;
 }
 
-export default function GeneratePaperPage({ description }: GeneratePaperPageProps = {}) {
+// Barebones prototype: the DB tagline is still passed in but not rendered.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export default function GeneratePaperPage({ description: _description }: GeneratePaperPageProps = {}) {
   const { track } = useAnalytics();
   const { user, loadingAuth } = useAuth();
   const navigate = useNavigate();
@@ -737,22 +739,14 @@ export default function GeneratePaperPage({ description }: GeneratePaperPageProp
   };
 
   return (
-    <Layout subtitle={description ?? undefined}>
+    <Layout>
       {isGenerating && <GeneratingOverlay elapsed={elapsed} estimate={estimate} />}
 
+      {/* Kept, collapsed: it carries the Cambridge non-affiliation notice. */}
       <div className="mb-8">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="p-2 rounded-lg bg-accent/10">
-            <Zap size={20} className="text-accent" />
-          </div>
-          <h2 className="font-display font-bold text-3xl">Generate Paper</h2>
-        </div>
-        <p className="text-muted-foreground text-sm">
-          Select chapters and the number of questions you want from each. Questions are picked at random.
-        </p>
-        <details className="mt-4 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+        <details className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
           <summary className="cursor-pointer font-medium text-foreground">
-            How this is put together
+            About these questions
           </summary>
           <div className="mt-2 space-y-2">
             <p>

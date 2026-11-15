@@ -76,22 +76,16 @@ export default function SavedPapersPanel({ user, loadingAuth, refreshSignal }: S
   if (!user) {
     return (
       <section className="mb-8">
-        <EmptyState
-          title="Your papers, wherever you sign in"
-          hint="Sign in to keep every paper you generate. Come back any time to re-download it or open it in Mock Space."
+        <button
+          type="button"
+          onClick={() => {
+            track("signin_click", { source: "history_panel" });
+            navigate(signInHref());
+          }}
+          className="text-sm font-medium underline underline-offset-4 text-muted-foreground hover:text-foreground"
         >
-          <button
-            type="button"
-            onClick={() => {
-              track("signin_click", { source: "history_panel" });
-              navigate(signInHref());
-            }}
-            className="px-4 py-2 rounded-lg font-semibold text-sm"
-            style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}
-          >
-            Sign in
-          </button>
-        </EmptyState>
+          Sign in to save papers
+        </button>
       </section>
     );
   }

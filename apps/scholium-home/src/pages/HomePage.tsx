@@ -6,10 +6,6 @@ import type { AppLink } from "@repo/ui";
 import Hero from "@/components/Hero";
 import SubjectPicker from "@/components/SubjectPicker";
 import AppGrid from "@/components/AppGrid";
-import TrustStrip from "@/components/TrustStrip";
-import InfoSection from "@/components/InfoSection";
-import BackedBySection from "@/components/BackedBySection";
-import ClosingCTA from "@/components/ClosingCTA";
 
 function scrollTo(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -89,7 +85,7 @@ export default function HomePage({ apps, loadingApps }: HomePageProps) {
       <main className="flex-1 flex flex-col">
         <div className="flex-1 flex flex-col" style={{ minHeight: "calc(100dvh - 3.5rem)" }}>
           <Hero
-            onScrollToScience={() => scrollTo("science")}
+            onScrollToScience={() => scrollTo("subjects")}
             onExploreTools={() => scrollTo("tools")}
             apps={apps}
           />
@@ -104,10 +100,6 @@ export default function HomePage({ apps, loadingApps }: HomePageProps) {
           highlightedAppId={highlightedAppId}
           subject={subjectFilter?.subject ?? null}
         />
-        <TrustStrip apps={apps} />
-        <InfoSection />
-        <BackedBySection />
-        <ClosingCTA apps={apps} />
       </main>
       <ScholiumFooter homeUrl="/" />
     </div>

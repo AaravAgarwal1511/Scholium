@@ -9,7 +9,7 @@ interface LayoutProps {
 
 export default function Layout({
   children,
-  subtitle = "Generate a custom paper by picking chapters and how many questions you want from each.",
+  subtitle,
 }: LayoutProps) {
   return (
     <div className="min-h-screen flex flex-col">
@@ -17,9 +17,9 @@ export default function Layout({
         <h1 className="text-foreground text-3xl sm:text-4xl font-bold tracking-tight">
           {SCOPE ? scopedToolTitle(SCOPE) : "Past Papers"}.
         </h1>
-        <p className="mt-2 text-muted-foreground max-w-2xl leading-relaxed">
-          {subtitle}
-        </p>
+        {subtitle && (
+          <p className="mt-2 text-muted-foreground max-w-2xl leading-relaxed">{subtitle}</p>
+        )}
       </header>
       <main className="flex-1">
         <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-10">
