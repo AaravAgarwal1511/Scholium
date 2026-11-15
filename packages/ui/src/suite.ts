@@ -74,14 +74,11 @@ export const SUITE_TOOLS: SuiteTool[] = [
   },
 ];
 
+// Display order: sciences, maths, humanities, English, languages. Mirrors what
+// each tool actually carries in production (recall_chapters subjects, the
+// past-papers syllabus codes, Language Hub's two languages). Mock Space is
+// deliberately not part of the suite yet.
 export const SUITE_SUBJECTS: SuiteSubject[] = [
-  {
-    slug: 'french',
-    name: 'French',
-    emoji: '🇫🇷',
-    blurb: 'Build vocabulary, drill it, and hear it spoken.',
-    tools: ['language-hub'],
-  },
   {
     slug: 'physics',
     name: 'Physics',
@@ -93,7 +90,28 @@ export const SUITE_SUBJECTS: SuiteSubject[] = [
     slug: 'chemistry',
     name: 'Chemistry',
     emoji: '🧪',
-    blurb: 'Work through real exam questions, topic by topic.',
+    blurb: 'Learn the definitions, then work through real exam questions topic by topic.',
+    tools: ['recall-app', 'past-papers'],
+  },
+  {
+    slug: 'biology',
+    name: 'Biology',
+    emoji: '🧬',
+    blurb: 'Build papers from real exam questions, topic by topic.',
+    tools: ['past-papers'],
+  },
+  {
+    slug: 'maths',
+    name: 'Mathematics',
+    emoji: '➗',
+    blurb: 'Practise past-paper questions chapter by chapter.',
+    tools: ['past-papers'],
+  },
+  {
+    slug: 'int-maths',
+    name: 'International Mathematics',
+    emoji: '📊',
+    blurb: 'Practise past-paper questions chapter by chapter.',
     tools: ['past-papers'],
   },
   {
@@ -102,6 +120,41 @@ export const SUITE_SUBJECTS: SuiteSubject[] = [
     emoji: '📐',
     blurb: 'Practise past-paper questions chapter by chapter, calculator and non-calculator.',
     tools: ['past-papers'],
+  },
+  {
+    slug: 'computer-science',
+    name: 'Computer Science',
+    emoji: '💻',
+    blurb: 'Build papers from real exam questions, topic by topic.',
+    tools: ['past-papers'],
+  },
+  {
+    slug: 'economics',
+    name: 'Economics',
+    emoji: '📈',
+    blurb: 'Memorise the key definitions, then apply them to real exam questions.',
+    tools: ['recall-app', 'past-papers'],
+  },
+  {
+    slug: 'english-language',
+    name: 'First Language English',
+    emoji: '✍️',
+    blurb: 'Download adapted past papers and mark schemes.',
+    tools: ['past-papers'],
+  },
+  {
+    slug: 'french',
+    name: 'French',
+    emoji: '🇫🇷',
+    blurb: 'Build vocabulary, drill it, and hear it spoken.',
+    tools: ['language-hub'],
+  },
+  {
+    slug: 'spanish',
+    name: 'Spanish',
+    emoji: '🇪🇸',
+    blurb: 'Build vocabulary, drill it, and hear it spoken.',
+    tools: ['language-hub'],
   },
   {
     slug: 'literature',

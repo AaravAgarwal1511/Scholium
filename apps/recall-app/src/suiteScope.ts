@@ -8,7 +8,11 @@ import { requireSuiteScope } from "@repo/ui";
 export const SCOPE = requireSuiteScope("recall-app");
 
 /** Suite subject slug → recall_chapters.subject_id. */
-const RECALL_SUBJECT_IDS: Record<string, string> = { physics: "physics" };
+const RECALL_SUBJECT_IDS: Record<string, string> = {
+  physics: "physics",
+  chemistry: "chemistry",
+  economics: "economics",
+};
 
 export const RECALL_SUBJECT_ID: string | null = SCOPE
   ? RECALL_SUBJECT_IDS[SCOPE.subject.slug] ?? SCOPE.subject.slug

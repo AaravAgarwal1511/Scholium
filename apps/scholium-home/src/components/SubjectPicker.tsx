@@ -39,6 +39,8 @@ const SUBJECT_ICONS: Record<string, LucideIcon> = {
   "int. math": Calculator,
   "add. math": Calculator,
   "additional mathematics": Calculator,
+  "international mathematics": Calculator,
+  "first language english": Feather,
   english: BookOpen,
   literature: BookOpen,
   poetry: Feather,

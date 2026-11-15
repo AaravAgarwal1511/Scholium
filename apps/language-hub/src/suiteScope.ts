@@ -8,7 +8,10 @@ import { requireSuiteScope } from "@repo/ui";
 export const SCOPE = requireSuiteScope("language-hub");
 
 /** Suite subject slug → vocabulary_sets.language. */
-const LANGUAGES: Record<string, "french" | "spanish"> = { french: "french" };
+const LANGUAGES: Record<string, "french" | "spanish"> = {
+  french: "french",
+  spanish: "spanish",
+};
 
 export const SCOPED_LANGUAGE: "french" | "spanish" | null = SCOPE
   ? LANGUAGES[SCOPE.subject.slug] ?? null

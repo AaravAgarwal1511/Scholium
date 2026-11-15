@@ -3,7 +3,8 @@ import manifest from "@/data/fleManifest.json";
 
 // Static PDFs live in public/fle-papers/ and are listed in src/data/fleManifest.json
 // (newest series first). Add a paper by dropping the PDFs in and adding it there.
-const FILE_BASE = "/fle-papers/";
+// Under the Vite base (/past-papers/), so the suite origin proxies it to this zone.
+const FILE_BASE = `${import.meta.env.BASE_URL}fle-papers/`;
 
 type Series = { slug: string; label: string; papers: { paper: string; qp: string | null; ms: string | null }[] };
 

@@ -10,7 +10,7 @@ import {
   suiteSubjectLinks,
   goToSubjectByName,
 } from "@repo/ui";
-import { SCOPE } from "@/suiteScope";
+import { SCOPE, SCOPED_IS_FLE } from "@/suiteScope";
 import type { AppLink } from "@repo/ui";
 import "@repo/ui/scholium-navbar.css";
 import "@repo/ui/legal.css";
@@ -109,8 +109,12 @@ function MainRoutes({ apps, ownDescription }: { apps: AppLink[]; ownDescription:
       {SCOPE && <SuiteSubjectBar subject={SCOPE.subject} currentToolId={SCOPE.tool.id} />}
       <Suspense fallback={<RouteFallback />}>
         <Routes>
-          <Route path="/" element={<GeneratePaperPage description={ownDescription} />} />
-          <Route path="/fle" element={<FlePapersPage />} />
+          {/* /english-language/past-papers is the FLE download list itself. */}
+          <Route
+            path="/"
+            element={SCOPED_IS_FLE ? <FlePapersPage /> : <GeneratePaperPage description={ownDescription} />}
+          />
+          <Route path="/fle" element={SCOPED_IS_FLE ? <Navigate to="/" replace /> : <FlePapersPage />} />
           <Route path="/generate" element={<Navigate to="/" replace />} />
           <Route path="/signin" element={<Auth defaultMode="signin" />} />
           <Route path="/signup" element={<Auth defaultMode="signup" />} />
