@@ -24,6 +24,7 @@ import {
   Microscope,
   Receipt,
   Network,
+  PenLine,
 } from "lucide-react";
 
 // Keys are matched exactly against the lowercased `subjects` strings on the DB
@@ -40,7 +41,7 @@ const SUBJECT_ICONS: Record<string, LucideIcon> = {
   "add. math": Calculator,
   "additional mathematics": Calculator,
   "international mathematics": Calculator,
-  "first language english": Feather,
+  "first language english": PenLine,
   english: BookOpen,
   literature: BookOpen,
   poetry: Feather,

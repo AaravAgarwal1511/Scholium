@@ -1,5 +1,6 @@
 import { Navigate, useParams } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
+import SavedPapersOverview from "@/components/SavedPapersOverview";
 import { ScholiumFooter, getToolByMount, subjectsForTool, toolUrl } from "@repo/ui";
 
 /**
@@ -39,6 +40,9 @@ export default function ToolSubjectsPage() {
             {tool.title}
           </h1>
           <p className="mt-4 text-foreground/70 text-lg leading-relaxed">{tool.description}</p>
+
+          {/* Above the picker, like the tool's own panel: a returning user's first stop. */}
+          {tool.id === "past-papers" && <SavedPapersOverview />}
 
           <h2 className="mt-14 mb-5 text-foreground text-xl font-semibold" style={{ letterSpacing: "-0.01em" }}>
             Choose a <span style={{ color: "hsl(var(--primary))" }}>subject</span>.

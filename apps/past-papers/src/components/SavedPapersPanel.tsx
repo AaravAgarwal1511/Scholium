@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import type { User } from "@supabase/supabase-js";
@@ -29,6 +29,9 @@ export default function SavedPapersPanel({ user, loadingAuth, refreshSignal }: S
   const [papers, setPapers] = useState<SavedPaper[] | null>(null);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // `?download=<id>` — sent by the suite's all-subjects list on /tools/past-papers.
+  // Handled once, then stripped so a reload doesn't download again.
+  const pendingDownload = useRef<string | null>(new URLSearchParams(location.search).get("download"));
 
   useEffect(() => {
     if (!user) {
@@ -48,6 +51,20 @@ export default function SavedPapersPanel({ user, loadingAuth, refreshSignal }: S
       cancelled = true;
     };
   }, [user, refreshSignal]);
+
+  useEffect(() => {
+    const id = pendingDownload.current;
+    if (!id || !papers) return;
+    pendingDownload.current = null;
+    navigate(location.pathname, { replace: true });
+    const paper = papers.find((p) => p.id === id);
+    if (paper) {
+      toast("Preparing your paper…");
+      void handleDownload(paper);
+    }
+    // handleDownload/navigate are stable enough for a one-shot effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [papers]);
 
   if (loadingAuth) return null;
 

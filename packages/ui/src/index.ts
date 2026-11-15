@@ -33,6 +33,7 @@ export {
   subjectUrl,
   toolIndexUrl,
   subjectLabel,
+  getSubjectByCode,
   scopedToolTitle,
   subjectPageUrl,
   applySuiteDocumentTitle,

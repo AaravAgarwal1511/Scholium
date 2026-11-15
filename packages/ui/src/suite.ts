@@ -171,6 +171,7 @@ export const SUITE_SUBJECTS: SuiteSubject[] = [
   },
   {
     slug: 'literature',
+    code: '0475',
     name: 'Literature',
     emoji: '📖',
     blurb: 'Annotate the set poems and build linked notes around the text.',
@@ -188,6 +189,11 @@ export function getToolByMount(mount: string): SuiteTool | undefined {
 
 export function getSubject(slug: string): SuiteSubject | undefined {
   return SUITE_SUBJECTS.find(s => s.slug === slug.toLowerCase());
+}
+
+/** By syllabus code, e.g. a saved paper's `subject` ("0625") → Physics. */
+export function getSubjectByCode(code: string): SuiteSubject | undefined {
+  return SUITE_SUBJECTS.find(s => s.code === code);
 }
 
 /** Accepts a bare name, a slug, or a label with its code ("Physics (0625)"). */
