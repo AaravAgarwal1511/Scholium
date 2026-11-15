@@ -1,6 +1,6 @@
 import { Navigate, useParams } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
-import { ScholiumFooter, getToolByMount, subjectLabel, subjectsForTool, toolUrl } from "@repo/ui";
+import { ScholiumFooter, getToolByMount, subjectsForTool, toolUrl } from "@repo/ui";
 
 /**
  * `/tools/:mount` — where the navbar's Study-tools dropdown lands. The suite is
