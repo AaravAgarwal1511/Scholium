@@ -1,4 +1,5 @@
 import type { GeneratedPaper } from "@/lib/papers";
+import { SCOPED_SUBJECT_CODE } from "@/suiteScope";
 
 // Keeps the generator's in-progress selections and last result across a
 // remount — most importantly the /signin round trip, since Auth.tsx always
@@ -45,7 +46,12 @@ export interface GeneratorSessionState {
 export function loadGeneratorSession(): GeneratorSessionState | null {
   try {
     const raw = sessionStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as GeneratorSessionState) : null;
+    const state = raw ? (JSON.parse(raw) as GeneratorSessionState) : null;
+    // The key is shared by every subject in the tab, so a session left over
+    // from /physics/past-papers must not hydrate /chemistry/past-papers with
+    // physics components and chapter counts.
+    if (state && SCOPED_SUBJECT_CODE && state.selectedSubject !== SCOPED_SUBJECT_CODE) return null;
+    return state;
   } catch {
     return null;
   }

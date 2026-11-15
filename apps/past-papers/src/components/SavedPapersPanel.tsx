@@ -6,6 +6,7 @@ import { History, Download as DownloadIcon, Trash2 } from "lucide-react";
 import { useAnalytics } from "@repo/analytics";
 import { EmptyState } from "@/components/StateViews";
 import { downloadPaper, subjectDisplayName } from "@/lib/papers";
+import { SCOPED_SUBJECT_CODE } from "@/suiteScope";
 import { listSavedPapers, deleteSavedPaper, resolveSavedPaper, type SavedPaper } from "@/lib/savedPapers";
 
 interface SavedPapersPanelProps {
@@ -35,7 +36,7 @@ export default function SavedPapersPanel({ user, loadingAuth, refreshSignal }: S
       return;
     }
     let cancelled = false;
-    listSavedPapers(user.id)
+    listSavedPapers(user.id, SCOPED_SUBJECT_CODE)
       .then((rows) => {
         if (!cancelled) setLoadError(null);
         if (!cancelled) setPapers(rows);

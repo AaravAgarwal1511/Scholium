@@ -81,12 +81,13 @@ export async function savePaper(userId: string, input: SavePaperInput): Promise<
   if (error) throw new Error(error.message);
 }
 
-/** Most recently generated first. RLS already scopes this to the caller. */
-export async function listSavedPapers(userId: string): Promise<SavedPaper[]> {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select("*")
-    .eq("user_id", userId)
+/** Most recently generated first. RLS already scopes this to the caller.
+ *  `subject` (a syllabus code) narrows it to one subject — the suite passes the
+ *  subject from the URL, so /chemistry/past-papers lists only 0620 papers. */
+export async function listSavedPapers(userId: string, subject?: string | null): Promise<SavedPaper[]> {
+  let query = supabase.from(TABLE).select("*").eq("user_id", userId);
+  if (subject) query = query.eq("subject", subject);
+  const { data, error } = await query
     .order("created_at", { ascending: false })
     .limit(LIST_LIMIT);
 

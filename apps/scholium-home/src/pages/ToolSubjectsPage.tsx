@@ -12,6 +12,12 @@ export default function ToolSubjectsPage() {
   const tool = getToolByMount(mount);
   if (!tool) return <Navigate to="/" replace />;
   const subjects = subjectsForTool(tool.id);
+  // Single-subject tool: nothing to choose. The tool is another zone, so this
+  // is a full navigation, not a router <Navigate>.
+  if (subjects.length === 1) {
+    window.location.replace(toolUrl(tool.id, subjects[0].slug));
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex flex-col">

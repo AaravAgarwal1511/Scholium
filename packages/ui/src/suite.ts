@@ -137,9 +137,14 @@ export function subjectUrl(slug: string): string {
   return `/${slug}`;
 }
 
+/** Where picking a tool from the navbar lands: its subject list, or — when the
+ *  tool covers exactly one subject (Poetry Notes → Literature) — straight into
+ *  the tool, since a one-card picker is just an extra click. */
 export function toolIndexUrl(toolId: string): string {
   const tool = getTool(toolId);
-  return tool ? `/tools/${tool.mount}` : '/';
+  if (!tool) return '/';
+  const subjects = subjectsForTool(tool.id);
+  return subjects.length === 1 ? toolUrl(tool.id, subjects[0].slug) : `/tools/${tool.mount}`;
 }
 
 /** Where a tool lives for one subject, e.g. `/physics/recall`. */
