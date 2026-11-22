@@ -50,7 +50,7 @@ export function suiteAppLinks(): AppLink[] {
 export function suiteSubjectLinks(): NavSubjectLink[] {
   return SUITE_SUBJECTS.map(s => ({
     slug: s.slug,
-    name: subjectLabel(s),
+    name: s.name,
     icon: s.emoji,
     url: subjectUrl(s.slug),
   }));
