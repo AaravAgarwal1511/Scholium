@@ -9,7 +9,7 @@ module.exports = {
   ci: {
     collect: {
       // Build first (turbo), then LHCI starts the preview itself.
-      startServerCommand: 'pnpm exec vite preview --port 4273',
+      startServerCommand: 'pnpm exec vite preview --configLoader runner --port 4273',
       url: [
         'http://localhost:4273/',
         'http://localhost:4273/about',

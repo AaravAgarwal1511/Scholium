@@ -2,6 +2,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { fileURLToPath } from "node:url";
+import { prerenderSuite } from "./prerender";
+
+// The config is loaded as ESM (--configLoader runner), so there is no __dirname.
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 // Subject-first multi-zone simulation. scholium-home is the one origin
 // (localhost:3030); every tool keeps its own dev server and is reached through
@@ -41,10 +46,10 @@ export default defineConfig({
     port: 3030,
     proxy: zoneProxies(),
   },
-  plugins: [react()],
+  plugins: [react(), prerenderSuite()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(here, "./src"),
     },
     dedupe: ["react", "react-dom"],
   },

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowUpRight, PlayCircle, Sparkles } from "lucide-react";
+import { ArrowUpRight, LockOpen, PlayCircle, Sparkles } from "lucide-react";
 import { useAnalytics } from "@repo/analytics";
 import { subjectsForTool, toolUrl } from "@repo/ui";
 
@@ -135,7 +135,9 @@ export default function AppCard({
   title,
   url,
   icon,
+  description,
   has_demo,
+  no_login,
   highlighted,
 }: AppCardProps) {
   const { track } = useAnalytics();
@@ -168,7 +170,7 @@ export default function AppCard({
           validateDOMNesting) and browsers handle its click target
           unpredictably. Absolutely positioned to sit visually over the
           screenshot corner instead. */}
-      {tryUrl && (
+      {(tryUrl || no_login) && (
         <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-2">
           {tryUrl && (
             <a
@@ -183,6 +185,15 @@ export default function AppCard({
               <PlayCircle size={14} strokeWidth={2.25} aria-hidden />
               Try it
             </a>
+          )}
+          {no_login && (
+            <span
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-[0.08em] shadow-soft"
+              style={{ background: "hsl(var(--card))", color: accent, border: `1px solid hsl(var(${accentVar}) / 0.3)` }}
+            >
+              <LockOpen size={14} strokeWidth={2.25} aria-hidden />
+              No login needed
+            </span>
           )}
         </div>
       )}
@@ -239,8 +250,9 @@ export default function AppCard({
               style={{ color: accent }}
             />
           </div>
-
-
+          {(description ?? meta?.description) && (
+            <p className="mt-2 text-base text-muted-foreground leading-relaxed">{description ?? meta?.description}</p>
+          )}
         </div>
       </a>
     </div>

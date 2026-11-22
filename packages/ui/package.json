@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./suite-data": "./src/suiteData.ts",
     "./tokens.css": "./src/tokens.css",
     "./auth-card.css": "./src/AuthCard.css",
     "./settings-layout.css": "./src/SettingsLayout.css",

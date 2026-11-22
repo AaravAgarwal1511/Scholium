@@ -1,32 +1,38 @@
-import type { ReactNode } from "react";
 import { useParams } from "react-router-dom";
 import {
   ScholiumFooter,
   SuiteSubjectBar,
   getSubject,
   getTool,
+  subjectIntro,
   subjectLabel,
+  subjectPageMeta,
   toolUrl,
+  type SuiteSubject,
 } from "@repo/ui";
 import type { AppLink } from "@repo/ui";
 import AppGrid from "@/components/AppGrid";
+import NotFoundPage from "@/pages/NotFoundPage";
+import { useDocumentMeta } from "@/hooks/useDocumentMeta";
 
 /**
- * `/:subject` — the subject's home in the subject-first suite. Lists every
- * tool that covers the subject; each card opens that tool scoped to it
- * (`/physics/recall`). Unknown slugs render `fallback` (the home page), the
- * same as any other unmatched path.
+ * `/:subject` — the subject's home in the subject-first suite: an introduction
+ * and every tool that covers it, each opening that tool scoped to the subject
+ * (`/physics/recall`). Every subject gets a real page, even one with a single
+ * tool: in-app links skip straight to that tool (`subjectUrl`), but this is the
+ * page search visitors land on. Production serves the same copy as static HTML
+ * first (prerender.ts). Unknown slugs are a 404.
  */
-export default function SubjectPage({ fallback }: { fallback: ReactNode }) {
+export default function SubjectPage() {
   const { subject: slug = "" } = useParams();
   const subject = getSubject(slug);
-  if (!subject) return <>{fallback}</>;
-  // One tool covers it: nothing to choose here, open the tool (another zone,
-  // so a full navigation).
-  if (subject.tools.length === 1) {
-    window.location.replace(toolUrl(subject.tools[0], subject.slug));
-    return null;
-  }
+  if (!subject) return <NotFoundPage />;
+  return <SubjectView subject={subject} />;
+}
+
+function SubjectView({ subject }: { subject: SuiteSubject }) {
+  const meta = subjectPageMeta(subject);
+  useDocumentMeta({ title: meta.title, description: meta.description, canonicalPath: `/${subject.slug}` });
 
   const apps: AppLink[] = subject.tools.flatMap((id) => {
     const tool = getTool(id);
@@ -71,6 +77,11 @@ export default function SubjectPage({ fallback }: { fallback: ReactNode }) {
                 </span>
               )}
             </h1>
+            <div className="mt-5 max-w-2xl space-y-3 text-foreground/70 text-lg leading-relaxed">
+              {subjectIntro(subject).map((p) => (
+                <p key={p}>{p}</p>
+              ))}
+            </div>
           </div>
         </section>
         <AppGrid apps={apps} loading={false} subject={subjectLabel(subject)} />

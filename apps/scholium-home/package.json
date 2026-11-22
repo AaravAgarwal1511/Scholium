@@ -4,13 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "vite --configLoader runner",
+    "build": "vite build --configLoader runner",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "vitest run --configLoader runner",
     "check-types": "tsc -p tsconfig.app.json --noEmit",
-    "preview": "vite preview",
-    "lighthouse": "vite build --mode test && lhci autorun --config=lighthouserc.cjs"
+    "preview": "vite preview --configLoader runner",
+    "lighthouse": "vite build --configLoader runner --mode test && lhci autorun --config=lighthouserc.cjs"
   },
   "dependencies": {
     "@repo/analytics": "workspace:*",

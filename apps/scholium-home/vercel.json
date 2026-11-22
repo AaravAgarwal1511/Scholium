@@ -4,35 +4,122 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
       ]
     }
   ],
   "redirects": [
-    { "source": "/subjects", "destination": "/", "permanent": true },
-    { "source": "/subjects/:slug*", "destination": "/", "permanent": true }
+    {
+      "source": "/subjects",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/subjects/:slug*",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/tools/poetry-notes",
+      "destination": "/literature/poetry-notes",
+      "permanent": false
+    }
   ],
   "rewrites": [
-    { "source": "/tools/:mount", "destination": "/index.html" },
-    { "source": "/:subject/language-hub", "destination": "https://preview-langhub.vercel.app/language-hub" },
-    { "source": "/:subject/language-hub/:path+", "destination": "https://preview-langhub.vercel.app/language-hub/:path+" },
-    { "source": "/language-hub", "destination": "https://preview-langhub.vercel.app/language-hub" },
-    { "source": "/language-hub/:path+", "destination": "https://preview-langhub.vercel.app/language-hub/:path+" },
-    { "source": "/:subject/recall", "destination": "https://preview-recallmaster.vercel.app/recall" },
-    { "source": "/:subject/recall/:path+", "destination": "https://preview-recallmaster.vercel.app/recall/:path+" },
-    { "source": "/recall", "destination": "https://preview-recallmaster.vercel.app/recall" },
-    { "source": "/recall/:path+", "destination": "https://preview-recallmaster.vercel.app/recall/:path+" },
-    { "source": "/:subject/past-papers", "destination": "https://preview-pastpapers.vercel.app/past-papers" },
-    { "source": "/:subject/past-papers/:path+", "destination": "https://preview-pastpapers.vercel.app/past-papers/:path+" },
-    { "source": "/past-papers", "destination": "https://preview-pastpapers.vercel.app/past-papers" },
-    { "source": "/past-papers/:path+", "destination": "https://preview-pastpapers.vercel.app/past-papers/:path+" },
-    { "source": "/:subject/poetry-notes", "destination": "https://preview-poetrynotes.vercel.app/poetry-notes" },
-    { "source": "/:subject/poetry-notes/:path+", "destination": "https://preview-poetrynotes.vercel.app/poetry-notes/:path+" },
-    { "source": "/poetry-notes", "destination": "https://preview-poetrynotes.vercel.app/poetry-notes" },
-    { "source": "/poetry-notes/:path+", "destination": "https://preview-poetrynotes.vercel.app/poetry-notes/:path+" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/:subject(physics|chemistry|biology|maths|int-maths|add-maths|computer-science|economics|english-language|french|spanish|literature)",
+      "destination": "/_prerender/subjects/:subject/index.html"
+    },
+    {
+      "source": "/tools/:mount(language-hub|recall|past-papers)",
+      "destination": "/_prerender/tools/:mount/index.html"
+    },
+    {
+      "source": "/:subject(french|spanish)/language-hub",
+      "destination": "https://preview-langhub.vercel.app/language-hub"
+    },
+    {
+      "source": "/:subject(french|spanish)/language-hub/:path+",
+      "destination": "https://preview-langhub.vercel.app/language-hub/:path+"
+    },
+    {
+      "source": "/language-hub",
+      "destination": "https://preview-langhub.vercel.app/language-hub"
+    },
+    {
+      "source": "/language-hub/:path+",
+      "destination": "https://preview-langhub.vercel.app/language-hub/:path+"
+    },
+    {
+      "source": "/:subject(physics|chemistry|economics)/recall",
+      "destination": "https://preview-recallmaster.vercel.app/recall"
+    },
+    {
+      "source": "/:subject(physics|chemistry|economics)/recall/:path+",
+      "destination": "https://preview-recallmaster.vercel.app/recall/:path+"
+    },
+    {
+      "source": "/recall",
+      "destination": "https://preview-recallmaster.vercel.app/recall"
+    },
+    {
+      "source": "/recall/:path+",
+      "destination": "https://preview-recallmaster.vercel.app/recall/:path+"
+    },
+    {
+      "source": "/:subject(physics|chemistry|biology|maths|int-maths|add-maths|computer-science|economics|english-language)/past-papers",
+      "destination": "https://preview-pastpapers.vercel.app/past-papers"
+    },
+    {
+      "source": "/:subject(physics|chemistry|biology|maths|int-maths|add-maths|computer-science|economics|english-language)/past-papers/:path+",
+      "destination": "https://preview-pastpapers.vercel.app/past-papers/:path+"
+    },
+    {
+      "source": "/past-papers",
+      "destination": "https://preview-pastpapers.vercel.app/past-papers"
+    },
+    {
+      "source": "/past-papers/:path+",
+      "destination": "https://preview-pastpapers.vercel.app/past-papers/:path+"
+    },
+    {
+      "source": "/:subject(literature)/poetry-notes",
+      "destination": "https://preview-poetrynotes.vercel.app/poetry-notes"
+    },
+    {
+      "source": "/:subject(literature)/poetry-notes/:path+",
+      "destination": "https://preview-poetrynotes.vercel.app/poetry-notes/:path+"
+    },
+    {
+      "source": "/poetry-notes",
+      "destination": "https://preview-poetrynotes.vercel.app/poetry-notes"
+    },
+    {
+      "source": "/poetry-notes/:path+",
+      "destination": "https://preview-poetrynotes.vercel.app/poetry-notes/:path+"
+    },
+    {
+      "source": "/(signin|signup|about|memory-science|terms|privacy)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/auth/:path*",
+      "destination": "/index.html"
+    }
   ]
 }

@@ -16,11 +16,14 @@ export default function AppGrid({ apps, loading, highlightedAppId, subject }: Ap
       <div className="max-w-6xl mx-auto px-6">
         {!subject && (
           <h2
-            className="mb-10 text-foreground"
+            className="mb-3 text-foreground"
             style={{ fontSize: "clamp(2.25rem, 5vw, 3.5rem)", lineHeight: 1, letterSpacing: "-0.04em", fontWeight: 700 }}
           >
             Tools<span style={{ color: "hsl(var(--primary))" }}>.</span>
           </h2>
+        )}
+        {!subject && (
+          <p className="mb-10 text-foreground/70 text-lg">All free. Try any of them without an account.</p>
         )}
 
         {loading ? (

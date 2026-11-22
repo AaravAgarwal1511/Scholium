@@ -1,7 +1,9 @@
-import { Navigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
 import SavedPapersOverview from "@/components/SavedPapersOverview";
-import { ScholiumFooter, getToolByMount, subjectsForTool, toolUrl } from "@repo/ui";
+import { ScholiumFooter, getToolByMount, subjectsForTool, toolPageMeta, toolUrl, type SuiteTool } from "@repo/ui";
+import NotFoundPage from "@/pages/NotFoundPage";
+import { useDocumentMeta } from "@/hooks/useDocumentMeta";
 
 /**
  * `/tools/:mount` — where the navbar's Study-tools dropdown lands. The suite is
@@ -11,7 +13,13 @@ import { ScholiumFooter, getToolByMount, subjectsForTool, toolUrl } from "@repo/
 export default function ToolSubjectsPage() {
   const { mount = "" } = useParams();
   const tool = getToolByMount(mount);
-  if (!tool) return <Navigate to="/" replace />;
+  if (!tool) return <NotFoundPage />;
+  return <ToolSubjectsView tool={tool} />;
+}
+
+function ToolSubjectsView({ tool }: { tool: SuiteTool }) {
+  const meta = toolPageMeta(tool);
+  useDocumentMeta({ title: meta.title, description: meta.description, canonicalPath: `/tools/${tool.mount}` });
   const subjects = subjectsForTool(tool.id);
   // Single-subject tool: nothing to choose. The tool is another zone, so this
   // is a full navigation, not a router <Navigate>.
@@ -38,6 +46,7 @@ export default function ToolSubjectsPage() {
             </span>
             {tool.title}
           </h1>
+          <p className="mt-4 text-foreground/70 text-lg leading-relaxed">{tool.description}</p>
 
           {/* Above the picker, like the tool's own panel: a returning user's first stop. */}
           {tool.id === "past-papers" && <SavedPapersOverview />}
@@ -62,13 +71,14 @@ export default function ToolSubjectsPage() {
                   </span>
                   {/* Column with the CTA pinned to the bottom, so cards in a row
                       line up even when one blurb wraps to an extra line. */}
-                  <span className="flex-1 self-center">
+                  <span className="flex-1">
                     <span className="block text-foreground text-2xl font-semibold" style={{ letterSpacing: "-0.02em" }}>
                       {s.name}
                       {s.code && (
                         <span className="ml-2 text-base font-medium text-muted-foreground tabular-nums">{s.code}</span>
                       )}
                     </span>
+                    <span className="mt-1 block text-muted-foreground leading-relaxed">{s.blurb}</span>
                   </span>
                   <ArrowUpRight
                     size={20}

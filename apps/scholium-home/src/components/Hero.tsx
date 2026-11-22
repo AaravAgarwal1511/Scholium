@@ -31,13 +31,17 @@ export default function Hero({ onScrollToScience, onExploreTools }: HeroProps) {
         {/* Content overlay */}
         <div className="relative z-10 flex flex-col items-start justify-start h-full p-8 sm:p-12 pt-24 sm:pt-28">
           <h1
-            className="text-foreground text-5xl md:text-6xl font-bold leading-[1.05] max-w-xl mb-8"
+            className="text-foreground text-5xl md:text-6xl font-bold leading-[1.05] max-w-xl mb-5"
             style={{ letterSpacing: "-0.04em" }}
           >
             Learn <span style={{ color: "hsl(var(--primary))" }}>deeper.</span>
             <br />
             Remember <span style={{ color: "hsl(var(--accent))" }}>longer.</span>
           </h1>
+
+          <p className="text-foreground/70 text-base md:text-lg max-w-md mb-8 leading-relaxed">
+            Free revision tools for Cambridge IGCSE, organised by subject.
+          </p>
 
           {/* CTAs */}
           <div className="flex flex-wrap items-center gap-3">

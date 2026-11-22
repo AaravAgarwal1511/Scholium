@@ -21,6 +21,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import Auth from "@/pages/Auth";
 import MemorySciencePage from "@/pages/MemorySciencePage";
 import AboutPage from "@/pages/AboutPage";
+import NotFoundPage from "@/pages/NotFoundPage";
 import SubjectPage from "@/pages/SubjectPage";
 import ToolSubjectsPage from "@/pages/ToolSubjectsPage";
 import HeroScenesPage from "@/dev/hero-scenes/HeroScenesPage";
@@ -95,9 +96,9 @@ export default function App() {
           <Route path="/tools/:mount" element={<ToolSubjectsPage />} />
           <Route
             path="/:subject"
-            element={<SubjectPage fallback={<HomePage apps={apps} loadingApps={loadingApps} />} />}
+            element={<SubjectPage />}
           />
-          <Route path="*" element={<HomePage apps={apps} loadingApps={loadingApps} />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
