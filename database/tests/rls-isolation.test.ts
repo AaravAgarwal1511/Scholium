@@ -136,7 +136,9 @@ describe.skipIf(!available)("RLS is switched on at all", () => {
     // which dropped its public-read policy along with the grant — the browser
     // now reads this data via the service-role-backed
     // GET /api/chapter-questions instead. Any *other* table in this state is
-    // far more likely to be an oversight.
+    // far more likely to be an oversight. feedback: holds free text, so it has
+    // no policies AND no grants — writes go through submit_feedback(), reads
+    // through admin_list_feedback() (20261122000000_feedback.sql).
     const denyAll = dbQuery<{ relname: string }>(
       `select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
        where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity
@@ -145,7 +147,22 @@ describe.skipIf(!available)("RLS is switched on at all", () => {
        order by c.relname`,
     ).map((r) => r.relname);
 
-    expect(denyAll).toEqual(["analytics_daily", "questions_metadata"]);
+    expect(denyAll).toEqual(["analytics_daily", "feedback", "questions_metadata"]);
+  });
+});
+
+// Closed harder than WRITE_ONLY: not even an INSERT grant. The client path is
+// the SECURITY DEFINER submit_feedback() RPC, which stamps user_id itself.
+const RPC_ONLY = ["feedback"];
+
+describe.skipIf(!available)("RPC-only tables grant nothing to client roles", () => {
+  it.each(RPC_ONLY)("%s has no table privileges for anon or authenticated", (table) => {
+    const [row] = dbQuery<{ granted: string[] | null }>(
+      `select array_agg(r || ':' || p) filter (where has_table_privilege(r, 'public.${table}', p)) as granted
+         from unnest(array['anon','authenticated']) r,
+              unnest(array['SELECT','INSERT','UPDATE','DELETE']) p`,
+    );
+    expect(row.granted ?? [], `${table} is reachable over PostgREST`).toEqual([]);
   });
 });
 

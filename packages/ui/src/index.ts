@@ -18,4 +18,9 @@ export { TermsOfService } from './TermsOfService';
 export type { LegalDocProps } from './TermsOfService';
 export { PrivacyPolicy } from './PrivacyPolicy';
 
+export { FeedbackDialog, StarRating, FEEDBACK_MAX_LENGTH } from './FeedbackDialog';
+export type { FeedbackDialogProps, FeedbackValues, FeedbackCategory, StarRatingProps } from './FeedbackDialog';
+export { FeedbackPrompt } from './FeedbackPrompt';
+export type { FeedbackPromptProps, FeedbackPromptStatus } from './FeedbackPrompt';
+
 export { SCHOLIUM_HOME_URL } from './constants';

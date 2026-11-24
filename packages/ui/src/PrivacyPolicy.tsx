@@ -1,7 +1,7 @@
 import { LegalPage } from './LegalPage';
 import type { LegalDocProps } from './TermsOfService';
 
-const DEFAULT_UPDATED = '26 August 2026';
+const DEFAULT_UPDATED = '22 November 2026';
 
 /** Suite-wide Privacy Policy, shared across every Scholium app. */
 export function PrivacyPolicy({ lastUpdated = DEFAULT_UPDATED, homeUrl }: LegalDocProps) {
@@ -33,6 +33,14 @@ export function PrivacyPolicy({ lastUpdated = DEFAULT_UPDATED, homeUrl }: LegalD
           not. We do not record the content you create, and you can turn it off at any time in each
           app&rsquo;s Settings (see §8).
         </li>
+        <li>
+          <strong>Feedback you send us</strong> — when you use &ldquo;Send feedback&rdquo;, the
+          feedback prompt, or &ldquo;Report this problem&rdquo;, we store your message, category and
+          rating, the app and page you sent it from, and your browser&rsquo;s user-agent string. If
+          you are signed in it is linked to your account. To prevent spam we also store a one-way
+          hash of your IP address that changes every day; we never store the IP address itself.
+          Please don&rsquo;t include personal information in your message.
+        </li>
       </ul>
 
       <h2>2. Why we use it (legal bases)</h2>
@@ -47,6 +55,7 @@ export function PrivacyPolicy({ lastUpdated = DEFAULT_UPDATED, homeUrl }: LegalD
       <ul>
         <li><strong>Supabase</strong> — database, authentication, and storage.</li>
         <li><strong>Google Cloud (Text-to-Speech)</strong> — generating audio in Language Hub from the text you submit.</li>
+        <li><strong>Resend</strong> — delivering email notifications to us when you send feedback (the email contains your feedback message, not your email address).</li>
         <li><strong>Vercel</strong> — hosting, content delivery, and privacy-friendly, cookieless traffic analytics (Vercel Web Analytics).</li>
       </ul>
       <p>
@@ -67,7 +76,8 @@ export function PrivacyPolicy({ lastUpdated = DEFAULT_UPDATED, homeUrl }: LegalD
         or anonymise personal data within a reasonable period, except where we must retain
         records to meet legal obligations. Mock Space is the exception: uploaded question papers
         and the associated attempt are deleted automatically 15 days after upload, regardless of
-        account status.
+        account status. Feedback you send us is deleted automatically two years after it is
+        submitted.
       </p>
 
       <h2>6. Your rights</h2>

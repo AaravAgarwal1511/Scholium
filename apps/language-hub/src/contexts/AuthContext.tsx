@@ -2,8 +2,12 @@ import { createContext, useContext, useEffect, useState, useRef, ReactNode } fro
 import { User, Session } from "@supabase/supabase-js";
 import { SingleSessionGuard } from "@repo/session";
 import { AnalyticsProvider } from "@repo/analytics";
+import { FeedbackProvider } from "@repo/feedback";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
+
+// Never interrupt sign-in with the periodic feedback prompt.
+const SUPPRESS_FEEDBACK_PROMPT_ON = ["/signin", "/signup", "/auth"];
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
@@ -104,7 +108,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 appKey="language-hub"
                 userId={user?.id ?? null}
             >
-                {children}
+                <FeedbackProvider
+                    supabase={supabase}
+                    appKey="language-hub"
+                    appName="Language Hub"
+                    suppressPromptOn={SUPPRESS_FEEDBACK_PROMPT_ON}
+                >
+                    {children}
+                </FeedbackProvider>
             </AnalyticsProvider>
         </AuthContext.Provider>
     );

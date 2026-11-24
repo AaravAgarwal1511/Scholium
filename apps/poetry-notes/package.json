@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@repo/analytics": "workspace:*",
+    "@repo/feedback": "workspace:*",
     "@repo/hooks": "workspace:*",
     "@repo/session": "workspace:*",
     "@repo/ui": "workspace:*",

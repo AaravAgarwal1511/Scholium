@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ProjectProvider, useProject } from './contexts/ProjectContext';
-import { ScholiumNavbar, ScholiumFooter, TermsOfService, PrivacyPolicy, SCHOLIUM_HOME_URL } from '@repo/ui';
+import { ScholiumNavbar, TermsOfService, PrivacyPolicy, SCHOLIUM_HOME_URL } from '@repo/ui';
+import { FeedbackFooter } from '@repo/feedback';
 import type { AppLink } from '@repo/ui';
 import '@repo/ui/scholium-navbar.css';
 import '@repo/ui/legal.css';
@@ -101,7 +102,7 @@ function AppContent() {
           />
         )}
       </div>
-      <ScholiumFooter homeUrl={SCHOLIUM_HOME_URL} />
+      <FeedbackFooter homeUrl={SCHOLIUM_HOME_URL} />
     </div>
   );
 }

@@ -401,6 +401,11 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Called only by the feedback_notify trigger (pg_net), which has no user JWT. The
+# function checks its own shared secret instead — see its header comment.
+[functions.feedback-notify]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

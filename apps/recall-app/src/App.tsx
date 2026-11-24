@@ -3,7 +3,8 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from
 import { Loader2 } from "lucide-react";
 import { AppProvider, useApp } from "@/contexts/AppContext";
 import { Toaster } from "@/components/ui/sonner";
-import { ScholiumNavbar, ScholiumFooter, TermsOfService, PrivacyPolicy, SCHOLIUM_HOME_URL } from "@repo/ui";
+import { ScholiumNavbar, TermsOfService, PrivacyPolicy, SCHOLIUM_HOME_URL } from "@repo/ui";
+import { FeedbackFooter } from "@repo/feedback";
 import type { AppLink } from "@repo/ui";
 import "@repo/ui/scholium-navbar.css";
 import "@repo/ui/legal.css";
@@ -175,7 +176,7 @@ export default function App() {
             <AppProvider>
               <NavbarWired apps={apps} />
               <FadeRoutes description={ownDescription} />
-              <ScholiumFooter homeUrl={SCHOLIUM_HOME_URL} />
+              <FeedbackFooter homeUrl={SCHOLIUM_HOME_URL} />
               <Toaster />
             </AppProvider>
           }
