@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Route, Routes, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   ScholiumNavbar,
-  ScholiumFooter,
   TermsOfService,
   PrivacyPolicy,
   SCHOLIUM_HOME_URL,
 } from "@repo/ui";
+import { FeedbackFooter } from "@repo/feedback";
 import { useDarkMode } from "@repo/hooks";
 import type { AppLink } from "@repo/ui";
 import "@repo/ui/scholium-navbar.css";
@@ -126,7 +126,7 @@ function MainRoutes({ apps, ownDescription }: { apps: AppLink[]; ownDescription:
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
-      <ScholiumFooter homeUrl={SCHOLIUM_HOME_URL} />
+      <FeedbackFooter homeUrl={SCHOLIUM_HOME_URL} />
     </div>
   );
 }

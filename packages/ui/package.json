@@ -10,7 +10,8 @@
     "./settings-layout.css": "./src/SettingsLayout.css",
     "./settings-card.css": "./src/SettingsCard.css",
     "./scholium-navbar.css": "./src/ScholiumNavbar.css",
-    "./legal.css": "./src/legal.css"
+    "./legal.css": "./src/legal.css",
+    "./feedback.css": "./src/feedback.css"
   },
   "scripts": {
     "lint": "eslint .",

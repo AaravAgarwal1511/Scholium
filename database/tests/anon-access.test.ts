@@ -108,6 +108,9 @@ describe("admin analytics RPCs are closed to anonymous callers", () => {
   const revokedFromAnon: [string, Record<string, unknown>][] = [
     ["admin_analytics_range_summary", { p_from: null, p_to: null, p_app_key: null }],
     ["admin_analytics_monthly", { p_from: null, p_to: null, p_app_key: null }],
+    // 20261122000000_feedback.sql. The status update gets an id that matches no row.
+    ["admin_list_feedback", { p_app_key: null, p_category: null, p_status: null, p_days: 1, p_limit: 1 }],
+    ["admin_update_feedback_status", { p_id: -1, p_status: "done" }],
   ];
 
   it.each(readOnly)("%s rejects anon", async (name, args) => {
@@ -243,6 +246,7 @@ describe("RLS keeps user-scoped tables closed to anonymous readers", () => {
     "user_prefs",
     "analytics_events",
     "active_sessions",
+    "feedback",
   ];
 
   // questions_metadata isn't user-scoped — it's the past-papers question index,

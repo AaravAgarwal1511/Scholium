@@ -1,6 +1,7 @@
 import { useEffect, useState, lazy, Suspense } from "react";
 import { BrowserRouter, Route, Routes, Navigate, useLocation, useNavigate } from "react-router-dom";
-import { ScholiumNavbar, ScholiumFooter, TermsOfService, PrivacyPolicy, SCHOLIUM_HOME_URL } from "@repo/ui";
+import { ScholiumNavbar, TermsOfService, PrivacyPolicy, SCHOLIUM_HOME_URL } from "@repo/ui";
+import { FeedbackFooter } from "@repo/feedback";
 import type { AppLink } from "@repo/ui";
 import "@repo/ui/scholium-navbar.css";
 import "@repo/ui/legal.css";
@@ -115,7 +116,7 @@ function MainRoutes({ apps, ownDescription }: { apps: AppLink[]; ownDescription:
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
-      <ScholiumFooter homeUrl={SCHOLIUM_HOME_URL} />
+      <FeedbackFooter homeUrl={SCHOLIUM_HOME_URL} />
       <Toaster />
     </>
   );

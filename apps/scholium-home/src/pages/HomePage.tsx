@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ScholiumFooter } from "@repo/ui";
+import { FeedbackFooter } from "@repo/feedback";
 import type { AppLink } from "@repo/ui";
 import Hero from "@/components/Hero";
 import SubjectPicker from "@/components/SubjectPicker";
@@ -107,7 +107,7 @@ export default function HomePage({ apps, loadingApps }: HomePageProps) {
         <BackedBySection />
         <ClosingCTA apps={apps} />
       </main>
-      <ScholiumFooter homeUrl="/" />
+      <FeedbackFooter homeUrl="/" />
     </div>
   );
 }

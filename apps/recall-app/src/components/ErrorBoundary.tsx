@@ -1,4 +1,6 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react';
+import { ReportProblemButton } from '@repo/feedback';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Props { children: ReactNode; }
 interface State { error: Error | null; }
@@ -19,8 +21,17 @@ export class ErrorBoundary extends Component<Props, State> {
             return (
                 <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'system-ui' }}>
                     <h2>Something went wrong</h2>
-                    <p>Please refresh the page. If the problem persists, contact support.</p>
-                    <button onClick={() => this.setState({ error: null })}>Try again</button>
+                    <p>Please refresh the page. If the problem persists, let us know.</p>
+                    <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+                        <button onClick={() => this.setState({ error: null })}>Try again</button>
+                        {/* Sits above every provider, so it submits on its own (no FeedbackProvider). */}
+                        <ReportProblemButton
+                            supabase={supabase}
+                            appKey="recall-app"
+                            appName="Recall"
+                            error={this.state.error}
+                        />
+                    </div>
                 </div>
             );
         }

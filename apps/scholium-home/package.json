@@ -16,6 +16,7 @@
   "dependencies": {
     "@repo/analytics": "workspace:*",
     "@repo/blog": "workspace:*",
+    "@repo/feedback": "workspace:*",
     "@repo/session": "workspace:*",
     "@repo/ui": "workspace:*",
     "@supabase/supabase-js": "^2.86.0",

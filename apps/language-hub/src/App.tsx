@@ -5,7 +5,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { ScholiumNavbar, ScholiumFooter, TermsOfService, PrivacyPolicy, SCHOLIUM_HOME_URL } from "@repo/ui";
+import { ScholiumNavbar, TermsOfService, PrivacyPolicy, SCHOLIUM_HOME_URL } from "@repo/ui";
+import { FeedbackFooter } from "@repo/feedback";
 import type { AppLink } from "@repo/ui";
 import "@repo/ui/scholium-navbar.css";
 import "@repo/ui/legal.css";
@@ -121,7 +122,7 @@ const App = () => {
                 <AuthProvider>
                   <NavbarWired apps={apps} />
                   <FadeRoutes description={ownDescription} />
-                  <ScholiumFooter homeUrl={SCHOLIUM_HOME_URL} />
+                  <FeedbackFooter homeUrl={SCHOLIUM_HOME_URL} />
                 </AuthProvider>
               }
             />
