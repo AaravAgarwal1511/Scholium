@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<!-- Template for /blog, served by @repo/blog (vite/plugin.js in dev and preview,
+     api/blog.js on Vercel). The markers below are filled per request. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="hsl(0, 0%, 6%)" />
+    <!-- Set the theme before first paint, matching @repo/hooks useDarkMode, so
+         dark-mode readers don't get a white flash before React mounts. -->
+    <script>
+      try {
+        var s = localStorage.getItem("darkMode");
+        var d = s !== null ? JSON.parse(s) : matchMedia("(prefers-color-scheme: dark)").matches;
+        if (d) document.documentElement.classList.add("dark", "dark-mode");
+      } catch (e) {}
+    </script>
+    <!-- Everything between head:start and head:end is replaced per page by the
+         server renderer (src/entry-server.tsx). Do not remove the markers. -->
+    <!--head:start-->
+    <title>Scholium Blog</title>
+    <meta name="description" content="Notes from Scholium on studying well." />
+    <!--head:end-->
+  </head>
+  <body>
+    <div id="root"><!--app-html--></div>
+    <!--app-data-->
+    <script type="module" src="/src/blog.tsx"></script>
+  </body>
+</html>

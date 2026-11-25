@@ -3,6 +3,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { readFileSync } from "fs";
+import { blog } from "@repo/blog/vite";
 
 // createRoot().render() (src/main.tsx) replaces #root's children on mount, so
 // whatever ships inside it in the built index.html is exactly what a
@@ -39,7 +40,8 @@ export default defineConfig({
       },
     },
   },
-  plugins: [react(), injectHomepageFallback()],
+  // /blog is @repo/blog, server-rendered: see packages/blog/vite/plugin.js.
+  plugins: [react(), injectHomepageFallback(), blog()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

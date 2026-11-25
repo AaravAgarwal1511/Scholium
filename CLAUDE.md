@@ -274,7 +274,7 @@ both repos via the dual push URLs.
 
 ## Architecture
 
-This is a **pnpm monorepo** managed by **Turborepo** with six Vite+React apps and three shared packages.
+This is a **pnpm monorepo** managed by **Turborepo** with six Vite+React apps and four shared packages.
 
 ```
 apps/
@@ -288,6 +288,7 @@ packages/
   ui/             — @repo/ui      presentational components only (React 18/19 compatible)
   hooks/          — @repo/hooks   client-state hooks (localStorage/DOM, no server)
   session/        — @repo/session Supabase-backed session logic
+  blog/           — @repo/blog    the public blog, mounted at /blog by scholium-home and past-papers
 database/         — Shared Supabase migrations and RPC definitions
 ```
 
@@ -296,7 +297,7 @@ Only `apps/*` and `packages/*` are workspace packages. `database/`, `scripts/`, 
 
 ### Shared packages
 
-All three are consumed as raw TypeScript source (`exports["."] → ./src/index.ts`); there is no
+All are consumed as raw TypeScript source (`exports["."] → ./src/index.ts`); there is no
 build step. Import only via the declared entrypoints — `pnpm boundaries` fails on deep imports,
 and on importing a package an app has not declared in its own `package.json`.
 
@@ -307,6 +308,7 @@ The split exists to keep **backend logic out of the UI library**. One rule per p
 | `@repo/ui` | Rendering. `AuthCard`, `SettingsLayout`, `SettingsCard`, `ScholiumLogo`, `ScholiumNavbar`, `ScholiumFooter`, `LegalPage`, `TermsOfService`, `PrivacyPolicy`, `SCHOLIUM_HOME_URL` | Touch a network, a data client, or `localStorage` |
 | `@repo/hooks` | Client state that reads/writes the browser. `useDarkMode`, `useTourCompleted`, `useTourStyles`, `tourStyles` | Import a data client; remote sync arrives via an injected port |
 | `@repo/session` | Server-backed session logic. `SingleSessionGuard` (`active_sessions` + Realtime) | — the Supabase client is injected as a prop, so it carries no `@supabase/supabase-js` dep |
+| `@repo/blog` | The whole blog: pages, server renderer, Vite plugin. `hydrateBlog`, `@repo/blog/server`, `@repo/blog/vite` | Read `import.meta.env` — hosts pass their Supabase config in; or use the `@/` alias, which would resolve into the host's `src/` |
 
 `@repo/ui` also exports CSS subpaths: `tokens.css`, `auth-card.css`, `settings-layout.css`,
 `settings-card.css`, `scholium-navbar.css`, `legal.css`.
@@ -408,6 +410,64 @@ All apps use **Tailwind CSS** with **shadcn/ui** (Radix UI primitives + CVA). De
      write to `sink.value` mid-word: it destroys the selection the accent menu is relying on.
      `REFUSED_INPUT_TYPES` is the whole list of edits still preventDefaulted — paste, drop, undo,
      word-at-a-time deletes.
+
+- **The blog (`/blog` on scholium-home and past-papers, code in `packages/blog`).** Not an app of
+  its own: both apps serve it as a route, at `www.thescholium.com/blog` and
+  `pastpapers.thescholium.com/blog`. It is the one part of the suite rendered on the server, so posts
+  are readable without JavaScript, by search engines, AI crawlers (GPTBot, ClaudeBot, PerplexityBot)
+  and link unfurlers.
+
+  **Writing posts.** Only the admin can, from the **Blog** tab in `admin/` (Markdown editor + live
+  preview, cover/inline image upload, Save draft / Publish). Posts live in `blog_posts`
+  (`20261124000000_blog_posts.sql`); `published_at` NULL = draft, future = scheduled. Writes go only
+  through `admin_save_blog_post` / `admin_set_blog_post_published` / `admin_delete_blog_post` (EXECUTE
+  revoked from anon, `_assert_admin()` inside); the table has no write policies. Reads: anyone gets
+  published rows; drafts only for a caller `_is_admin()` accepts. `_is_admin()` is `_assert_admin()`
+  wrapped as a boolean, so the read and storage policies can never disagree with the RPC guard about
+  who the admin is. Images go in the public `blog-images` bucket, admin-only writes.
+
+  **How a host mounts it** (both are wired; copy them for a third). Five pieces: `blog()` from
+  `@repo/blog/vite` in `vite.config.ts`; `blog.html` (the template, with the
+  `head:start/head:end/app-html/app-data` markers) and `src/blog.tsx` (calls `hydrateBlog` with the
+  app's Supabase env); `api/blog.js` re-exporting `../dist-server/blog.js`; and `vercel.json` rewrites
+  `/blog` → `/api/blog?path=/` and `/blog/:path*` → `/api/blog?path=/:path*` (before any SPA catch-all).
+  No new env vars: the function reads the app's existing `VITE_SUPABASE_URL` /
+  `VITE_SUPABASE_PUBLISHABLE_KEY`.
+
+  **The plugin (`packages/blog/vite/plugin.js`)** makes `/blog` server-rendered in every mode. Dev:
+  middleware renders through `src/server.tsx` via `ssrLoadModule`, so `curl localhost:3030/blog/<slug>`
+  shows what crawlers get. Build: adds `blog.html` as a second HTML entry (its own small bundle, not
+  the host's), then in `closeBundle` runs a nested SSR build of `src/vercel.ts` with every dependency
+  inlined and the built `blog.html` baked in as `virtual:blog-template`, to `dist-server/blog.js`, and
+  deletes `dist/blog.html` so Vercel can never serve the empty shell. Preview: `/blog/*` goes through
+  that built function, as on Vercel; this is what the e2e suite runs against. `blog.css` is compiled
+  with the package's own Tailwind config (`@config`), so the blog looks the same on both hosts.
+
+  **SEO.** Full HTML per page (title, description, canonical, OG/Twitter, `BlogPosting` JSON-LD), real
+  404s with `noindex`, a 301 off trailing slashes, `/blog/sitemap.xml` and `/blog/rss.xml`. Responses
+  are CDN-cached `s-maxage=60, stale-while-revalidate`, so publishing goes live in about a minute with
+  no deploy; a Supabase failure is a 503 with `no-store`, never a cached "no posts" page. Canonicals
+  point at **www** in production (`canonicalOrigin` in `src/vercel.ts`, overridable with
+  `BLOG_SITE_URL`), so the pastpapers copy is not duplicate content. scholium-home's
+  `public/robots.txt` lists the blog sitemap. past-papers' strict CSP is scoped off `/blog`
+  (`/((?!blog(?:/|$)).*)`): it would block the blog's inline theme script and Supabase-hosted images.
+
+  **Hydration.** The server embeds what it fetched as `<script id="blog-data">`, and `hydrateBlog`
+  hydrates from it rather than refetching. Both sides render Markdown through the same
+  `src/lib/markdown.ts` (marked + `xss` allow-list), which is why they agree; `admin/src/lib/markdown.ts`
+  mirrors it for the preview (admin can't import across) — change both together. `ScholiumNavbar`
+  reads localStorage/`window` during render, so `Layout` draws a same-height placeholder on the
+  server and swaps the real navbar in after mount; rendering it directly causes a mismatch.
+
+  **Tests.** `packages/blog`: vitest `unit` (jsdom) and `server` (node) projects; its config dedupes
+  React because `@repo/ui` resolves its own React 19 devDependency. e2e lives in **scholium-home**
+  (`e2e/blog*.spec.ts`): `vite build --mode test` + `vite preview`, against
+  `e2e/support/stub-supabase.mjs`, a real HTTP stub on 54399 (its `.env.test` URL), not `page.route()`,
+  because posts are fetched server-side. Its fixtures include a draft and a scheduled post that must
+  never appear.
+
+  Set `VITE_BLOG_URL=https://www.thescholium.com/blog` in admin's env for "View ↗" links in the
+  Blog tab (admin's `.env.development` points it at scholium-home's local dev server).
 
 ### Storybook
 

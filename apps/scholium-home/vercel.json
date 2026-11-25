@@ -16,6 +16,8 @@
     { "source": "/subjects/:slug*", "destination": "/", "permanent": true }
   ],
   "rewrites": [
+    { "source": "/blog", "destination": "/api/blog?path=/" },
+    { "source": "/blog/:path*", "destination": "/api/blog?path=/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

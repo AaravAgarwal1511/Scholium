@@ -154,6 +154,55 @@ describe("admin content-mutation RPCs are closed to anonymous callers", () => {
   });
 });
 
+describe("blog admin RPCs are closed to anonymous callers", () => {
+  // EXECUTE is revoked from anon in 20261124000000, so Postgres refuses before the
+  // guard runs. Ids are a v4-shaped uuid that matches nothing — the columns are uuid,
+  // so the string NOWHERE would fail on a cast instead of on the permission check.
+  // admin_save_blog_post is never called: with p_id NULL it would INSERT.
+  const NOWHERE_UUID = "00000000-0000-4000-8000-000000000000";
+  const mutating: [string, Record<string, unknown>][] = [
+    ["admin_set_blog_post_published", { p_id: NOWHERE_UUID, p_published: true }],
+    ["admin_delete_blog_post", { p_id: NOWHERE_UUID }],
+  ];
+
+  it.each(mutating)("%s rejects anon (execute revoked)", async (name, args) => {
+    expectRejected(await rpc(name, args), name, { revoked: true });
+  });
+});
+
+describe("blog_posts shows anon published posts only", () => {
+  // Drafts have published_at NULL; scheduled posts have it in the future. Neither
+  // may reach a signed-out reader. Asserted over whatever rows come back, so it
+  // holds with zero, one or many published posts.
+  it("returns no drafts or scheduled posts", async () => {
+    const res = await fetch(`${URL_}/rest/v1/blog_posts?select=published_at&limit=1000`, {
+      headers: { apikey: ANON!, Authorization: `Bearer ${ANON}` },
+    });
+    expect(res.status).toBe(200);
+    const rows = (await res.json()) as { published_at: string | null }[];
+    const now = Date.now();
+    for (const r of rows) {
+      expect(r.published_at, "anon received a draft").not.toBeNull();
+      expect(Date.parse(r.published_at!), "anon received a scheduled post").toBeLessThanOrEqual(now);
+    }
+  });
+
+  it("refuses direct writes", async () => {
+    const res = await fetch(`${URL_}/rest/v1/blog_posts`, {
+      method: "POST",
+      headers: {
+        apikey: ANON!,
+        Authorization: `Bearer ${ANON}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      // Would fail the slug CHECK even if the grant came back, so it can never land.
+      body: JSON.stringify({ slug: "__security_probe__", title: "probe" }),
+    });
+    expect(res.status, "anon could POST to blog_posts").toBeGreaterThanOrEqual(400);
+  });
+});
+
 describe("SECURITY DEFINER functions are not left ungated", () => {
   /**
    * refresh_analytics_daily() rebuilds the analytics_daily rollup:

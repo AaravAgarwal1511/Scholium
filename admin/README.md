@@ -3,6 +3,7 @@
 Admin web UI for the shared Supabase project.
 
 - **Stats tab** — total users, 7d/30d active, per-user activity (via `get_user_stats()` RPC).
+- **Blog tab** — write, preview, publish and unpublish posts for the blog at `/blog` on Scholium Home and Past Papers (`packages/blog`) (Markdown, image uploads to the `blog-images` bucket). Drafts stay private until published.
 - **Content tab** — browse RecallApp data as Subject → Section → Chapter and edit each chapter's cards with a `Term : Definition` textarea (supports `:`, `-`, `=` as separators, same as LanguageHub's CreateSet).
 
 ## Setup

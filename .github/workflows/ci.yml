@@ -141,8 +141,12 @@ jobs:
         # secrets are needed. mock-space rides the signed-out /demo route; the
         # rest seed a fake session and stub Supabase at the network layer
         # (each app's e2e/support/auth.ts). past-papers additionally stubs the
-        # Storage list endpoint for its paper tree.
-        app: [mock-space, recall-app, language-hub, poetry-notes, past-papers]
+        # Storage list endpoint for its paper tree. scholium-home is the
+        # exception: its suite covers /blog (@repo/blog), so it builds in --mode
+        # test and runs through the real server-render function under vite preview
+        # against a stub Supabase *server* (e2e/support/stub-supabase.mjs), because
+        # posts are fetched server-side where page.route() can't reach.
+        app: [mock-space, recall-app, language-hub, poetry-notes, past-papers, scholium-home]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

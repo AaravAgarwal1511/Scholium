@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# The blog (packages/blog) is served at /blog by api/blog.js.
+Sitemap: https://www.thescholium.com/blog/sitemap.xml
