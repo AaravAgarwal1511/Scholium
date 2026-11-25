@@ -13,6 +13,9 @@ export interface ScholiumFooterProps {
    *  while scholium-home's own pages pass `homeUrl="/"` and get the relative
    *  `/about` for free. Pass explicitly to override. */
   aboutHref?: string;
+  /** When set, a "Send feedback" control is shown. It opens a dialog rather than
+   *  navigating, so it is a button — the app wires it to @repo/feedback. */
+  onFeedback?: () => void;
 }
 
 /** Minimal, router-agnostic site footer referencing the legal pages. Uses plain
@@ -23,6 +26,7 @@ export function ScholiumFooter({
   privacyHref = '/privacy',
   homeUrl,
   aboutHref,
+  onFeedback,
 }: ScholiumFooterProps) {
   const year = new Date().getFullYear();
   const resolvedAboutHref = aboutHref ?? `${(homeUrl ?? '').replace(/\/$/, '')}/about`;
@@ -36,6 +40,11 @@ export function ScholiumFooter({
           <a href={resolvedAboutHref}>About</a>
           <a href={termsHref}>Terms of Service</a>
           <a href={privacyHref}>Privacy Policy</a>
+          {onFeedback ? (
+            <button type="button" className="rui-footer-linkbtn" onClick={onFeedback}>
+              Send feedback
+            </button>
+          ) : null}
         </nav>
       </div>
     </footer>

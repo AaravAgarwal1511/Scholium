@@ -274,7 +274,7 @@ both repos via the dual push URLs.
 
 ## Architecture
 
-This is a **pnpm monorepo** managed by **Turborepo** with six Vite+React apps and three shared packages.
+This is a **pnpm monorepo** managed by **Turborepo** with six Vite+React apps and five shared packages.
 
 ```
 apps/
@@ -288,6 +288,8 @@ packages/
   ui/             — @repo/ui      presentational components only (React 18/19 compatible)
   hooks/          — @repo/hooks   client-state hooks (localStorage/DOM, no server)
   session/        — @repo/session Supabase-backed session logic
+  analytics/      — @repo/analytics first-party product analytics
+  feedback/       — @repo/feedback  feedback dialog, periodic prompt, footer link (see its README)
 database/         — Shared Supabase migrations and RPC definitions
 ```
 
@@ -307,13 +309,15 @@ The split exists to keep **backend logic out of the UI library**. One rule per p
 | `@repo/ui` | Rendering. `AuthCard`, `SettingsLayout`, `SettingsCard`, `ScholiumLogo`, `ScholiumNavbar`, `ScholiumFooter`, `LegalPage`, `TermsOfService`, `PrivacyPolicy`, `SCHOLIUM_HOME_URL` | Touch a network, a data client, or `localStorage` |
 | `@repo/hooks` | Client state that reads/writes the browser. `useDarkMode`, `useTourCompleted`, `useTourStyles`, `tourStyles` | Import a data client; remote sync arrives via an injected port |
 | `@repo/session` | Server-backed session logic. `SingleSessionGuard` (`active_sessions` + Realtime) | — the Supabase client is injected as a prop, so it carries no `@supabase/supabase-js` dep |
+| `@repo/feedback` | `FeedbackProvider`, `useFeedback`, `FeedbackFooter`, `ReportProblemButton` — submits via the `submit_feedback` RPC; renders `@repo/ui`'s `FeedbackDialog`/`FeedbackPrompt` | Send free text to analytics; the client is injected like `@repo/session` |
 
 `@repo/ui` also exports CSS subpaths: `tokens.css`, `auth-card.css`, `settings-layout.css`,
-`settings-card.css`, `scholium-navbar.css`, `legal.css`.
+`settings-card.css`, `scholium-navbar.css`, `legal.css`, `feedback.css`.
 
-The only edge in the graph is `@repo/ui → @repo/hooks`: `ScholiumNavbar` calls `useDarkMode`, which
-is why every app gets the `dark` class for free just by mounting the navbar. `@repo/session` depends
-on neither of the others.
+The edges in the graph are `@repo/ui → @repo/hooks` (`ScholiumNavbar` calls `useDarkMode`, which
+is why every app gets the `dark` class for free just by mounting the navbar) and
+`@repo/feedback → @repo/ui, @repo/analytics` (it renders the feedback UI and counts submissions).
+`@repo/session` depends on none of the others.
 
 New shared code goes in the package matching the rule above — if it does a round trip, it does not
 belong in `@repo/ui`.

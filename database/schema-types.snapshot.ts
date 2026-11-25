@@ -98,6 +98,54 @@ export type Database = {
         }
         Relationships: []
       }
+      feedback: {
+        Row: {
+          app_key: string
+          app_version: string | null
+          category: string
+          created_at: string
+          id: number
+          ip_hash: string | null
+          message: string | null
+          path: string | null
+          rating: number | null
+          source: string
+          status: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          app_key: string
+          app_version?: string | null
+          category: string
+          created_at?: string
+          id?: never
+          ip_hash?: string | null
+          message?: string | null
+          path?: string | null
+          rating?: number | null
+          source?: string
+          status?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          app_key?: string
+          app_version?: string | null
+          category?: string
+          created_at?: string
+          id?: never
+          ip_hash?: string | null
+          message?: string | null
+          path?: string | null
+          rating?: number | null
+          source?: string
+          status?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       folders: {
         Row: {
           created_at: string
@@ -710,6 +758,29 @@ export type Database = {
       }
       admin_delete_chapter: { Args: { p_id: string }; Returns: undefined }
       admin_delete_two_sider: { Args: { p_id: string }; Returns: undefined }
+      admin_list_feedback: {
+        Args: {
+          p_app_key?: string
+          p_category?: string
+          p_days?: number
+          p_limit?: number
+          p_status?: string
+        }
+        Returns: {
+          app_key: string
+          app_version: string
+          category: string
+          created_at: string
+          id: number
+          message: string
+          path: string
+          rating: number
+          source: string
+          status: string
+          user_agent: string
+          user_email: string
+        }[]
+      }
       admin_rename_section: {
         Args: { p_new_name: string; p_section_id: string }
         Returns: undefined
@@ -774,6 +845,10 @@ export type Database = {
         Args: { p_id_a: string; p_id_b: string }
         Returns: undefined
       }
+      admin_update_feedback_status: {
+        Args: { p_id: number; p_status: string }
+        Returns: undefined
+      }
       get_user_stats: {
         Args: never
         Returns: {
@@ -809,6 +884,20 @@ export type Database = {
       }
       refresh_analytics_daily: {
         Args: { p_trailing_days?: number }
+        Returns: undefined
+      }
+      submit_feedback: {
+        Args: {
+          p_app_key: string
+          p_app_version?: string
+          p_category: string
+          p_message?: string
+          p_path?: string
+          p_rating?: number
+          p_source?: string
+          p_user_agent?: string
+          p_website?: string
+        }
         Returns: undefined
       }
     }

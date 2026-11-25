@@ -117,3 +117,20 @@
 .rui-footer-links a:hover {
   color: var(--color-accent-primary);
 }
+
+/* "Send feedback" is a button (it opens a dialog, it doesn't navigate), styled
+ * to match the neighbouring anchors. */
+.rui-footer-linkbtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.rui-footer-linkbtn:hover {
+  color: var(--color-accent-primary);
+}

@@ -1,6 +1,6 @@
 import { Brain, Dumbbell, Repeat } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { ScholiumFooter } from "@repo/ui";
+import { FeedbackFooter } from "@repo/feedback";
 import { PILLARS, REFERENCES } from "@/content/memoryScience";
 import { useDocumentMeta } from "@/hooks/useDocumentMeta";
 
@@ -160,7 +160,7 @@ export default function MemorySciencePage() {
           </div>
         </section>
       </main>
-      <ScholiumFooter homeUrl="/" />
+      <FeedbackFooter homeUrl="/" />
     </div>
   );
 }

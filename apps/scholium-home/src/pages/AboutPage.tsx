@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ScholiumFooter } from "@repo/ui";
+import { FeedbackFooter } from "@repo/feedback";
 import { ABOUT, PORTRAIT } from "@/content/about";
 import { useDocumentMeta } from "@/hooks/useDocumentMeta";
 
@@ -134,7 +134,7 @@ export default function AboutPage() {
           </div>
         </section>
       </main>
-      <ScholiumFooter homeUrl="/" />
+      <FeedbackFooter homeUrl="/" />
     </div>
   );
 }

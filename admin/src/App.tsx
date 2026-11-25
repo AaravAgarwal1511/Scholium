@@ -5,9 +5,10 @@ import Stats from "./pages/Stats";
 import Content from "./pages/Content";
 import TwoSiders from "./pages/TwoSiders";
 import Analytics from "./pages/Analytics";
+import Feedback from "./pages/Feedback";
 import Login from "./pages/Login";
 
-type Tab = "stats" | "analytics" | "content" | "essays";
+type Tab = "stats" | "analytics" | "feedback" | "content" | "essays";
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -40,6 +41,9 @@ export default function App() {
             <TabBtn active={tab === "analytics"} onClick={() => setTab("analytics")}>
               Analytics
             </TabBtn>
+            <TabBtn active={tab === "feedback"} onClick={() => setTab("feedback")}>
+              Feedback
+            </TabBtn>
             <TabBtn active={tab === "content"} onClick={() => setTab("content")}>
               Content
             </TabBtn>
@@ -59,6 +63,8 @@ export default function App() {
         <Stats />
       ) : tab === "analytics" ? (
         <Analytics />
+      ) : tab === "feedback" ? (
+        <Feedback />
       ) : tab === "content" ? (
         <Content />
       ) : (

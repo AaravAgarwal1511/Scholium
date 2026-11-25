@@ -10,8 +10,12 @@ import {
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { SingleSessionGuard } from "@repo/session";
 import { AnalyticsProvider } from "@repo/analytics";
+import { FeedbackProvider } from "@repo/feedback";
 import { supabase } from "@/integrations/supabase/client";
 import type { Passes, User } from "@/types";
+
+// Never interrupt sign-in with the periodic feedback prompt.
+const SUPPRESS_FEEDBACK_PROMPT_ON = ["/signin", "/signup", "/auth"];
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
@@ -118,7 +122,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         appKey="recall-app"
         userId={supabaseUser?.id ?? null}
       >
-        {children}
+        <FeedbackProvider
+          supabase={supabase}
+          appKey="recall-app"
+          appName="Recall"
+          suppressPromptOn={SUPPRESS_FEEDBACK_PROMPT_ON}
+        >
+          {children}
+        </FeedbackProvider>
       </AnalyticsProvider>
     </AppContext.Provider>
   );

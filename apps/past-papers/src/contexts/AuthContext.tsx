@@ -3,7 +3,11 @@ import type { ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import { SingleSessionGuard } from "@repo/session";
 import { AnalyticsProvider } from "@repo/analytics";
+import { FeedbackProvider } from "@repo/feedback";
 import { supabase } from "@/integrations/supabase/client";
+
+// Never interrupt sign-in with the periodic feedback prompt.
+const SUPPRESS_FEEDBACK_PROMPT_ON = ["/signin", "/signup", "/auth"];
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
@@ -54,7 +58,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         appKey="past-papers"
         userId={user?.id ?? null}
       >
-        {children}
+        <FeedbackProvider
+          supabase={supabase}
+          appKey="past-papers"
+          appName="Past Papers"
+          suppressPromptOn={SUPPRESS_FEEDBACK_PROMPT_ON}
+        >
+          {children}
+        </FeedbackProvider>
       </AnalyticsProvider>
     </AuthContext.Provider>
   );

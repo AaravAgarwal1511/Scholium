@@ -48,6 +48,7 @@
     "@radix-ui/react-toggle-group": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.7",
     "@repo/analytics": "workspace:*",
+    "@repo/feedback": "workspace:*",
     "@repo/hooks": "workspace:*",
     "@repo/session": "workspace:*",
     "@repo/ui": "workspace:*",
