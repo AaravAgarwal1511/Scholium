@@ -98,6 +98,48 @@ export type Database = {
         }
         Relationships: []
       }
+      blog_posts: {
+        Row: {
+          author_name: string | null
+          body_md: string
+          cover_image_path: string | null
+          created_at: string
+          excerpt: string | null
+          id: string
+          published_at: string | null
+          slug: string
+          tags: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author_name?: string | null
+          body_md?: string
+          cover_image_path?: string | null
+          created_at?: string
+          excerpt?: string | null
+          id?: string
+          published_at?: string | null
+          slug: string
+          tags?: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          author_name?: string | null
+          body_md?: string
+          cover_image_path?: string | null
+          created_at?: string
+          excerpt?: string | null
+          id?: string
+          published_at?: string | null
+          slug?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       feedback: {
         Row: {
           app_key: string
@@ -690,6 +732,7 @@ export type Database = {
     }
     Functions: {
       _assert_admin: { Args: never; Returns: undefined }
+      _is_admin: { Args: never; Returns: boolean }
       admin_analytics_daily: {
         Args: { p_app_key?: string; p_days?: number }
         Returns: {
@@ -756,6 +799,7 @@ export type Database = {
           week_offset: number
         }[]
       }
+      admin_delete_blog_post: { Args: { p_id: string }; Returns: undefined }
       admin_delete_chapter: { Args: { p_id: string }; Returns: undefined }
       admin_delete_two_sider: { Args: { p_id: string }; Returns: undefined }
       admin_list_feedback: {
@@ -789,6 +833,19 @@ export type Database = {
         Args: { p_new_emoji: string; p_new_name: string; p_subject_id: string }
         Returns: undefined
       }
+      admin_save_blog_post: {
+        Args: {
+          p_author_name: string
+          p_body_md: string
+          p_cover_image_path: string
+          p_excerpt: string
+          p_id: string
+          p_slug: string
+          p_tags: string[]
+          p_title: string
+        }
+        Returns: string
+      }
       admin_save_chapter: {
         Args: {
           p_cards: Json
@@ -815,6 +872,10 @@ export type Database = {
           p_sort_order: number
           p_subject: string
         }
+        Returns: undefined
+      }
+      admin_set_blog_post_published: {
+        Args: { p_id: string; p_published: boolean }
         Returns: undefined
       }
       admin_set_disabled: {

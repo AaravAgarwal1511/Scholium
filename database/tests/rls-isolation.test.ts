@@ -57,6 +57,10 @@ const OWNER_READABLE = [
 // what makes "someone added a SELECT policy to analytics_events" a test failure.
 const WRITE_ONLY = ["analytics_events"];
 
+// Written only through SECURITY DEFINER admin_* RPCs. Any INSERT/UPDATE/DELETE
+// policy here would open a write path that skips _assert_admin().
+const RPC_WRITTEN = ["blog_posts"];
+
 const OWNED_TABLES = [...OWNER_READABLE, ...WRITE_ONLY];
 
 // A uuid that belongs to nobody, for the "signed in, but not the owner" case.
@@ -163,6 +167,19 @@ describe.skipIf(!available)("RPC-only tables grant nothing to client roles", () 
               unnest(array['SELECT','INSERT','UPDATE','DELETE']) p`,
     );
     expect(row.granted ?? [], `${table} is reachable over PostgREST`).toEqual([]);
+  });
+});
+
+describe.skipIf(!available)("RPC-written tables have no write policies", () => {
+  it.each(RPC_WRITTEN)("%s has no INSERT/UPDATE/DELETE policy", (table) => {
+    const writePolicies = dbQuery<{ policyname: string }>(
+      `select policyname from pg_policies where schemaname = 'public'
+         and tablename = '${table}' and cmd in ('INSERT', 'UPDATE', 'DELETE', 'ALL')`,
+    );
+    expect(
+      writePolicies.map((p) => p.policyname),
+      `${table} is written only via admin RPCs; a write policy bypasses _assert_admin()`,
+    ).toEqual([]);
   });
 });
 

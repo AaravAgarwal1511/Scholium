@@ -42,3 +42,5 @@ apps/past-papers/public/papers/*/
 # shipped itself; only their output (index.html, dist/terms, dist/privacy) is.
 apps/past-papers/.seo-build/
 apps/past-papers/dist-ssr/
+# @repo/blog's server function, built by vite/plugin.js (see apps/past-papers/api/blog.js).
+apps/past-papers/dist-server/
